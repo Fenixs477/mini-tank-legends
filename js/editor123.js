@@ -1,0 +1,1914 @@
+var Editor123 = {
+    _open: false,
+    _mode: 'launcher',
+    _menuId: null,
+    _canvas: null,
+    _ctx: null,
+    _elements: {},
+    _selected: null,
+    _dragMode: null,
+    _dragStart: null,
+    _dragElm: null,
+    _imgCounter: 0,
+
+    // 3D map state
+    _mapScene: null, _mapRenderer: null, _mapCamera: null, _mapControls: null,
+    _mapGround: null, _mapModels: [], _mapObjs: [], _mapSelObj: null, _mapSelObjs: [],
+    _mapClipboard: [], _mapPlacing: false, _mapPlacingMulti: [],
+    _mapLib: [], _mapAnimId: null,
+    _gltfLoader: null, _fbxLoader: null,
+    _physics: null, _physBodies: [], _physSimulating: false, _physLock: false,
+
+    MENU_NAMES: {
+        'menu-main': 'Main Menu', 'menu-play-select': 'Play Select',
+        'menu-multiplayer': 'Multiplayer', 'menu-host': 'Host Room',
+        'menu-join': 'Join Room', 'menu-join-hidden': 'Hidden Join',
+        'menu-collections': 'Collections', 'menu-store': 'Store',
+        'menu-storage': 'Storage', 'menu-settings': 'Settings',
+        'menu-preview': 'Preview Tank', 'menu-codes': 'Codes',
+    },
+    ALL_MENUS: ['menu-main', 'menu-play-select', 'menu-multiplayer', 'menu-host',
+        'menu-join', 'menu-join-hidden', 'menu-collections', 'menu-store',
+        'menu-storage', 'menu-settings', 'menu-preview', 'menu-codes'],
+
+    COMMANDS: [
+        { value: 'none', label: 'None' }, { value: 'singleplayer', label: 'Singleplayer' },
+        { value: 'multiplayer', label: 'Multiplayer' }, { value: 'collections', label: 'Collections' },
+        { value: 'settings', label: 'Settings' }, { value: 'codes', label: 'Codes' },
+        { value: 'preview', label: 'Preview Tank' }, { value: 'back', label: '← Back' },
+    ],
+
+    /* ────── LIFECYCLE ────── */
+    open: function () {
+        if (this._open) return;
+        this._open = true;
+        document.querySelectorAll('.menu').forEach(function (m) { m.classList.add('hidden'); });
+        document.getElementById('hud').classList.add('hidden');
+        this._loadElem();
+        this._buildOverlay();
+        this._renderLauncher();
+    },
+    close: function () {
+        this._stopMapEditor();
+        var ov = document.getElementById('editor123-overlay');
+        if (ov) ov.remove();
+        this._open = false;
+        this._menuId = null; this._canvas = null;
+        Menu.show('menu-main');
+    },
+    toast: function (m) { if (Menu && Menu.toast) Menu.toast(m); },
+
+    _buildOverlay: function () {
+        var ex = document.getElementById('editor123-overlay');
+        if (ex) ex.remove();
+        var d = document.createElement('div');
+        d.id = 'editor123-overlay';
+        d.style.cssText = 'position:fixed;inset:0;z-index:200;background:#181c22;display:flex;flex-direction:column;color:#eee;font:14px Segoe UI,sans-serif';
+        d.innerHTML = '<div id="editor123-content" style="flex:1;display:flex;overflow:hidden"></div>';
+        document.body.appendChild(d);
+    },
+
+    /* ────── LAUNCHER ────── */
+    _renderLauncher: function () {
+        this._mode = 'launcher';
+        var c = document.getElementById('editor123-content');
+        c.innerHTML =
+            '<div style="margin:auto;text-align:center;max-width:600px">' +
+            '<h1 style="font-size:32px;color:#ffb12b;margin-bottom:8px;letter-spacing:1px">EDITOR SUITE</h1>' +
+            '<p style="color:#777;margin-bottom:32px;font-size:13px">Design menus &amp; build worlds visually</p>' +
+            '<div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">' +
+            '<div class="e123-launcher-btn" data-mode="menus" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
+            '<div style="font-size:44px;margin-bottom:10px">🎨</div>' +
+            '<div style="font-size:17px;font-weight:700">Edit Menus</div>' +
+            '<div style="color:#888;font-size:12px;margin-top:6px">Customize any menu screen<br>with images &amp; buttons</div></div>' +
+            '<div class="e123-launcher-btn" data-mode="map" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
+            '<div style="font-size:44px;margin-bottom:10px">🗺️</div>' +
+            '<div style="font-size:17px;font-weight:700">World Editor</div>' +
+            '<div style="color:#888;font-size:12px;margin-top:6px">3D scene with physics,<br>hierarchy &amp; GLB/FBX import</div></div>' +
+            '</div>' +
+            '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">← Back to Menu</div></div>';
+        c.querySelectorAll('.e123-launcher-btn').forEach(function (b) {
+            b.onmouseover = function () { this.style.borderColor = '#ffb12b'; this.style.background = 'linear-gradient(145deg,#2a303a,#222830)'; };
+            b.onmouseout = function () { this.style.borderColor = '#2a2f36'; this.style.background = 'linear-gradient(145deg,#252a32,#1e232a)'; };
+            b.onclick = function () {
+                if (this.dataset.mode === 'menus') Editor123._renderMenuList();
+                else Editor123._render3DEditor();
+            };
+        });
+        document.getElementById('e123-l-back').onclick = function () { Editor123.close(); };
+    },
+
+    /* ═══════════════════════════
+       MENU EDITOR
+       ═══════════════════════════ */
+    _renderMenuList: function () {
+        this._mode = 'menus';
+        var c = document.getElementById('editor123-content');
+        var h = '<div style="width:220px;min-width:220px;background:#1a1e24;padding:14px;overflow-y:auto;border-right:1px solid #252a32">' +
+            '<h3 style="margin:0 0 10px;color:#ffb12b;font-size:14px;letter-spacing:.5px">MENUS</h3>';
+        this.ALL_MENUS.forEach(function (id) {
+            var els = Editor123._elements[id] || [];
+            h += '<div class="e123-menu-card" data-id="' + id + '" style="padding:9px 12px;background:#22272e;border-radius:8px;margin-bottom:6px;cursor:pointer;border:2px solid transparent">' +
+                '<div style="font-weight:600;font-size:12px;color:#ddd">' + (Editor123.MENU_NAMES[id] || id) + '</div>' +
+                '<div style="font-size:10px;color:#666;margin-top:3px">' + els.length + ' overlay' + (els.length !== 1 ? 's' : '') + '</div></div>';
+        });
+        h += '<div id="e123-m-back" style="margin-top:12px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">← Back</div></div>' +
+            '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">' +
+            '<div id="e123-m-toolbar" style="padding:8px 14px;background:#1a1e24;display:flex;gap:6px;align-items:center;border-bottom:1px solid #252a32;flex-shrink:0">' +
+            '<span style="color:#777;font-size:12px;margin-right:8px">Select a menu to edit</span></div>' +
+            '<div id="e123-m-area" style="flex:1;position:relative;overflow:auto;background:#181c22"></div></div>';
+        c.innerHTML = h;
+        c.querySelectorAll('.e123-menu-card').forEach(function (card) {
+            card.onclick = function () {
+                c.querySelectorAll('.e123-menu-card').forEach(function (x) { x.style.borderColor = 'transparent'; });
+                this.style.borderColor = '#ffb12b';
+                Editor123._openMenuEditor(this.dataset.id);
+            };
+        });
+        document.getElementById('e123-m-back').onclick = function () { Editor123._renderLauncher(); };
+    },
+
+    _openMenuEditor: function (menuId) {
+        this._menuId = menuId;
+        this._selected = null;
+        if (!this._elements[menuId]) this._elements[menuId] = [];
+
+        var name = this.MENU_NAMES[menuId] || menuId;
+        var tb = document.getElementById('e123-m-toolbar');
+        tb.innerHTML =
+            '<span style="color:#ffb12b;font-weight:600;font-size:13px">🎨 ' + name + '</span>' +
+            '<span style="color:#555;font-size:10px;margin:0 8px">|</span>' +
+            '<span class="e123-tbtn" id="e-img">🖼️ Image</span>' +
+            '<span class="e123-tbtn" id="e-btn">➕ Button</span>' +
+            '<span class="e123-tbtn" id="e-cmt">💬 Note</span>' +
+            '<span class="e123-tbtn" id="e-del" style="color:#c66">🗑️ Delete</span>' +
+            '<div style="flex:1"></div>' +
+            '<span class="e123-tbtn" id="e-save">💾 Save</span>';
+
+        var area = document.getElementById('e123-m-area');
+        area.innerHTML = '';
+
+        // Clone menu as background reference (scaled to fit)
+        var src = document.getElementById(menuId);
+        if (src) {
+            var cl = src.cloneNode(true);
+            cl.id = 'e123-menu-clone';
+            cl.className = cl.className.replace(/hidden/g, '');
+            cl.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:transparent;pointer-events:none;z-index:1';
+            cl.style.removeProperty('background-color');
+            cl.style.removeProperty('background-image');
+            area.appendChild(cl);
+        }
+
+        // Canvas overlay
+        var cv = document.createElement('canvas');
+        cv.id = 'e123-canvas';
+        cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:auto;cursor:crosshair';
+        cv.width = 900; cv.height = 650;
+        area.appendChild(cv);
+        this._canvas = cv;
+        this._ctx = cv.getContext('2d');
+        this._wireCanvas();
+        this._wireMenuTools();
+        this._renderCanvas();
+    },
+
+    _wireCanvas: function () {
+        var self = this;
+        var cv = this._canvas;
+        var gp = function (e) {
+            var r = cv.getBoundingClientRect();
+            return { x: (e.clientX - r.left) * (cv.width / r.width), y: (e.clientY - r.top) * (cv.height / r.height) };
+        };
+        cv.onmousedown = function (e) {
+            if (e.button !== 0) return;
+            var pos = gp(e);
+            var els = self._elements[self._menuId] || [];
+            var hit = null;
+            for (var i = els.length - 1; i >= 0; i--) {
+                var el = els[i];
+                if (pos.x >= el.x && pos.x <= el.x + el.w && pos.y >= el.y && pos.y <= el.y + el.h) { hit = el; break; }
+            }
+            if (hit) {
+                self._selected = hit;
+                self._dragMode = 'move';
+                self._dragStart = { x: pos.x - hit.x, y: pos.y - hit.y };
+                self._dragElm = hit;
+                var hs = 10, bx = hit.x + hit.w, by = hit.y + hit.h;
+                if (pos.x >= bx - hs && pos.x <= bx + hs && pos.y >= by - hs && pos.y <= by + hs) self._dragMode = 'resize';
+            } else {
+                self._selected = null; self._dragMode = null; self._dragElm = null;
+            }
+            self._renderCanvas();
+        };
+        cv.ondblclick = function () {
+            if (!self._selected) return;
+            var el = self._selected;
+            if (el.type === 'comment') { var t = prompt('Edit note:', el.text || ''); if (t !== null) { el.text = t; self._renderCanvas(); } }
+            else if (el.type === 'button') { var l = prompt('Button label:', el.label || ''); if (l !== null) { el.label = l; self._renderCanvas(); } }
+        };
+        cv.onmousemove = function (e) {
+            if (!self._dragMode || !self._dragElm) return;
+            var pos = gp(e);
+            if (self._dragMode === 'move') { self._dragElm.x = Math.max(0, pos.x - self._dragStart.x); self._dragElm.y = Math.max(0, pos.y - self._dragStart.y); }
+            else if (self._dragMode === 'resize') { self._dragElm.w = Math.max(20, pos.x - self._dragElm.x); self._dragElm.h = Math.max(20, pos.y - self._dragElm.y); }
+            self._renderCanvas();
+        };
+        window.addEventListener('mouseup', function () { self._dragMode = null; self._dragElm = null; });
+        var kh = function (e) {
+            if ((e.code === 'Delete' || e.code === 'Backspace') && self._selected && self._menuId) {
+                self._elements[self._menuId] = self._elements[self._menuId].filter(function (x) { return x !== self._selected; });
+                self._selected = null; self._renderCanvas();
+            }
+            if (e.code === 'Escape') { self._selected = null; self._renderCanvas(); }
+        };
+        window.addEventListener('keydown', kh);
+    },
+
+    _wireMenuTools: function () {
+        var self = this;
+        var $ = function (id, fn) { var el = document.getElementById(id); if (el) el.onclick = fn; };
+        $('e-img', function () {
+            var inp = document.createElement('input');
+            inp.type = 'file'; inp.accept = 'image/png,image/jpeg,image/gif,image/webp';
+            inp.onchange = function (e) {
+                var f = e.target.files[0]; if (!f) return;
+                var img = new Image();
+                img.onload = function () {
+                    self._imgCounter++;
+                    self._elements[self._menuId].push({ type: 'image', image: img, x: 40, y: 40, w: Math.min(img.width, 400), h: Math.min(img.height, 400), name: 'Image ' + self._imgCounter });
+                    self._renderCanvas(); self.toast('Image added');
+                };
+                img.src = URL.createObjectURL(f); inp.value = '';
+            };
+            inp.click();
+        });
+        $('e-btn', function () {
+            self._elements[self._menuId].push({ type: 'button', x: 150, y: 200, w: 160, h: 50, label: 'New Button', bgColor: '#383838', command: 'none', hitbox: { x: 0, y: 0, w: 160, h: 50 } });
+            self._renderCanvas();
+        });
+        $('e-cmt', function () {
+            var t = prompt('Note text:', 'Design note...');
+            if (t === null) return;
+            self._elements[self._menuId].push({ type: 'comment', x: 150, y: 150, w: 260, h: 80, text: t });
+            self._renderCanvas();
+        });
+        $('e-del', function () {
+            if (!self._selected) return;
+            self._elements[self._menuId] = self._elements[self._menuId].filter(function (x) { return x !== self._selected; });
+            self._selected = null; self._renderCanvas();
+        });
+        $('e-save', function () { self._saveElem(); self.toast('Saved'); });
+    },
+
+    _renderCanvas: function () {
+        var ctx = this._ctx; if (!ctx) return;
+        var w = this._canvas.width, h = this._canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        // Grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        for (var x = 0; x <= w; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (var y = 0; y <= h; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+        // Overlay elements
+        var self = this;
+        (this._elements[this._menuId] || []).forEach(function (el) { self._drawEl(el); });
+        // Selection handles + inspector
+        if (this._selected) {
+            var el = this._selected;
+            ctx.save();
+            ctx.strokeStyle = '#ffb12b'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+            ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4); ctx.setLineDash([]);
+            ctx.fillStyle = '#ffb12b';
+            var hs = 8;
+            [[el.x, el.y], [el.x + el.w, el.y], [el.x, el.y + el.h], [el.x + el.w, el.y + el.h],
+            [el.x + el.w / 2, el.y], [el.x + el.w / 2, el.y + el.h],
+            [el.x, el.y + el.h / 2], [el.x + el.w, el.y + el.h / 2]].forEach(function (p) { ctx.fillRect(p[0] - hs / 2, p[1] - hs / 2, hs, hs); });
+            ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(w - 230, 0, 230, 120);
+            ctx.fillStyle = '#ffb12b'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            ctx.fillText('Inspector', w - 214, 8);
+            ctx.fillStyle = '#aaa'; ctx.font = '11px Segoe UI';
+            ctx.fillText('Type: ' + el.type + '  X:' + Math.round(el.x) + ' Y:' + Math.round(el.y) + ' W:' + Math.round(el.w) + ' H:' + Math.round(el.h), w - 214, 28);
+            if (el.type === 'button') ctx.fillText('Label: "' + (el.label || '') + '"', w - 214, 44);
+            if (el.type === 'comment') ctx.fillText('"' + (el.text || '') + '"', w - 214, 44);
+            ctx.fillStyle = '#666'; ctx.font = '10px Segoe UI';
+            ctx.fillText('Drag · Dbl-click edit · Delete remove', w - 214, 66);
+            ctx.fillText('(Background shows the actual menu)', w - 214, 82);
+            ctx.restore();
+        }
+    },
+
+    _drawEl: function (el) {
+        var ctx = this._ctx; ctx.save();
+        var drawRR = function (x, y, w, h, r) {
+            ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+        };
+        if (el.type === 'image' && el.image) {
+            ctx.drawImage(el.image, el.x, el.y, el.w, el.h);
+        } else if (el.type === 'button') {
+            ctx.fillStyle = el.bgColor || '#383838';
+            drawRR(el.x, el.y, el.w, el.h, 12); ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(el.label || 'Button', el.x + el.w / 2, el.y + el.h / 2);
+            if (el.command && el.command !== 'none') {
+                ctx.fillStyle = '#ffb12b'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+                ctx.fillText('➤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
+            }
+        } else if (el.type === 'comment') {
+            ctx.fillStyle = 'rgba(40,60,40,0.88)';
+            drawRR(el.x, el.y, el.w, el.h, 8); ctx.fill();
+            ctx.strokeStyle = '#4a8'; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.fillStyle = '#8f8'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            ctx.fillText('💬 ' + (el.text || 'note'), el.x + 10, el.y + 8);
+            ctx.fillStyle = '#888'; ctx.font = 'italic 10px Segoe UI';
+            ctx.fillText('(editor only)', el.x + 10, el.y + el.h - 20);
+        }
+        ctx.restore();
+    },
+
+    /* ═══════════════════════════
+       3D WORLD EDITOR (physics + hierarchy + realistic lighting)
+       ═══════════════════════════ */
+    _render3DEditor: function () {
+        this._mode = 'map';
+        this._mapLib = this._loadLib();
+        this._mapObjs = this._loadMap();
+        this._mapSelObj = null; this._mapSelObjs = [];
+        this._mapPlacing = false; this._mapPlacingMulti = [];
+        this._physSimulating = false;
+
+        var c = document.getElementById('editor123-content');
+
+        // Layout: Library (left) | 3D Viewport (center) | Hierarchy (right)
+        c.innerHTML =
+            '<div style="width:240px;min-width:240px;background:#1a1e24;display:flex;flex-direction:column;border-right:1px solid #252a32">' +
+            '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📦 LIBRARY</h3>' +
+            '<div style="font-size:10px;color:#666;margin-top:2px"><span id="e-lib-count">' + this._mapLib.length + '</span> models <span id="e-lib-sel-count" style="color:#ffb12b;display:none"></span></div></div>' +
+            '<div id="e-lib-list" style="flex:1;overflow-y:auto;padding:6px">' +
+            (this._mapLib.length === 0 ? '<div style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>' : '') + '</div>' +
+            '<div style="padding:6px;border-top:1px solid #252a32">' +
+            '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">📥 Import GLB / FBX</span>' +
+            '<span class="e123-tbtn" id="e-imp-server" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px">🌐 From Server</span>' +
+            '<span class="e123-tbtn" id="e-del-lib" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px;color:#c66">🗑️ Remove</span></div>' +
+            '<div id="e123-map-back" style="padding:8px;background:#2a2f36;text-align:center;cursor:pointer;color:#888;font-size:11px">← Back</div></div>' +
+
+            // Center: 3D viewport
+            '<div style="flex:1;display:flex;flex-direction:column">' +
+            '<div style="padding:4px 10px;background:#1a1e24;border-bottom:1px solid #252a32;display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px">' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:12px">🌍 Viewport</span>' +
+            '<span class="e123-tbtn e-pri" id="e-add-btn" style="font-size:11px;font-weight:700">+ Add</span>' +
+            '<span style="color:#666"><span id="e-obj-cnt">' + this._mapObjs.length + '</span> objs</span>' +
+            '<span id="e-placing-indicator" style="color:#8f8;display:none">🔵 Placing...</span>' +
+            '<span style="color:#444">|</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">⟷ Move</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">↻ Rot</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">⇔ Scale</span>' +
+            '<div style="flex:1"></div>' +
+            '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">▶ Sim</span>' +
+            '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">🗑️ Clear</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">💾 Save</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">🎮 Save to Game</span>' +
+            '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">⌨️</span></div>' +
+            '<div id="e-shortcuts-panel" style="display:none;position:absolute;top:32px;right:8px;background:#1a1e24;border:1px solid #2a2f36;border-radius:6px;padding:8px 12px;font-size:10px;color:#aaa;z-index:50;line-height:1.6;white-space:nowrap">' +
+            '<b style="color:#ffb12b">Scene Shortcuts</b><br>' +
+            'Ctrl+Click — Toggle multi-select<br>' +
+            'Ctrl+A — Select all objects<br>' +
+            'Ctrl+C — Copy selected<br>' +
+            'Ctrl+V — Paste<br>' +
+            'Ctrl+D — Duplicate<br>' +
+            'Delete — Delete selected<br>' +
+            'ESC — Deselect<br>' +
+            '<b style="color:#ffb12b;margin-top:4px;display:inline-block">Library Shortcuts</b><br>' +
+            'Ctrl+Click — Toggle multi-select<br>' +
+            'Ctrl+A — Select all models<br>' +
+            'Delete — Remove selected</div>' +
+            '<div id="e-view-3d" style="flex:1;position:relative;overflow:hidden;background:#111;min-height:300px"></div></div>' +
+
+            // Right: Hierarchy + Inspector
+            '<div style="width:240px;min-width:240px;background:#1a1e24;display:flex;flex-direction:column;border-left:1px solid #252a32">' +
+            '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📋 HIERARCHY</h3>' +
+            '<div style="font-size:10px;color:#666;margin-top:2px">Scene objects</div></div>' +
+            '<div id="e-hierarchy" style="flex:1;overflow-y:auto;padding:6px">' +
+            '<div style="padding:5px 8px;color:#555;font-size:11px;border-left:2px solid #3a4;margin-bottom:2px">🌍 Ground</div>' +
+            '</div>' +
+            '<div style="border-top:1px solid #252a32;padding:10px 12px">' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">🔍 INSPECTOR</h3></div>' +
+            '<div id="e-inspector" style="flex:0 0 auto;max-height:260px;overflow-y:auto;padding:6px 12px 12px;font-size:12px">' +
+            '<div style="color:#555">Select an object to edit</div></div></div>';
+
+        // Populate library list + hierarchy
+        this._renderLibList();
+        this._renderHierarchy();
+        this._wire3DTools();
+        this._init3DScene();
+        this._wireKeys();
+        // Ensure at least one ground exists
+        var hasGround = false;
+        this._mapObjs.forEach(function (o) { if ((o.kind || '') === 'ground') hasGround = true; });
+        if (!hasGround) {
+            this._mapObjs.push({ kind: 'ground', subType: 'ground', name: 'Ground', x: 0, z: 0, y: 0, rot: 0, scale: 1, color: 0x2a302a, planeW: 80, planeH: 80, type: 'wall' });
+        }
+    },
+
+    /* ---------- Add menu (primitives, 2D, image, light, sound, water) ---------- */
+    _showAddMenu: function () {
+        var self = this;
+        var existing = document.getElementById('e-add-dropdown');
+        if (existing) { existing.remove(); return; }
+        var div = document.createElement('div');
+        div.id = 'e-add-dropdown';
+        div.style.cssText = 'position:absolute;top:28px;left:50px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:6px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:200px';
+        var items = [];
+        function addItem(cat, icon, onClick) {
+            items.push({ cat: cat, icon: icon, onClick: onClick });
+        }
+        addItem('Primitives', 'Cube', function () { self._spawnBuiltin('primitive', 'cube', 'Cube'); });
+        addItem('Primitives', 'Sphere', function () { self._spawnBuiltin('primitive', 'sphere', 'Sphere'); });
+        addItem('Primitives', 'Cylinder', function () { self._spawnBuiltin('primitive', 'cylinder', 'Cylinder'); });
+        addItem('Primitives', 'Plane', function () { self._spawnBuiltin('primitive', 'plane', 'Plane'); });
+        addItem('Primitives', 'Cone', function () { self._spawnBuiltin('primitive', 'cone', 'Cone'); });
+        addItem('Primitives', 'Torus', function () { self._spawnBuiltin('primitive', 'torus', 'Torus'); });
+        addItem('2D Shapes', 'Square', function () { self._spawnBuiltin('shape2d', 'square', 'Square'); });
+        addItem('2D Shapes', 'Circle', function () { self._spawnBuiltin('shape2d', 'circle', 'Circle'); });
+        addItem('2D Shapes', 'Triangle', function () { self._spawnBuiltin('shape2d', 'triangle', 'Triangle'); });
+        addItem('2D Shapes', 'Hexagon', function () { self._spawnBuiltin('shape2d', 'hexagon', 'Hexagon'); });
+        addItem('Image', 'Import Image...', function () { self._importImage(); div.remove(); });
+        addItem('Light', 'Directional', function () { self._spawnBuiltin('light', 'directional', 'Directional Light'); });
+        addItem('Light', 'Point', function () { self._spawnBuiltin('light', 'point', 'Point Light'); });
+        addItem('Light', 'Spot', function () { self._spawnBuiltin('light', 'spot', 'Spot Light'); });
+        addItem('Light', 'Ambient', function () { self._spawnBuiltin('light', 'ambient', 'Ambient Light'); });
+        addItem('Sound', 'Sound Source', function () { self._spawnBuiltin('sound', 'sound', 'Sound'); });
+        addItem('Water', 'Water Body', function () { self._spawnBuiltin('water', 'water', 'Water Body'); });
+        addItem('Ground', 'Ground Plane', function () { self._spawnBuiltin('ground', 'ground', 'Ground Plane'); });
+        var cats = {};
+        items.forEach(function (it) { if (!cats[it.cat]) cats[it.cat] = []; cats[it.cat].push(it); });
+        var html = '';
+        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️' };
+        Object.keys(cats).forEach(function (cat) {
+            html += '<div style="color:#ffb12b;font-size:10px;font-weight:600;padding:6px 8px 2px;text-transform:uppercase;letter-spacing:.5px">' + (catIcons[cat] || '') + ' ' + cat + '</div>';
+            cats[cat].forEach(function (it) {
+                html += '<div class="e123-add-item" style="padding:5px 8px;cursor:pointer;border-radius:4px;color:#ccc;display:flex;align-items:center;gap:6px">' +
+                    '<span>' + it.icon + '</span></div>';
+            });
+        });
+        div.innerHTML = html;
+        var btn = document.getElementById('e-add-btn');
+        if (btn) btn.parentNode.appendChild(div);
+        var idx = 0;
+        div.querySelectorAll('.e123-add-item').forEach(function (el) {
+            var handler = items[idx].onClick;
+            el.onclick = function (e) { e.stopPropagation(); handler(); div.remove(); };
+            el.onmouseover = function () { this.style.background = '#2a2f36'; };
+            el.onmouseout = function () { this.style.background = 'transparent'; };
+            idx++;
+        });
+        setTimeout(function () {
+            document.addEventListener('click', function _close(e) {
+                if (!div.contains(e.target) && e.target.id !== 'e-add-btn') { div.remove(); document.removeEventListener('click', _close); }
+            }, { once: false });
+        }, 10);
+    },
+
+    _spawnBuiltin: function (kind, subType, name) {
+        var obj = {
+            kind: kind, subType: subType, name: name,
+            x: 0, z: 0, y: 0.5, rot: 0, scale: 1,
+            color: kind === 'light' ? 0xffffff : 0x5a7acc,
+            type: kind === 'water' ? 'water' : 'wall',
+        };
+        if (kind === 'light') {
+            obj.y = 5; obj.intensity = 1; obj.range = 20; obj.angle = Math.PI / 4;
+        }
+        if (kind === 'sound') {
+            obj.y = 1; obj.volume = 1; obj.range = 15; obj.soundShape = 'sphere';
+        }
+        if (kind === 'water') {
+            obj.y = 0.05; obj.planeW = 20; obj.planeH = 20; obj.type = 'water';
+        }
+        if (kind === 'image') {
+            obj.y = 1; obj.planeW = 2; obj.planeH = 2; obj.imgData = null;
+        }
+        if (kind === 'ground') {
+            obj.y = 0; obj.planeW = 40; obj.planeH = 40; obj.color = 0x4a6a4a; obj.type = 'wall';
+        }
+        this._mapObjs.push(obj);
+        var idx = this._mapObjs.length - 1;
+        this._selectObject(idx, false);
+        this._updCnt();
+        this._rebuildScene();
+        this._renderHierarchy();
+        this.toast('Added: ' + name);
+    },
+
+    _importImage: function (replaceIdx) {
+        var self = this;
+        var inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'image/png,image/jpeg,image/gif,image/webp,image/bmp';
+        inp.onchange = function (e) {
+            var f = e.target.files[0]; if (!f) return;
+            var img = new Image();
+            img.onload = function () {
+                if (replaceIdx != null && self._mapObjs[replaceIdx]) {
+                    // Replace image in existing object
+                    var obj = self._mapObjs[replaceIdx];
+                    if (obj.imgUrl) URL.revokeObjectURL(obj.imgUrl);
+                    obj.imgUrl = URL.createObjectURL(f);
+                    obj.imgWidth = img.width;
+                    obj.imgHeight = img.height;
+                    obj.planeW = Math.min(img.width / 256, 4);
+                    obj.planeH = Math.min(img.height / 256, 4);
+                    self._rebuildScene();
+                    self._renderInspector();
+                    self.toast('Image replaced: ' + f.name);
+                } else {
+                    // Create new image object
+                    var obj = {
+                        kind: 'image', subType: 'image', name: f.name.replace(/\.[^.]+$/, ''),
+                        x: 0, z: 0, y: 1, rot: 0, scale: 1,
+                        color: 0xffffff, type: 'wall',
+                        imgData: null, imgBase64: null,
+                        planeW: Math.min(img.width / 256, 4), planeH: Math.min(img.height / 256, 4),
+                        imgWidth: img.width, imgHeight: img.height,
+                    };
+                    obj.imgUrl = URL.createObjectURL(f);
+                    self._mapObjs.push(obj);
+                    var idx = self._mapObjs.length - 1;
+                    self._selectObject(idx, false);
+                    self._updCnt(); self._rebuildScene(); self._renderHierarchy();
+                    self.toast('Image added: ' + f.name);
+                }
+                inp.value = '';
+            };
+            img.src = URL.createObjectURL(f);
+        };
+        inp.click();
+    },
+
+    _renderLibList: function () {
+        var list = document.getElementById('e-lib-list');
+        if (!list) return;
+        list.innerHTML = '';
+        var cnt = document.getElementById('e-lib-count');
+        if (cnt) cnt.textContent = this._mapLib.length;
+        var selCnt = document.getElementById('e-lib-sel-count');
+        if (selCnt) { selCnt.style.display = this._mapPlacingMulti.length > 0 ? '' : 'none'; selCnt.textContent = '(' + this._mapPlacingMulti.length + ' sel)'; }
+        if (this._mapLib.length === 0) {
+            list.innerHTML = '<div style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>';
+            return;
+        }
+        var self = this;
+        var selSet = {};
+        this._mapPlacingMulti.forEach(function (i) { selSet[i] = true; });
+        this._mapLib.forEach(function (m, i) {
+            var selected = !!selSet[i];
+            var item = document.createElement('div');
+            item.className = 'e123-lib-item';
+            item.dataset.idx = i;
+            item.style.cssText = 'padding:6px 8px;background:' + (selected ? 'rgba(255,177,43,0.12)' : '#22272e') + ';border-radius:5px;margin-bottom:3px;cursor:pointer;border:1.5px solid ' + (selected ? '#ffb12b' : 'transparent') + ';display:flex;align-items:center;gap:6px';
+            item.innerHTML = '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
+                '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (m.name || 'Model') + '</div>' +
+                '<div style="font-size:9px;color:#666">' + (m.type || 'glb') + '</div></div>';
+            item.onclick = function (ev) {
+                if (ev.ctrlKey || ev.metaKey) {
+                    // Toggle multi-select
+                    var idx = parseInt(this.dataset.idx);
+                    var pos = self._mapPlacingMulti.indexOf(idx);
+                    if (pos >= 0) {
+                        self._mapPlacingMulti.splice(pos, 1);
+                    } else {
+                        self._mapPlacingMulti.push(idx);
+                    }
+                } else {
+                    self._mapPlacingMulti = [parseInt(this.dataset.idx)];
+                }
+                self._mapPlacing = self._mapPlacingMulti.length > 0 ? self._mapPlacingMulti[self._mapPlacingMulti.length - 1] : false;
+                var ind = document.getElementById('e-placing-indicator');
+                if (ind) {
+                    if (self._mapPlacing !== false && self._mapLib[self._mapPlacing]) {
+                        ind.style.display = ''; ind.textContent = '🔵 Placing: ' + self._mapLib[self._mapPlacing].name + (self._mapPlacingMulti.length > 1 ? ' (+' + (self._mapPlacingMulti.length - 1) + ')' : '');
+                    } else {
+                        ind.style.display = 'none';
+                    }
+                }
+                self._renderLibList();
+            };
+            list.appendChild(item);
+        });
+    },
+
+    _renderHierarchy: function () {
+        var h = document.getElementById('e-hierarchy');
+        if (!h) return;
+        var html = '';
+        var self = this;
+        // Build parent-child tree
+        var children = {};
+        this._mapObjs.forEach(function (o, i) {
+            var p = o.parentIdx != null ? o.parentIdx : -1;
+            if (!children[p]) children[p] = [];
+            children[p].push(i);
+        });
+        var selSet = {};
+        this._mapSelObjs.forEach(function (i) { selSet[i] = true; });
+        function renderTree(parentIdx, depth) {
+            var list = children[parentIdx] || [];
+            list.forEach(function (i) {
+                var o = self._mapObjs[i];
+                if (!o) return;
+                var sel = !!selSet[i];
+                var indent = depth * 16;
+                var isParent = children[i] && children[i].length > 0;
+                var icon = (o.kind === 'ground') ? '🏔️' : (o.kind === 'light') ? '💡' : (o.kind === 'sound') ? '🔊' : (o.kind === 'water') ? '🌊' : (isParent ? '📁' : '📦');
+                html += '<div class="e123-h-item" data-idx="' + i + '" style="padding:4px 8px 4px ' + (8 + indent) + 'px;font-size:11px;cursor:pointer;border-left:2px solid ' + (sel ? '#ffb12b' : '#444') + ';background:' + (sel ? 'rgba(255,177,43,0.1)' : 'transparent') + ';margin-bottom:1px;border-radius:0 4px 4px 0;display:flex;align-items:center;gap:4px">' +
+                    icon + ' ' + (o.name || 'Object ' + (i + 1)) +
+                    (o.parentIdx != null && o.parentIdx >= 0 ? '<span style="color:#555;font-size:9px;margin-left:auto">child</span>' : '') +
+                    '</div>';
+                renderTree(i, depth + 1);
+            });
+        }
+        renderTree(-1, 0);
+        h.innerHTML = html;
+        h.querySelectorAll('.e123-h-item').forEach(function (item) {
+            item.onclick = function (ev) {
+                self._selectObject(parseInt(this.dataset.idx), ev.ctrlKey || ev.metaKey);
+            };
+            item.oncontextmenu = function (e) {
+                e.preventDefault();
+                var idx = parseInt(this.dataset.idx);
+                var count = self._mapSelObjs.length > 0 ? self._mapSelObjs.length : 1;
+                var menu = document.createElement('div');
+                menu.style.cssText = 'position:fixed;left:' + e.clientX + 'px;top:' + e.clientY + 'px;background:#22272e;border:1px solid #2a2f36;border-radius:6px;padding:4px 0;z-index:300;font-size:11px;min-width:120px';
+                menu.innerHTML =
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">🗑️ Delete (' + count + ')</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬆️ Parent to selected</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬇️ Unparent</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">✏️ Rename</div>';
+                document.body.appendChild(menu);
+                var close = function () { if (menu.parentNode) menu.parentNode.removeChild(menu); };
+                menu.querySelectorAll('.e123-ctx-item').forEach(function (item2, ci) {
+                    item2.onclick = function () {
+                        close();
+                        if (ci === 0) {
+                            // Delete all selected (or this one if nothing selected)
+                            var toDelete = self._mapSelObjs.length > 0 ? self._mapSelObjs.slice() : [idx];
+                            if (confirm('Delete ' + toDelete.length + ' object(s)?')) {
+                                self._recursiveDelete(toDelete);
+                                self._mapSelObj = null; self._mapSelObjs = [];
+                                self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+                            }
+                        } else if (ci === 1) {
+                            if (self._mapSelObj != null && self._mapSelObj !== idx) {
+                                self._mapObjs[idx].parentIdx = self._mapSelObj;
+                                self._renderHierarchy();
+                                self.toast('Parented to ' + (self._mapObjs[self._mapSelObj] ? self._mapObjs[self._mapSelObj].name : 'selected'));
+                            } else { self.toast('Select a different object as parent first'); }
+                        } else if (ci === 2) {
+                            self._mapObjs[idx].parentIdx = -1;
+                            self._renderHierarchy();
+                            self.toast('Unparented');
+                        } else if (ci === 3) {
+                            var newName = prompt('New name:', self._mapObjs[idx].name || '');
+                            if (newName !== null) { self._mapObjs[idx].name = newName || 'Object'; self._renderHierarchy(); self._renderInspector(); }
+                        }
+                    };
+                });
+                document.addEventListener('click', close, { once: true });
+            };
+        });
+    },
+
+    _recursiveDelete: function (indices) {
+        var self = this;
+        if (!Array.isArray(indices)) indices = [indices];
+        var toRemove = indices.slice();
+        // Find all children of all selected indices
+        this._mapObjs.forEach(function (o, i) {
+            function isDescendant(pidx) {
+                if (o.parentIdx === pidx) return true;
+                if (o.parentIdx != null && o.parentIdx >= 0) return isDescendant(o.parentIdx);
+                return false;
+            }
+            indices.forEach(function (idx) {
+                if (isDescendant(idx) && toRemove.indexOf(i) < 0) toRemove.push(i);
+            });
+        });
+        toRemove.sort(function (a, b) { return b - a; });
+        toRemove.forEach(function (i) { self._mapObjs.splice(i, 1); });
+    },
+
+    _selectObject: function (idx, ctrl) {
+        if (ctrl) {
+            // Toggle multi-select
+            var pos = this._mapSelObjs.indexOf(idx);
+            if (pos >= 0) {
+                this._mapSelObjs.splice(pos, 1);
+                if (this._mapSelObj === idx) this._mapSelObj = this._mapSelObjs.length > 0 ? this._mapSelObjs[this._mapSelObjs.length - 1] : null;
+            } else {
+                this._mapSelObjs.push(idx);
+                this._mapSelObj = idx;
+            }
+        } else {
+            this._mapSelObjs = [idx];
+            this._mapSelObj = idx;
+        }
+        this._renderHierarchy();
+        this._highlightSelected();
+        this._renderInspector();
+        // Attach transform controls to primary selected mesh
+        if (this._transformControls) {
+            if (this._mapSelObj != null && this._mapModels[this._mapSelObj]) {
+                this._transformControls.attach(this._mapModels[this._mapSelObj]);
+                this._transformControls.setSpace('world');
+            } else {
+                this._transformControls.detach();
+            }
+        }
+        if (!ctrl) this.toast('Selected: ' + (this._mapObjs[idx] ? this._mapObjs[idx].name : ''));
+    },
+
+    _renderInspector: function () {
+        var panel = document.getElementById('e-inspector');
+        if (!panel) return;
+        var obj = this._mapObjs[this._mapSelObj];
+        if (!obj) {
+            panel.innerHTML = this._mapSelObjs.length > 1
+                ? '<div style="color:#ffb12b;font-size:11px">' + this._mapSelObjs.length + ' objects selected</div>'
+                : '<div style="color:#555">Select an object to edit</div>';
+            return;
+        }
+        var self = this;
+        var kind = obj.kind || 'model';
+        var libItem = this._mapLib[obj.libIdx];
+        var colorHex = obj.color != null ? '#' + obj.color.toString(16).padStart(6, '0') : '#5a7acc';
+        // Build common fields
+        var html =
+            '<div style="margin-bottom:6px"><label style="color:#888;display:block;font-size:10px;margin-bottom:2px">Name</label>' +
+            '<input id="e-insp-name" value="' + (obj.name || 'Object') + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:3px 6px;font-size:11px"></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-bottom:6px">' +
+            '<label style="color:#888;font-size:10px;grid-column:1">X <input id="e-insp-x" type="number" step="0.1" value="' + obj.x.toFixed(1) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+            '<label style="color:#888;font-size:10px;grid-column:2">Y <input id="e-insp-y" type="number" step="0.1" value="' + (obj.y != null ? obj.y : 0.5).toFixed(1) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+            '<label style="color:#888;font-size:10px;grid-column:3">Z <input id="e-insp-z" type="number" step="0.1" value="' + obj.z.toFixed(1) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">' +
+            '<label style="color:#888;font-size:10px">Rot Y <input id="e-insp-rot" type="number" step="0.1" value="' + ((obj.rot || 0) * 180 / Math.PI).toFixed(1) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+            '<label style="color:#888;font-size:10px">Scale <input id="e-insp-scale" type="number" step="0.01" min="0.0001" value="' + (obj.scale || 1).toFixed(4) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>';
+        // Kind-specific fields
+        if (kind === 'image') {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
+                '<label style="color:#888;font-size:10px">Width <input id="e-insp-iw" type="number" step="0.1" min="0.1" value="' + ((obj.planeW || 2).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '<label style="color:#888;font-size:10px">Height <input id="e-insp-ih" type="number" step="0.1" min="0.1" value="' + ((obj.planeH || 2).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
+                '<span class="e123-tbtn" id="e-insp-reimg" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🖼️ Import New Image</span>';
+            if (obj.imgWidth) html += '<div style="color:#666;font-size:9px;margin-top:2px">Original: ' + obj.imgWidth + '×' + obj.imgHeight + 'px</div>';
+        } else if (kind === 'light') {
+            html += '<div style="display:grid;grid-template-columns:1fr;gap:4px;margin-bottom:4px">' +
+                '<label style="color:#888;font-size:10px">Intensity <input id="e-insp-li" type="number" step="0.1" min="0" value="' + ((obj.intensity != null ? obj.intensity : 1).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '<label style="color:#888;font-size:10px">Range <input id="e-insp-lr" type="number" step="1" min="0" value="' + ((obj.range || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '</div><div style="margin-top:4px"><label style="color:#888;font-size:10px">Type <select id="e-insp-lt" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px">' +
+                '<option value="directional"' + ((obj.subType||'') === 'directional' ? ' selected' : '') + '>Directional</option>' +
+                '<option value="point"' + ((obj.subType||'') === 'point' ? ' selected' : '') + '>Point</option>' +
+                '<option value="spot"' + ((obj.subType||'') === 'spot' ? ' selected' : '') + '>Spot</option>' +
+                '<option value="ambient"' + ((obj.subType||'') === 'ambient' ? ' selected' : '') + '>Ambient</option></select></label></div>';
+        } else if (kind === 'sound') {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
+                '<label style="color:#888;font-size:10px">Volume <input id="e-insp-sv" type="number" step="0.1" min="0" max="1" value="' + ((obj.volume != null ? obj.volume : 1).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '<label style="color:#888;font-size:10px">Range <input id="e-insp-sr" type="number" step="1" min="0" value="' + ((obj.range || 15).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
+                '<span class="e123-tbtn" id="e-insp-snd" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🔊 Import Audio File</span>';
+        } else if (kind === 'water') {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
+                '<label style="color:#888;font-size:10px">Width <input id="e-insp-ww" type="number" step="1" min="1" value="' + ((obj.planeW || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '<label style="color:#888;font-size:10px">Height <input id="e-insp-wh" type="number" step="1" min="1" value="' + ((obj.planeH || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
+                '<div style="color:#3af;font-size:10px">🌊 Uses stylized water shader</div>';
+        } else if (kind === 'ground') {
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
+                '<label style="color:#888;font-size:10px">Width <input id="e-insp-gw" type="number" step="1" min="1" value="' + ((obj.planeW || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
+                '<label style="color:#888;font-size:10px">Height <input id="e-insp-gh" type="number" step="1" min="1" value="' + ((obj.planeH || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
+                '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>';
+        } else if (kind === 'primitive' || kind === 'shape2d') {
+            html += '<div style="color:#666;font-size:10px;margin-bottom:4px">' + (kind === 'primitive' ? '3D ' : '2D ') + (obj.subType || '').charAt(0).toUpperCase() + (obj.subType || '').slice(1) + '</div>';
+        }
+        // Color picker (not for water)
+        if (kind !== 'water') {
+            html += '<div style="margin-top:4px"><label style="color:#888;font-size:10px">Color <input id="e-insp-color" type="color" value="' + colorHex + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;padding:1px 4px;height:24px"></label></div>';
+        }
+        // Type selector (not for lights, water)
+        if (kind !== 'light' && kind !== 'water') {
+            html += '<div style="margin-top:4px"><label style="color:#888;font-size:10px">Type <select id="e-insp-type" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px">' +
+                '<option value="wall" ' + ((obj.type||'wall') === 'wall' ? 'selected' : '') + '>Wall / obstacle</option>' +
+                '<option value="water" ' + ((obj.type||'') === 'water' ? 'selected' : '') + '>Water (shader)</option>' +
+                '<option value="bush" ' + ((obj.type||'') === 'bush' ? 'selected' : '') + '>Bush / cover</option>' +
+                '</select></label></div>';
+        }
+        if (libItem) html += '<div style="color:#666;font-size:10px;margin-top:2px">Model: ' + libItem.name + '</div>';
+        panel.innerHTML = html;
+        // Wire inspector inputs
+        setTimeout(function () {
+            var nameEl = document.getElementById('e-insp-name');
+            if (nameEl) nameEl.onchange = function () { obj.name = this.value || 'Object'; self._renderHierarchy(); };
+            var xEl = document.getElementById('e-insp-x');
+            if (xEl) xEl.onchange = function () { obj.x = parseFloat(this.value) || 0; self._rebuildScene(); };
+            var yEl = document.getElementById('e-insp-y');
+            if (yEl) yEl.onchange = function () { obj.y = parseFloat(this.value) || 0.5; self._rebuildScene(); };
+            var zEl = document.getElementById('e-insp-z');
+            if (zEl) zEl.onchange = function () { obj.z = parseFloat(this.value) || 0; self._rebuildScene(); };
+            var rotEl = document.getElementById('e-insp-rot');
+            if (rotEl) rotEl.onchange = function () { obj.rot = (parseFloat(this.value) || 0) * Math.PI / 180; self._rebuildScene(); };
+            var scaleEl = document.getElementById('e-insp-scale');
+            if (scaleEl) scaleEl.onchange = function () { obj.scale = parseFloat(this.value) || 1; self._rebuildScene(); };
+            // Image-specific
+            var iwEl = document.getElementById('e-insp-iw');
+            if (iwEl) iwEl.onchange = function () { obj.planeW = parseFloat(this.value) || 2; self._rebuildScene(); };
+            var ihEl = document.getElementById('e-insp-ih');
+            if (ihEl) ihEl.onchange = function () { obj.planeH = parseFloat(this.value) || 2; self._rebuildScene(); };
+            var reimgEl = document.getElementById('e-insp-reimg');
+            if (reimgEl) reimgEl.onclick = function () { self._importImage(self._mapSelObj); };
+            // Light-specific
+            var liEl = document.getElementById('e-insp-li');
+            if (liEl) liEl.onchange = function () { obj.intensity = parseFloat(this.value) || 1; self._rebuildScene(); };
+            var lrEl = document.getElementById('e-insp-lr');
+            if (lrEl) lrEl.onchange = function () { obj.range = parseFloat(this.value) || 20; self._rebuildScene(); };
+            var ltEl = document.getElementById('e-insp-lt');
+            if (ltEl) ltEl.onchange = function () { obj.subType = this.value; self._rebuildScene(); };
+            // Sound-specific
+            var svEl = document.getElementById('e-insp-sv');
+            if (svEl) svEl.onchange = function () { obj.volume = parseFloat(this.value) || 1; };
+            var srEl = document.getElementById('e-insp-sr');
+            if (srEl) srEl.onchange = function () { obj.range = parseFloat(this.value) || 15; self._rebuildScene(); };
+            var sndEl = document.getElementById('e-insp-snd');
+            if (sndEl) sndEl.onclick = function () {
+                var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'audio/mpeg,audio/wav,audio/ogg,audio/mp3';
+                inp.onchange = function (e) { var f = e.target.files[0]; if (!f) return; obj.audioUrl = URL.createObjectURL(f); self.toast('Audio: ' + f.name); };
+                inp.click();
+            };
+            // Water-specific
+            var wwEl = document.getElementById('e-insp-ww');
+            if (wwEl) wwEl.onchange = function () { obj.planeW = parseFloat(this.value) || 20; self._rebuildScene(); };
+            var whEl = document.getElementById('e-insp-wh');
+            if (whEl) whEl.onchange = function () { obj.planeH = parseFloat(this.value) || 20; self._rebuildScene(); };
+            // Ground-specific
+            var gwEl = document.getElementById('e-insp-gw');
+            if (gwEl) gwEl.onchange = function () { obj.planeW = parseFloat(this.value) || 40; self._rebuildScene(); };
+            var ghEl = document.getElementById('e-insp-gh');
+            if (ghEl) ghEl.onchange = function () { obj.planeH = parseFloat(this.value) || 40; self._rebuildScene(); };
+            // Common
+            var colorEl = document.getElementById('e-insp-color');
+            if (colorEl) colorEl.onchange = function () { obj.color = parseInt(this.value.slice(1), 16); self._rebuildScene(); };
+            var typeEl = document.getElementById('e-insp-type');
+            if (typeEl) typeEl.onchange = function () { obj.type = this.value; self.toast('Type: ' + this.value); };
+        }, 50);
+    },
+
+    _saveToGame: function () {
+        var self = this;
+        var gameObjects = [];
+        this._mapObjs.forEach(function (o) {
+            // Skip editor-only kinds (light, sound, water, image don't translate to game map)
+            var kind = o.kind || 'model';
+            if (kind === 'light' || kind === 'sound') return;
+            var libItem = self._mapLib[o.libIdx];
+            var obj = {
+                x: o.x, y: o.y || 0.5, z: o.z,
+                sx: o.scale || 1, sy: o.scale || 1, sz: o.scale || 1,
+                ry: o.rot || 0,
+                kind: 'cube',
+                color: o.color || 0x5a7acc,
+                type: o.type || 'wall',
+            };
+            if (libItem && libItem.data) {
+                obj.isModel = true;
+                obj.modelName = libItem.name;
+            }
+            gameObjects.push(obj);
+        });
+        var mapData = { objects: gameObjects };
+        try {
+            localStorage.setItem('tankparty_custommap', JSON.stringify(mapData));
+            self.toast('Saved ' + gameObjects.length + ' objects to game map! Open tank-party.html or index.html and select "Custom Map" to play.');
+        } catch (e) {
+            self.toast('Error saving: ' + e.message);
+        }
+    },
+
+    _wire3DTools: function () {
+        var self = this;
+        document.getElementById('e-imp').onclick = function () { self._importModel(); };
+        document.getElementById('e-imp-server').onclick = function () { self._importFromServer(); };
+        document.getElementById('e-del-lib').onclick = function () {
+            var toDel = self._mapPlacingMulti.length > 0 ? self._mapPlacingMulti.slice().sort(function (a, b) { return b - a; }) : [];
+            if (toDel.length === 0) { self.toast('Select model(s) in Library first (Ctrl+Click for multi)'); return; }
+            if (!confirm('Delete ' + toDel.length + ' model(s) from library? Objects in scene will be removed too.')) return;
+            // Delete from server and remove placed objects
+            toDel.forEach(function (idx) {
+                var libEntry = self._mapLib[idx];
+                if (libEntry && libEntry.serverUrl) {
+                    var parts = libEntry.serverUrl.split('/');
+                    var fname = parts[parts.length - 1];
+                    var host = libEntry.serverUrl.split('/').slice(0, 3).join('/');
+                    fetch(host + '/api/models/' + encodeURIComponent(fname), { method: 'DELETE' }).catch(function () {});
+                }
+            });
+            // Remove placed objects referencing deleted lib indices and adjust remaining
+            self._mapObjs = self._mapObjs.filter(function (o) { return toDel.indexOf(o.libIdx) < 0; });
+            self._mapObjs.forEach(function (o) {
+                var shift = 0;
+                toDel.forEach(function (di) { if (o.libIdx > di) shift++; });
+                o.libIdx -= shift;
+            });
+            // Remove library entries (highest first to preserve indices)
+            toDel.forEach(function (idx) { self._mapLib.splice(idx, 1); });
+            self._saveLib(self._mapLib);
+            self._mapPlacing = false; self._mapPlacingMulti = [];
+            self._renderLibList();
+            self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+            var ind = document.getElementById('e-placing-indicator'); if (ind) ind.style.display = 'none';
+            self.toast('Deleted ' + toDel.length + ' model(s) from library');
+        };
+        document.getElementById('e123-map-back').onclick = function () { self._stopMapEditor(); self._renderLauncher(); };
+        document.getElementById('e-clear-3d').onclick = function () {
+            if (!confirm('Remove all placed objects?')) return;
+            self._mapObjs = []; self._mapSelObj = null; self._mapSelObjs = []; self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+        };
+        document.getElementById('e-save-3d').onclick = function () { self._saveMap(); self.toast('Saved ' + self._mapObjs.length + ' objects'); };
+        document.getElementById('e-simulate').onclick = function () {
+            self._physSimulating = !self._physSimulating;
+            this.textContent = self._physSimulating ? '⏸ Pause' : '▶ Sim';
+            self._rebuildScene();
+        };
+        // Gizmo mode buttons
+        document.querySelectorAll('.e123-gizmo-btn').forEach(function (btn) {
+            btn.onclick = function () {
+                document.querySelectorAll('.e123-gizmo-btn').forEach(function (b) { b.style.borderColor = 'transparent'; });
+                this.style.borderColor = '#ffb12b';
+                if (self._transformControls) self._transformControls.setMode(this.dataset.gizmo);
+            };
+        });
+        // Save to Game
+        document.getElementById('e-save-game').onclick = function () { self._saveToGame(); };
+        // + Add button
+        var addBtn = document.getElementById('e-add-btn');
+        if (addBtn) addBtn.onclick = function () { self._showAddMenu(); };
+        // Shortcuts toggle
+        var st = document.getElementById('e-shortcuts-toggle');
+        var sp = document.getElementById('e-shortcuts-panel');
+        if (st && sp) { st.onclick = function () { sp.style.display = sp.style.display === 'none' ? 'block' : 'none'; }; }
+    },
+
+    _init3DScene: function () {
+        var host = document.getElementById('e-view-3d');
+        if (!host) return;
+        var self = this;
+        var W = host.clientWidth || 800, H = host.clientHeight || 500;
+
+        // Scene
+        var scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x14181e);
+        scene.fog = new THREE.Fog(0x14181e, 60, 120);
+        this._mapScene = scene;
+
+        // Camera
+        var cam = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
+        cam.position.set(30, 25, 30);
+        cam.lookAt(0, 0, 0);
+        this._mapCamera = cam;
+
+        // Renderer
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(W, H);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        host.appendChild(renderer.domElement);
+        this._mapRenderer = renderer;
+
+        // Controls
+        var controls = new THREE.OrbitControls(cam, renderer.domElement);
+        controls.enableDamping = true; controls.dampingFactor = 0.1;
+        controls.maxPolarAngle = Math.PI / 2.05;
+        controls.minDistance = 3; controls.maxDistance = 120;
+        controls.keys = { LEFT: 65, UP: 87, RIGHT: 68, BOTTOM: 83 }; // A/W/D/S
+        controls.target.set(0, 0, 0);
+        controls.update();
+        this._mapControls = controls;
+
+        // Lights
+        var hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.8);
+        scene.add(hemi);
+        var sun = new THREE.DirectionalLight(0xffeedd, 2.0);
+        sun.position.set(25, 35, 20);
+        sun.castShadow = true;
+        sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+        var sc = sun.shadow.camera;
+        sc.near = 0.5; sc.far = 80; sc.left = -35; sc.right = 35; sc.top = 35; sc.bottom = -35;
+        scene.add(sun);
+        var fill = new THREE.DirectionalLight(0x8888ff, 0.3);
+        fill.position.set(-20, 10, -20);
+        scene.add(fill);
+        var amb = new THREE.AmbientLight(0x404060, 0.2);
+        scene.add(amb);
+
+        // Grid
+        var grid = new THREE.GridHelper(80, 40, 0x3a4a3a, 0x2a332a);
+        grid.position.y = 0.01;
+        scene.add(grid);
+        var grid = new THREE.GridHelper(80, 40, 0x3a4a3a, 0x2a332a);
+        grid.position.y = 0.01;
+        scene.add(grid);
+
+        // Loaders
+        if (window.THREE && THREE.GLTFLoader) this._gltfLoader = new THREE.GLTFLoader();
+        if (window.THREE && THREE.FBXLoader) this._fbxLoader = new THREE.FBXLoader();
+
+        // TransformControls gizmo
+        if (window.THREE && THREE.TransformControls) {
+            var tc = new THREE.TransformControls(cam, renderer.domElement);
+            tc.addEventListener('dragging-changed', function (ev) {
+                controls.enabled = !ev.value;
+            });
+            tc.addEventListener('change', function () {
+                if (tc.object && tc.object.userData && tc.object.userData.editorObjIdx !== undefined) {
+                    var idx = tc.object.userData.editorObjIdx;
+                    var obj = self._mapObjs[idx];
+                    if (obj && tc.mode) {
+                        if (tc.mode === 'translate') {
+                            var parentObj = (obj.parentIdx != null && obj.parentIdx >= 0) ? self._mapObjs[obj.parentIdx] : null;
+                            if (parentObj) {
+                                obj.x = tc.object.position.x - parentObj.x;
+                                obj.z = tc.object.position.z - parentObj.z;
+                                obj.y = tc.object.position.y - (parentObj.y != null ? parentObj.y : 0.5);
+                            } else {
+                                obj.x = tc.object.position.x;
+                                obj.z = tc.object.position.z;
+                                obj.y = tc.object.position.y;
+                            }
+                            // Sync physics body
+                            var body = tc.object.userData._physBody;
+                            if (body) {
+                                body.setTranslation({ x: tc.object.position.x, y: tc.object.position.y, z: tc.object.position.z }, true);
+                            }
+                        }
+                        if (tc.mode === 'rotate') {
+                            obj.rot = tc.object.rotation.y;
+                        }
+                        if (tc.mode === 'scale') {
+                            obj.scale = tc.object.scale.x;
+                            // Sync physics collider scale
+                            var body = tc.object.userData._physBody;
+                            if (body) {
+                                var hw = 0.75 * obj.scale;
+                                body.userData._collider && body.userData._collider.setHalfExtents(new RAPIER.Vector3(hw, hw, hw));
+                            }
+                        }
+                        self._renderInspector();
+                    }
+                }
+            });
+            scene.add(tc);
+            self._transformControls = tc;
+        }
+
+        // Rapier physics world
+        if (typeof RAPIER !== 'undefined') {
+            var world = new RAPIER.World({ x: 0, y: -20, z: 0 });
+            this._physics = world;
+
+            var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
+            var gBody = world.createRigidBody(gDesc);
+            var gCol = RAPIER.ColliderDesc.cuboid(40, 0.1, 40);
+            world.createCollider(gCol, gBody);
+            this._physGround = gBody;
+            this._physBodies = [gBody];
+        }
+
+        // Resize
+        var ro = function () {
+            var w2 = host.clientWidth || 800, h2 = host.clientHeight || 500;
+            cam.aspect = w2 / h2; cam.updateProjectionMatrix();
+            renderer.setSize(w2, h2);
+        };
+        window.addEventListener('resize', ro);
+        this._mapResizeHandler = ro;
+
+        // Raycaster
+        var raycaster = new THREE.Raycaster();
+        var mouse = new THREE.Vector2();
+        renderer.domElement.onclick = function (e) {
+            var r = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+            mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, cam);
+            // Check all scene objects (ground + models)
+            var allSceneObjects = [];
+            if (self._mapGround) allSceneObjects.push(self._mapGround);
+            self._mapModels.forEach(function (m) { if (m) allSceneObjects.push(m); });
+            // Also add all meshes inside model groups
+            var allMeshes = [];
+            self._mapModels.forEach(function (m) { if (m) m.traverse(function (c) { if (c.isMesh) allMeshes.push(c); }); });
+            allSceneObjects = allSceneObjects.concat(allMeshes);
+            var allHits = raycaster.intersectObjects(allSceneObjects, false);
+            // Check for model mesh hit first (selection)
+            var hitModelIdx = -1;
+            var hitGround = false;
+            if (allHits.length > 0) {
+                for (var hi = 0; hi < allHits.length; hi++) {
+                    var hitObj = allHits[hi].object;
+                    // Check if this is a model mesh
+                    for (var mi = 0; mi < self._mapModels.length; mi++) {
+                        var g = self._mapModels[mi];
+                        if (!g) continue;
+                        var found = false;
+                        g.traverse(function (c) { if (c === hitObj) found = true; });
+                        if (found) { hitModelIdx = mi; break; }
+                    }
+                    if (hitModelIdx >= 0) break;
+                    // Check if it's the ground
+                    if (hitObj === self._mapGround) { hitGround = true; break; }
+                }
+            }
+            if (hitModelIdx >= 0) {
+                // Clicked on a model → select it (Ctrl+Click toggles)
+                self._selectObject(hitModelIdx, e.ctrlKey || e.metaKey);
+            } else if (hitGround || allHits.length > 0) {
+                // Clicked on ground or any non-model surface
+                if (self._mapPlacing !== false && self._mapPlacing !== null && self._mapLib[self._mapPlacing]) {
+                    // Placing mode → add object at click point
+                    var pt = allHits[0].point;
+                    var lib = self._mapLib[self._mapPlacing];
+                    self._mapObjs.push({ libIdx: self._mapPlacing, name: lib.name || 'Model', x: pt.x, z: pt.z, y: 0.5, rot: 0, scale: 1 });
+                    self._updCnt();
+                    self._rebuildScene();
+                    self._renderHierarchy();
+                    self.toast('Placed: ' + lib.name);
+                } else {
+                    // Clicked ground but not placing → deselect
+                    if (self._transformControls) self._transformControls.detach();
+                    self._mapSelObj = null; self._mapSelObjs = [];
+                    self._highlightSelected();
+                    self._renderHierarchy();
+                    self._renderInspector();
+                }
+            } else if (allHits.length === 0) {
+                // Click on empty space (sky) → deselect
+                if (self._transformControls) self._transformControls.detach();
+                self._mapSelObj = null; self._mapSelObjs = [];
+                self._highlightSelected();
+                self._renderHierarchy();
+                self._renderInspector();
+            }
+        };
+        renderer.domElement.oncontextmenu = function (e) {
+            e.preventDefault();
+            if (self._mapSelObjs.length > 0) {
+                if (confirm('Delete ' + self._mapSelObjs.length + ' selected object(s)?')) {
+                    self._recursiveDelete(self._mapSelObjs.slice());
+                    self._mapSelObj = null; self._mapSelObjs = [];
+                    self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+                }
+            }
+        };
+
+        // Animate
+        var time = 0;
+        var anim = function () {
+            self._mapAnimId = requestAnimationFrame(anim);
+            time += 0.016;
+            // Update water shader uniforms (time + proximity foam)
+            var proxCount = 0, proxArr = null;
+            self._mapModels.forEach(function (m) {
+                if (!m || !m.material || !m.material.uniforms || !m.material.uniforms.uTime) return;
+                m.material.uniforms.uTime.value = time;
+                if (!m.material.uniforms.uProxPositions) return;
+                // Collect proximity objects on first water mesh, reuse for all
+                if (!proxArr) {
+                    var waterY = m.position.y;
+                    var arr = m.material.uniforms.uProxPositions.value;
+                    proxCount = 0;
+                    var maxProx = 48;
+                    for (var oi = 0; oi < self._mapObjs.length && proxCount < maxProx; oi++) {
+                        var o = self._mapObjs[oi];
+                        if (!o || o.kind === 'water' || o.kind === 'light' || o.kind === 'ground') continue;
+                        var oy = o.y != null ? o.y : 0.5;
+                        if (Math.abs(oy - waterY) < 2.0) {
+                            var ox = o.x || 0, oz = o.z || 0;
+                            if (o.parentIdx != null && o.parentIdx >= 0 && self._mapObjs[o.parentIdx]) {
+                                var po = self._mapObjs[o.parentIdx];
+                                ox += (po.x || 0); oz += (po.z || 0);
+                            }
+                            if (!arr[proxCount]) arr[proxCount] = new THREE.Vector3();
+                            arr[proxCount].set(ox, oy, oz);
+                            proxCount++;
+                        }
+                    }
+                    proxArr = arr;
+                }
+                m.material.uniforms.uProxCount.value = proxCount;
+                // For subsequent water meshes, copy the collected data
+                if (proxArr && m.material.uniforms.uProxPositions.value !== proxArr) {
+                    var dst = m.material.uniforms.uProxPositions.value;
+                    for (var pi = 0; pi < 48; pi++) {
+                        dst[pi].copy(proxArr[pi]);
+                    }
+                }
+            });
+            // Rapier physics step
+            if (self._physics && !self._physLock) {
+                self._physics.step(0.016);
+                if (self._physSimulating) {
+                    var bodies = self._physBodies;
+                    var models = self._mapModels;
+                    for (var bi = 1; bi < bodies.length; bi++) {
+                        try {
+                            var pos = bodies[bi].translation();
+                            var rot = bodies[bi].rotation();
+                            if (models[bi - 1]) {
+                                models[bi - 1].position.set(pos.x, pos.y, pos.z);
+                                models[bi - 1].quaternion.set(rot.x, rot.y, rot.z, rot.w);
+                            }
+                        } catch(e){}
+                    }
+                }
+            }
+            controls.update();
+            renderer.render(scene, cam);
+        };
+        anim();
+
+        // Place existing objects
+        this._rebuildScene();
+    },
+
+    _rebuildScene: function () {
+        this._physLock = true;
+        var self = this;
+        this._mapModels.forEach(function (m) { self._mapScene.remove(m); });
+        this._mapModels = [];
+        if (this._physics) {
+            for (var bi = this._physBodies.length - 1; bi >= 0; bi--) {
+                if (this._physBodies[bi] !== this._physGround) this._physics.removeRigidBody(this._physBodies[bi]);
+            }
+        }
+        this._physBodies = [this._physGround];
+        this._mapGround = null;
+
+        var rebuildSelSet = {};
+        this._mapSelObjs.forEach(function (i) { rebuildSelSet[i] = true; });
+
+        // Water shader reference
+        var waterShaderDef = (typeof SHADERS !== 'undefined' && SHADERS.water) ? SHADERS.water : null;
+
+        this._mapObjs.forEach(function (o, idx) {
+            var libItem = self._mapLib[o.libIdx];
+            var kind = o.kind || 'model';
+            var size = 1.5;
+            var isSelected = !!rebuildSelSet[idx];
+            var baseColor = o.color != null ? o.color : (isSelected ? 0xffb12b : 0x5a7acc);
+
+            // Compute geometry and material based on kind
+            var mesh = null;
+            var isImage = false, isLight = false, isSound = false, isWater = false;
+
+            if (kind === 'primitive') {
+                var geo;
+                switch (o.subType) {
+                    case 'sphere': geo = new THREE.SphereGeometry(size / 2, 32, 32); break;
+                    case 'cylinder': geo = new THREE.CylinderGeometry(size / 2, size / 2, size, 32); break;
+                    case 'plane': geo = new THREE.PlaneGeometry(size, size); break;
+                    case 'cone': geo = new THREE.ConeGeometry(size / 2, size, 32); break;
+                    case 'torus': geo = new THREE.TorusGeometry(size / 2, size / 4, 16, 32); break;
+                    default: geo = new THREE.BoxGeometry(size, size, size);
+                }
+                var mat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1 });
+                mesh = new THREE.Mesh(geo, mat);
+            } else if (kind === 'shape2d') {
+                var shape;
+                switch (o.subType) {
+                    case 'circle':
+                        shape = new THREE.Shape(); shape.absarc(0, 0, size / 2, 0, Math.PI * 2); break;
+                    case 'triangle':
+                        shape = new THREE.Shape(); var r = size / 2;
+                        for (var ti = 0; ti < 3; ti++) { var a = (ti / 3) * Math.PI * 2 - Math.PI / 2; if (ti === 0) shape.moveTo(Math.cos(a) * r, Math.sin(a) * r); else shape.lineTo(Math.cos(a) * r, Math.sin(a) * r); } shape.closePath(); break;
+                    case 'hexagon':
+                        shape = new THREE.Shape(); var r2 = size / 2;
+                        for (var hi = 0; hi < 6; hi++) { var a2 = (hi / 6) * Math.PI * 2 - Math.PI / 2; if (hi === 0) shape.moveTo(Math.cos(a2) * r2, Math.sin(a2) * r2); else shape.lineTo(Math.cos(a2) * r2, Math.sin(a2) * r2); } shape.closePath(); break;
+                    default: // square
+                        shape = new THREE.Shape([new THREE.Vector2(-size / 2, -size / 2), new THREE.Vector2(size / 2, -size / 2), new THREE.Vector2(size / 2, size / 2), new THREE.Vector2(-size / 2, size / 2)]);
+                }
+                var sGeo = new THREE.ShapeGeometry(shape);
+                var sMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+                mesh = new THREE.Mesh(sGeo, sMat);
+            } else if (kind === 'image') {
+                isImage = true;
+                var pw = o.planeW || 2, ph = o.planeH || 2;
+                var imgMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
+                if (o.imgUrl) {
+                    var tex = new THREE.TextureLoader().load(o.imgUrl);
+                    imgMat.map = tex; imgMat.needsUpdate = true;
+                }
+                mesh = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), imgMat);
+            } else if (kind === 'light') {
+                isLight = true;
+                // Render a small glowing sphere indicator
+                var lMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.5 });
+                mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), lMat);
+                // Also add the actual light
+                var light;
+                if (o.subType === 'directional') {
+                    light = new THREE.DirectionalLight(baseColor, o.intensity != null ? o.intensity : 1);
+                    light.target.position.set(0, 0, 1);
+                } else if (o.subType === 'spot') {
+                    light = new THREE.SpotLight(baseColor, o.intensity != null ? o.intensity : 1, o.range || 20, o.angle || Math.PI / 4);
+                } else if (o.subType === 'ambient') {
+                    light = new THREE.AmbientLight(baseColor, o.intensity != null ? o.intensity : 0.4);
+                } else {
+                    light = new THREE.PointLight(baseColor, o.intensity != null ? o.intensity : 1, o.range || 20);
+                }
+                if (light && light.isLight) {
+                    light.userData.editorObjIdx = idx;
+                    self._mapScene.add(light);
+                }
+            } else if (kind === 'sound') {
+                isSound = true;
+                var sndMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.5 });
+                mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 16), sndMat);
+                // Add a wireframe range indicator
+                var rangeGeo = new THREE.SphereGeometry(o.range || 15, 24, 24);
+                var wireMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, wireframe: true, transparent: true, opacity: 0.15 });
+                var wireSphere = new THREE.Mesh(rangeGeo, wireMat);
+                wireSphere.userData.editorObjIdx = idx;
+                wireSphere.userData._isRangeIndicator = true;
+            } else if (kind === 'water') {
+                isWater = true;
+                var ww = o.planeW || 20, wh = o.planeH || 20;
+                if (waterShaderDef) {
+                    var wMat = new THREE.ShaderMaterial({
+                        uniforms: THREE.UniformsUtils.clone(waterShaderDef.uniforms),
+                        vertexShader: waterShaderDef.vertexShader,
+                        fragmentShader: waterShaderDef.fragmentShader,
+                        side: THREE.DoubleSide,
+                        transparent: true,
+                    });
+                    // Setup noise texture
+                    if (!self._noiseTex) self._noiseTex = (typeof generateNoiseTexture !== 'undefined') ? generateNoiseTexture(256) : null;
+                    if (self._noiseTex) wMat.uniforms.uNoiseTex.value = self._noiseTex;
+                    var waterGeo = new THREE.PlaneGeometry(ww, wh, 64, 64);
+                    waterGeo.rotateX(-Math.PI / 2);
+                    mesh = new THREE.Mesh(waterGeo, wMat);
+                    mesh.frustumCulled = false;
+                    mesh.renderOrder = 1;
+                } else {
+                    var waterGeo2 = new THREE.PlaneGeometry(ww, wh);
+                    waterGeo2.rotateX(-Math.PI / 2);
+                    mesh = new THREE.Mesh(waterGeo2, new THREE.MeshStandardMaterial({ color: 0x3a8ec8, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+                    mesh.frustumCulled = false;
+                    mesh.renderOrder = 1;
+                }
+            } else if (kind === 'ground') {
+                var gw = o.planeW || 40, gh = o.planeH || 40;
+                var gMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.05 });
+                var groundGeo = new THREE.PlaneGeometry(gw, gh);
+                groundGeo.rotateX(-Math.PI / 2);
+                mesh = new THREE.Mesh(groundGeo, gMat);
+                if (!self._mapGround) self._mapGround = mesh;
+            } else {
+                // Existing model kind: need libItem
+                if (!libItem) return;
+                var mat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1 });
+                mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), mat);
+            }
+
+            // Compute world position and add mesh
+            var parentObj = (o.parentIdx != null && o.parentIdx >= 0) ? self._mapObjs[o.parentIdx] : null;
+            var px = o.x, py = o.y != null ? o.y : 0.5, pz = o.z;
+            if (parentObj) {
+                px += parentObj.x; py += (parentObj.y != null ? parentObj.y : 0.5); pz += parentObj.z;
+            }
+            if (mesh) {
+                mesh.position.set(px, py, pz);
+                mesh.rotation.y = o.rot || 0;
+                mesh.scale.setScalar(o.scale || 1);
+                if (!isImage && !isWater) { mesh.castShadow = true; mesh.receiveShadow = true; }
+                mesh.userData.editorObjIdx = idx;
+                self._mapScene.add(mesh);
+                self._mapModels.push(mesh);
+
+                // Physics (skip lights, water)
+                if (self._physics && !isLight && !isWater) {
+                    var pyVal = o.y != null ? o.y : 0.5;
+                    var desc = self._physSimulating
+                        ? RAPIER.RigidBodyDesc.dynamic().setTranslation(px, pyVal, pz)
+                        : RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, pyVal, pz);
+                    var body = self._physics.createRigidBody(desc);
+                    var hw = (size / 2) * (o.scale || 1);
+                    var col = RAPIER.ColliderDesc.cuboid(hw, hw, hw);
+                    var collider = self._physics.createCollider(col, body);
+                    body.userData = body.userData || {};
+                    body.userData._collider = collider;
+                    if (mesh) {
+                        mesh.userData._physBody = body;
+                        mesh.userData._collider = collider;
+                    }
+                    self._physBodies.push(body);
+                }
+
+                // For existing models, try to load actual 3D model
+                if (kind === 'model' && libItem) {
+                    (function (boxIdx) {
+                        self._loadModelData(libItem, function (group) {
+                            if (!group) return;
+                            var currentBox = null;
+                            var replaceIdx = -1;
+                            for (var mi = 0; mi < self._mapModels.length; mi++) {
+                                if (self._mapModels[mi].userData && self._mapModels[mi].userData.editorObjIdx === boxIdx) {
+                                    currentBox = self._mapModels[mi];
+                                    replaceIdx = mi;
+                                    break;
+                                }
+                            }
+                            if (!currentBox || replaceIdx < 0) return;
+                            self._mapScene.remove(currentBox);
+                            self._mapModels[replaceIdx] = group;
+                            group.userData.editorObjIdx = boxIdx;
+                            group.position.copy(currentBox.position);
+                            group.rotation.y = currentBox.rotation.y;
+                            group.scale.copy(currentBox.scale);
+                            group.traverse(function (c) { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (!c.geometry.attributes.normal) { c.geometry.computeVertexNormals(); } if (c.material) { var mats = Array.isArray(c.material) ? c.material : [c.material]; mats.forEach(function (mat) { mat.userData._origEmissive = (mat.emissive || new THREE.Color(0)).clone(); mat.userData._origEmissiveIntensity = mat.emissiveIntensity || 0; }); } } });
+                            self._mapScene.add(group);
+                            var box3 = new THREE.Box3().setFromObject(group);
+                            var sz = box3.max.clone().sub(box3.min);
+                            var objData = self._mapObjs[boxIdx];
+                            if (objData && !objData._autoScaled && Math.max(sz.x, sz.y, sz.z) > 5) {
+                                var maxDim = Math.max(sz.x, sz.y, sz.z);
+                                var fitScale = 3 / maxDim;
+                                group.scale.setScalar(fitScale);
+                                objData.scale = fitScale;
+                                objData._autoScaled = true;
+                                box3.setFromObject(group);
+                                sz = box3.max.clone().sub(box3.min);
+                            }
+                            console.log('Model "' + (libItem.name || '') + '" size:', sz.x.toFixed(2), sz.y.toFixed(2), sz.z.toFixed(2), 'pos:', group.position.x.toFixed(2), group.position.y.toFixed(2), group.position.z.toFixed(2));
+                            self._highlightSelected();
+                        });
+                    })(idx);
+                }
+            }
+
+            // Attach child mesh for sound range indicator
+            if (isSound && mesh) {
+                var rangeGeo = new THREE.SphereGeometry(o.range || 15, 24, 24);
+                var wireMat = new THREE.MeshBasicMaterial({ color: 0x44aaff, wireframe: true, transparent: true, opacity: 0.15 });
+                var wireSphere = new THREE.Mesh(rangeGeo, wireMat);
+                wireSphere.userData.editorObjIdx = idx;
+                wireSphere.userData._isRangeIndicator = true;
+                wireSphere.position.copy(mesh.position);
+                self._mapScene.add(wireSphere);
+            }
+        });
+
+        this._highlightSelected();
+        this._updCnt();
+        // Re-attach gizmo since all meshes were recreated
+        if (this._transformControls && this._mapSelObj != null && this._mapModels[this._mapSelObj]) {
+            this._transformControls.attach(this._mapModels[this._mapSelObj]);
+            this._transformControls.setSpace('world');
+        }
+        this._physLock = false;
+    },
+
+    _highlightSelected: function () {
+        var self = this;
+        var selSet = {};
+        this._mapSelObjs.forEach(function (i) { selSet[i] = true; });
+        this._mapModels.forEach(function (m, idx) {
+            var selected = !!selSet[idx];
+            m.traverse(function (c) {
+                if (c.isMesh && c.material) {
+                    var mats = Array.isArray(c.material) ? c.material : [c.material];
+                    mats.forEach(function (mat) {
+                        if (selected) {
+                            mat.emissive = new THREE.Color(0xffb12b);
+                            mat.emissiveIntensity = 0.3;
+                        } else if (mat.userData && mat.userData._origEmissive) {
+                            mat.emissive.copy(mat.userData._origEmissive);
+                            mat.emissiveIntensity = mat.userData._origEmissiveIntensity;
+                        } else {
+                            mat.emissive = new THREE.Color(0);
+                            mat.emissiveIntensity = 0;
+                        }
+                    });
+                }
+            });
+        });
+    },
+
+    _updCnt: function () {
+        var el = document.getElementById('e-obj-cnt');
+        if (el) el.textContent = this._mapObjs.length + (this._mapSelObjs.length > 0 ? ' (' + this._mapSelObjs.length + ' sel)' : '');
+    },
+
+    _importFromServer: function () {
+        var self = this;
+        var host = prompt('Server URL (default: http://localhost:3120):', 'http://localhost:3120') || 'http://localhost:3120';
+        fetch(host + '/api/models')
+            .then(function (r) { return r.json(); })
+            .then(function (models) {
+                if (!models || models.length === 0) { self.toast('No models on server'); return; }
+                var html = models.map(function (m, i) {
+                    return '<div class="e123-srv-item" data-idx="' + i + '" style="padding:8px 12px;background:#22272e;border-radius:6px;margin-bottom:4px;cursor:pointer">📦 ' + m.name + '</div>';
+                }).join('');
+                var div = document.createElement('div');
+                div.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center';
+                div.innerHTML = '<div style="background:#1a1e24;border-radius:12px;padding:20px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto">' +
+                    '<h3 style="margin:0 0 12px;color:#ffb12b;font-size:15px">Models on Server</h3>' + html +
+                    '<div style="margin-top:12px;text-align:center"><span class="e123-tbtn" id="e-srv-close" style="padding:6px 24px">Close</span></div></div>';
+                document.body.appendChild(div);
+                div.querySelectorAll('.e123-srv-item').forEach(function (el) {
+                    el.onclick = function () {
+                        var model = models[parseInt(this.dataset.idx)];
+                        var fullUrl = host + '/api/models/' + encodeURIComponent(model.name);
+                        // Fetch the model binary from server and store as ArrayBuffer
+                        fetch(host + model.url).then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+                            var isGLB = /\.glb/i.test(model.name);
+                            var bytes = new Uint8Array(buf); var bin = ''; for (var bi = 0; bi < bytes.length; bi++) bin += String.fromCharCode(bytes[bi]); var base64 = btoa(bin);
+                            var libEntry = {
+                                name: model.name.replace(/\.(glb|gltf|fbx)$/i, ''),
+                                data: buf,
+                                base64: base64,
+                                type: isGLB ? 'glb' : 'fbx',
+                            };
+                            self._mapLib.push(libEntry);
+                            self._parseModelData(libEntry, function (group) {
+                                libEntry._cachedGroup = group;
+                            });
+                            self._saveLib(self._mapLib);
+                            self._renderLibList();
+                            self.toast('Imported: ' + model.name);
+                        }).catch(function (e) {
+                            // Fallback: store as URL
+                            self._mapLib.push({ name: model.name.replace(/\.(glb|gltf|fbx)$/i, ''), data: host + model.url, type: /\.glb/i.test(model.name) ? 'glb' : 'fbx' });
+                            self._saveLib(self._mapLib);
+                            self._renderLibList();
+                            self.toast('Imported (URL fallback): ' + model.name);
+                        });
+                        document.body.removeChild(div);
+                    };
+                });
+                document.getElementById('e-srv-close').onclick = function () { document.body.removeChild(div); };
+            })
+            .catch(function (e) { self.toast('Server error: ' + e.message); });
+    },
+
+    _importModel: function () {
+        var self = this;
+        var inp = document.createElement('input');
+        inp.type = 'file';
+        inp.multiple = true;
+        inp.accept = '.glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.bmp,.dds';
+        inp.onchange = function (e) {
+            var files = Array.from(e.target.files);
+            // Separate model files from texture files
+            var modelFiles = [];
+            var texFiles = [];
+            files.forEach(function (f) {
+                var ext = f.name.split('.').pop().toLowerCase();
+                if (ext === 'fbx' || ext === 'glb' || ext === 'gltf') {
+                    modelFiles.push(f);
+                } else {
+                    texFiles.push(f);
+                }
+            });
+            if (modelFiles.length === 0) { self.toast('No model file (FBX/GLB) selected'); return; }
+            var host = 'http://localhost:3120';
+            // Upload ALL files (models + textures) to server in parallel
+            // Preserve file indices so we can map responses back to model files
+            var fileToIdx = {};
+            var uploadPromises = [];
+            files.forEach(function (f, i) {
+                fileToIdx[f.name] = i;
+                var fd = new FormData();
+                fd.append('file', f);
+                uploadPromises.push(
+                    fetch(host + '/api/upload', { method: 'POST', body: fd }).then(function (r) { return r.json(); })
+                );
+            });
+            Promise.all(uploadPromises)
+                .then(function (results) {
+                    var count = 0;
+                    modelFiles.forEach(function (mf) {
+                        var ext = mf.name.split('.').pop().toLowerCase();
+                        var isGLB = ext === 'glb' || ext === 'gltf';
+                        var idx = fileToIdx[mf.name];
+                        var serverUrl = (results[idx] && results[idx].url) ? host + results[idx].url : null;
+                        if (!serverUrl) return;
+                        var entry = {
+                            name: mf.name.replace(/\.(glb|gltf|fbx)$/i, ''),
+                            type: isGLB ? 'glb' : 'fbx',
+                            data: serverUrl,
+                            serverUrl: serverUrl,
+                        };
+                        self._mapLib.push(entry);
+                        self._loadModelData(entry, function (group) {
+                            entry._cachedGroup = group;
+                        });
+                        count++;
+                    });
+                    self._saveLib(self._mapLib);
+                    self._renderLibList();
+                    inp.value = '';
+                    self.toast('Imported ' + count + ' model(s)');
+                })
+                .catch(function () {
+                    // Server offline → fall back to base64 for each model
+                    var done = 0;
+                    modelFiles.forEach(function (mf, idx) {
+                        var reader = new FileReader();
+                        reader.onload = function (ev) {
+                            var arrayBuf = ev.target.result;
+                            var bytes = new Uint8Array(arrayBuf); var bin = ''; for (var bi = 0; bi < bytes.length; bi++) bin += String.fromCharCode(bytes[bi]); var base64 = btoa(bin);
+                            var ext = mf.name.split('.').pop().toLowerCase();
+                            var isGLB = ext === 'glb' || ext === 'gltf';
+                            var entry = {
+                                name: mf.name.replace(/\.(glb|gltf|fbx)$/i, ''),
+                                type: isGLB ? 'glb' : 'fbx',
+                                data: arrayBuf,
+                                base64: base64,
+                            };
+                            self._mapLib.push(entry);
+                            self._parseModelData(entry, function (group) {
+                                entry._cachedGroup = group;
+                            });
+                            done++;
+                            if (done === modelFiles.length) {
+                                self._saveLib(self._mapLib);
+                                self._renderLibList();
+                                inp.value = '';
+                                self.toast('Imported ' + done + ' model(s) (offline)');
+                            }
+                        };
+                        reader.readAsArrayBuffer(mf);
+                    });
+                });
+        };
+        inp.click();
+    },
+
+    _parseModelData: function (libEntry, cb) {
+        if (libEntry._cachedGroup) { cb(libEntry._cachedGroup); return; }
+        try {
+            var loader = this._gltfLoader;
+            if (libEntry.type === 'glb') {
+                loader = this._gltfLoader;
+            } else {
+                loader = this._fbxLoader;
+                if (!loader) { console.warn('FBXLoader not available (fflate missing?)'); cb(null); return; }
+            }
+            if (!loader || !libEntry.data) { cb(null); return; }
+            var buf = libEntry.data instanceof ArrayBuffer ? libEntry.data : this._base64ToArrayBuf(libEntry.base64);
+            if (!buf) { cb(null); return; }
+            if (libEntry.type === 'glb') {
+                loader.parse(buf, '', function (result) {
+                    var group = result && result.scene ? result.scene : result;
+                    libEntry._cachedGroup = group;
+                    cb(group);
+                }, function () { cb(null); });
+            } else {
+                // FBXLoader.parse returns the Group synchronously (no callbacks!)
+                try {
+                    var result = loader.parse(buf, '');
+                    libEntry._cachedGroup = result;
+                    cb(result);
+                } catch (e2) {
+                    console.warn('FBX parse error:', e2);
+                    cb(null);
+                }
+            }
+        } catch (e) { console.warn('Parse error:', e); cb(null); }
+    },
+
+    _base64ToArrayBuf: function (base64) {
+        try {
+            var bin = atob(base64);
+            var buf = new ArrayBuffer(bin.length);
+            var view = new Uint8Array(buf);
+            for (var i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+            return buf;
+        } catch (e) { return null; }
+    },
+
+    _loadModelData: function (libEntry, cb) {
+        if (!libEntry) { cb(null); return; }
+        if (libEntry._cachedGroup) { cb(libEntry._cachedGroup); return; }
+        // If we have ArrayBuffer data, parse it
+        if (libEntry.data instanceof ArrayBuffer || libEntry.base64) {
+            this._parseModelData(libEntry, cb);
+            return;
+        }
+        // Fallback: data might be a URL (server import)
+        if (typeof libEntry.data === 'string') {
+            try {
+                var loader = libEntry.type === 'glb' ? this._gltfLoader : (this._fbxLoader || this._gltfLoader);
+                if (!loader) { cb(null); return; }
+                var self = this;
+                loader.load(libEntry.data, function (result) {
+                    var group = result && result.scene ? result.scene : result;
+                    libEntry._cachedGroup = group;
+                    cb(group);
+                }, undefined, function () { cb(null); });
+            } catch (e) { cb(null); }
+            return;
+        }
+        cb(null);
+    },
+
+    /* ---------- keyboard shortcuts ---------- */
+    _wireKeys: function () {
+        var self = this;
+        this._mapKeyHandler = function (e) {
+            if (self._mode !== 'map') return;
+            var ctrl = e.ctrlKey || e.metaKey;
+            var key = e.code;
+            // Library panel shortcuts (when focus is in lib or no scene selection)
+            var libPanel = document.getElementById('e-lib-list');
+            var inLib = libPanel && libPanel.contains(document.activeElement);
+            if (inLib || self._mapPlacingMulti.length > 0) {
+                if (ctrl && key === 'KeyA') {
+                    e.preventDefault();
+                    self._mapPlacingMulti = [];
+                    self._mapLib.forEach(function (_, i) { self._mapPlacingMulti.push(i); });
+                    self._mapPlacing = self._mapPlacingMulti.length > 0 ? self._mapPlacingMulti[self._mapPlacingMulti.length - 1] : false;
+                    self._renderLibList();
+                    self.toast('Selected all ' + self._mapPlacingMulti.length + ' model(s) in library');
+                    return;
+                }
+                if (key === 'Delete' || key === 'Backspace') {
+                    var delBtn = document.getElementById('e-del-lib');
+                    if (delBtn) { delBtn.click(); }
+                    return;
+                }
+            }
+            if (key === 'Escape') {
+                if (self._mapSelObj != null || self._mapSelObjs.length > 0) {
+                    if (self._transformControls) self._transformControls.detach();
+                    self._mapSelObj = null; self._mapSelObjs = [];
+                    self._highlightSelected(); self._renderHierarchy(); self._renderInspector();
+                }
+                return;
+            }
+            if (key === 'Delete' || key === 'Backspace') {
+                if (self._mapSelObjs.length > 0) {
+                    var delCount = self._mapSelObjs.length;
+                    self._recursiveDelete(self._mapSelObjs.slice());
+                    self._mapSelObj = null; self._mapSelObjs = [];
+                    self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+                    self.toast('Deleted ' + delCount + ' object(s)');
+                }
+                return;
+            }
+            if (ctrl && key === 'KeyA') {
+                // Select All
+                e.preventDefault();
+                self._mapSelObjs = [];
+                self._mapObjs.forEach(function (o, i) { self._mapSelObjs.push(i); });
+                self._mapSelObj = self._mapSelObjs.length > 0 ? self._mapSelObjs[self._mapSelObjs.length - 1] : null;
+                self._highlightSelected(); self._renderHierarchy(); self._renderInspector();
+                if (self._mapSelObj != null && self._mapModels[self._mapSelObj]) {
+                    if (self._transformControls) self._transformControls.attach(self._mapModels[self._mapSelObj]);
+                }
+                self.toast('Selected ' + self._mapSelObjs.length + ' object(s)');
+                return;
+            }
+            if (ctrl && key === 'KeyC') {
+                // Copy
+                e.preventDefault();
+                self._mapClipboard = [];
+                self._mapSelObjs.forEach(function (i) {
+                    var o = self._mapObjs[i];
+                    if (o) self._mapClipboard.push(JSON.parse(JSON.stringify(o)));
+                });
+                self.toast('Copied ' + self._mapClipboard.length + ' object(s)');
+                return;
+            }
+            if (ctrl && key === 'KeyV') {
+                // Paste
+                e.preventDefault();
+                if (self._mapClipboard.length === 0) { self.toast('Nothing to paste'); return; }
+                self._mapClipboard.forEach(function (o) {
+                    var copy = JSON.parse(JSON.stringify(o));
+                    copy.x = (copy.x || 0) + 1.5;
+                    copy.z = (copy.z || 0) + 1.5;
+                    delete copy._autoScaled;
+                    self._mapObjs.push(copy);
+                });
+                self._rebuildScene(); self._updCnt(); self._renderHierarchy();
+                self.toast('Pasted ' + self._mapClipboard.length + ' object(s)');
+                return;
+            }
+            if (ctrl && key === 'KeyD') {
+                // Duplicate
+                e.preventDefault();
+                var copies = [];
+                self._mapSelObjs.forEach(function (i) {
+                    var o = self._mapObjs[i];
+                    if (o) {
+                        var copy = JSON.parse(JSON.stringify(o));
+                        copy.x = (copy.x || 0) + 1.5;
+                        copy.z = (copy.z || 0) + 1.5;
+                        delete copy._autoScaled;
+                        copies.push(copy);
+                    }
+                });
+                copies.forEach(function (c) { self._mapObjs.push(c); });
+                self._rebuildScene(); self._updCnt(); self._renderHierarchy();
+                self.toast('Duplicated ' + copies.length + ' object(s)');
+                return;
+            }
+        };
+        window.addEventListener('keydown', this._mapKeyHandler);
+    },
+
+    _stopMapEditor: function () {
+        if (this._mapAnimId) { cancelAnimationFrame(this._mapAnimId); this._mapAnimId = null; }
+        if (this._mapKeyHandler) { window.removeEventListener('keydown', this._mapKeyHandler); this._mapKeyHandler = null; }
+        if (this._mapRenderer) { this._mapRenderer.dispose(); var el = this._mapRenderer.domElement; if (el && el.parentNode) el.parentNode.removeChild(el); this._mapRenderer = null; }
+        if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
+        this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
+    },
+
+    /* ═══════════════════════════
+       PERSISTENCE
+       ═══════════════════════════ */
+    _saveElem: function () {
+        var self = this;
+        var d = {};
+        Object.keys(this._elements).forEach(function (k) { d[k] = self._elements[k].map(function (el) {
+                var o = { type: el.type, x: el.x, y: el.y, w: el.w, h: el.h };
+                if (el.type === 'image') { o.name = el.name; o.imageData = el.image ? self._imgData(el.image) : null; }
+                else if (el.type === 'button') { o.label = el.label; o.bgColor = el.bgColor; o.command = el.command; o.hitbox = el.hitbox; }
+                else if (el.type === 'comment') { o.text = el.text; }
+                return o;
+            }); });
+        localStorage.setItem('tankparty_editor123_menus', JSON.stringify(d));
+    },
+
+    _loadElem: function () {
+        var self = this;
+        this._elements = {}; this._imgCounter = 0;
+        try {
+            var d = JSON.parse(localStorage.getItem('tankparty_editor123_menus'));
+            if (!d) return;
+            Object.keys(d).forEach(function (k) {
+                self._elements[k] = [];
+                d[k].forEach(function (el) {
+                    var e = { type: el.type, x: el.x, y: el.y, w: el.w, h: el.h };
+                    if (el.type === 'image') { e.name = el.name || 'Image'; if (el.imageData) { var img = new Image(); img.onload = function () { if (self._renderCanvas) self._renderCanvas(); }; img.src = el.imageData; e.image = img; } }
+                    else if (el.type === 'button') { e.label = el.label || 'Button'; e.bgColor = el.bgColor || '#383838'; e.command = el.command || 'none'; e.hitbox = el.hitbox || { x: 0, y: 0, w: 0, h: 0 }; }
+                    else if (el.type === 'comment') { e.text = el.text || 'comment'; }
+                    self._elements[k].push(e);
+                });
+            });
+        } catch (e) { }
+    },
+
+    _loadLib: function () {
+        try {
+            var arr = JSON.parse(localStorage.getItem('tankparty_editor123_library') || '[]');
+            // Reconstruct ArrayBuffer from base64
+            arr.forEach(function (entry) {
+                if (entry.base64) {
+                    try {
+                        var bin = atob(entry.base64);
+                        var buf = new ArrayBuffer(bin.length);
+                        var view = new Uint8Array(buf);
+                        for (var i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+                        entry.data = buf;
+                    } catch (e) { entry.data = null; }
+                }
+            });
+            return arr;
+        } catch (e) { return []; }
+    },
+    _saveLib: function (l) {
+        // Strip non-serializable fields before saving
+        var clean = l.map(function (entry) {
+            var e = { name: entry.name, type: entry.type };
+            if (entry.base64) e.base64 = entry.base64;
+            else if (typeof entry.data === 'string') e.data = entry.data; // server URL
+            else e.data = null;
+            return e;
+        });
+        localStorage.setItem('tankparty_editor123_library', JSON.stringify(clean));
+    },
+    _loadMap: function () { try { return JSON.parse(localStorage.getItem('tankparty_editor123_map') || '[]'); } catch (e) { return []; } },
+    _saveMap: function () { localStorage.setItem('tankparty_editor123_map', JSON.stringify(this._mapObjs)); },
+
+    _imgData: function (img) {
+        var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+        c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL();
+    },
+};
