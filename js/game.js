@@ -270,9 +270,11 @@ class Game {
   /* ---------- SINGLEPLAYER ---------- */
   startSingleplayer(){
     this.mode='sp'; this._resetArena();
-    var m = this._useCustomMap ? loadCustomMap() : null;
-    if(!m) m = loadMainMap();
-    if(m) this.world.loadCustomMapData(m);
+    try {
+      var m = this._useCustomMap ? loadCustomMap() : null;
+      if(!m) m = loadMainMap();
+      if(m) this.world.loadCustomMapData(m);
+    } catch(e){ console.warn('Map load error:', e); }
     this._spawnLocal();
     for(let i=0;i<20;i++) this._spawnBot();
     this._spawnDummy();
@@ -375,9 +377,11 @@ class Game {
     Menu.hideConnecting();
     Menu.toast('Room live • Code: '+cfg.code);
     this.mode='host'; this._resetArena();
-    var m = this._useCustomMap ? loadCustomMap() : null;
-    if(!m) m = loadMainMap();
-    if(m) this.world.loadCustomMapData(m);
+    try {
+      var m = this._useCustomMap ? loadCustomMap() : null;
+      if(!m) m = loadMainMap();
+      if(m) this.world.loadCustomMapData(m);
+    } catch(e){ console.warn('Map load error:', e); }
     this._spawnLocal();
     // fake players (bots)
     for(let i=0;i<cfg.fakePlayers;i++) this._spawnBot();
@@ -1451,7 +1455,11 @@ const BOTNAMES = ['Rommel','Patton','Guderian','Zhukov','Abrams','Leclerc','Tige
 /* ---------- Bootstrap ---------- */
 window.addEventListener('DOMContentLoaded', async ()=>{
   try {
-    if (typeof RAPIER !== 'undefined') await RAPIER.init();
+    var RapierMod = await import('https://cdn.skypack.dev/@dimforge/rapier3d-compat@0.12.0');
+    if(RapierMod.default){
+      await RapierMod.default.init();
+      window.RAPIER = RapierMod.default;
+    }
   } catch(e){ console.warn('Rapier init failed, physics disabled:', e); }
   let game = null;
   try {
