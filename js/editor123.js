@@ -1211,8 +1211,8 @@ var Editor123 = {
 
         // Scene
         var scene = new THREE.Scene();
-        scene.background = new THREE.Color(this._sceneBgColor);
-        scene.fog = this._sceneFogDensity > 0 ? new THREE.FogExp2(this._sceneBgColor, this._sceneFogDensity) : null;
+        scene.background = new THREE.Color(0x14181e);
+        scene.fog = new THREE.Fog(0x14181e, 60, 120);
         this._mapScene = scene;
 
         // Camera
@@ -1229,7 +1229,7 @@ var Editor123 = {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
-        renderer.colorSpace = THREE.SRGBColorSpace;
+        renderer.outputEncoding = THREE.sRGBEncoding;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
