@@ -1205,14 +1205,15 @@ var Editor123 = {
 
     _init3DScene: function () {
         var host = document.getElementById('e-view-3d');
-        if (!host) return;
+        if (!host) { console.error('_init3DScene: e-view-3d not found'); return; }
         var self = this;
         var W = host.clientWidth || 800, H = host.clientHeight || 500;
+        if (W < 1 || H < 1) { console.error('_init3DScene: viewport has zero size', W, H); W = 800; H = 500; }
 
         // Scene
         var scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x14181e);
-        scene.fog = new THREE.Fog(0x14181e, 60, 120);
+        scene.background = new THREE.Color(0x2a3a5a); // lighter blue so black is obvious
+        scene.fog = null; // remove fog entirely for clarity
         this._mapScene = scene;
 
         // Camera
