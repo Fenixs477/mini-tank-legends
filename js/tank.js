@@ -427,6 +427,8 @@ class Tank {
       this.z = Math.max(-lim, Math.min(lim, this.z));
     }
 
+    if(game) this._ramCheck(game);
+
     if(inp.turretWorldAngle != null){
       let diff = ((inp.turretWorldAngle - this.turretAngle + Math.PI) % (Math.PI*2)) - Math.PI;
       const maxStep = d.turretTurn * dt;
@@ -473,6 +475,42 @@ class Tank {
     const op = this.camoFactor;
     if(this.hpSprite) this.hpSprite.material.opacity = op;
     if(this.nameSprite) this.nameSprite.material.opacity = op;
+  }
+
+  _ramCheck(game){
+    for(const o of game.tanks){
+      if(o===this || !o.alive || o.dying) continue;
+      const dx = o.x - this.x, dz = o.z - this.z;
+      const overlapX = (this.colHalfW + o.colHalfW) - Math.abs(dx);
+      const overlapZ = (this.colHalfL + o.colHalfL) - Math.abs(dz);
+      if(overlapX>0 && overlapZ>0){
+        const heavier = this.mass >= o.mass ? this : o;
+        const lighter = heavier === this ? o : this;
+        const massRatio = heavier.mass / Math.max(1, lighter.mass);
+        if(overlapX < overlapZ){
+          const sign = dx < 0 ? 1 : -1;
+          lighter.x += overlapX * sign;
+          if(lighter.vx * sign < 0) lighter.vx = 0;
+        } else {
+          const sign = dz < 0 ? 1 : -1;
+          lighter.z += overlapZ * sign;
+          if(lighter.vz * sign < 0) lighter.vz = 0;
+        }
+        if(lighter._physBody){
+          try { lighter._physBody.setTranslation({x: lighter.x, y: 0.9, z: lighter.z}, true); } catch(e){}
+        }
+        const relSpeed = Math.abs(this.speed) + Math.abs(o.speed);
+        if(relSpeed > 6){
+          const baseDmg = relSpeed * 0.2 * massRatio;
+          lighter.takeDamage(Math.min(32, baseDmg), heavier, game);
+          heavier.takeDamage(Math.min(15, baseDmg / massRatio), lighter, game);
+        }
+        const factor = 1 - lighter.mass / (heavier.mass + lighter.mass);
+        lighter.speed *= Math.max(0.15, factor * 0.5);
+        lighter.vx *= 0.2;
+        lighter.vz *= 0.2;
+      }
+    }
   }
 
   _syncTransform(){
