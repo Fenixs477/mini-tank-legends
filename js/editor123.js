@@ -19,6 +19,11 @@ var Editor123 = {
     _gltfLoader: null, _fbxLoader: null,
     _physics: null, _physBodies: [], _physSimulating: false, _physLock: false,
 
+    // Editor tools state
+    _snapEnabled: false, _snapSize: 1,
+    _sceneBgColor: 0x14181e, _sceneFogDensity: 0.008, _sceneAmbient: 0x404060,
+    _paintMode: false, _paintColor: 0x4a7a4a, _paintBrushSize: 2,
+
     MENU_NAMES: {
         'menu-main': 'Main Menu', 'menu-play-select': 'Play Select',
         'menu-multiplayer': 'Multiplayer', 'menu-host': 'Host Room',
@@ -373,6 +378,11 @@ var Editor123 = {
             '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">⟷ Move</span>' +
             '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">↻ Rot</span>' +
             '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">⇔ Scale</span>' +
+            '<span style="color:#444">|</span>' +
+            '<span class="e123-tbtn" id="e-snap-btn" style="font-size:10px">🧲 Snap</span>' +
+            '<span class="e123-tbtn" id="e-scatter-btn" style="font-size:10px">🌱 Scatter</span>' +
+            '<span class="e123-tbtn" id="e-rand-btn" style="font-size:10px">🎲 Rand</span>' +
+            '<span class="e123-tbtn" id="e-scene-settings-btn" style="font-size:10px">⚙️ Scene</span>' +
             '<div style="flex:1"></div>' +
             '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">▶ Sim</span>' +
             '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">🗑️ Clear</span>' +
@@ -388,6 +398,9 @@ var Editor123 = {
             'Ctrl+D — Duplicate<br>' +
             'Delete — Delete selected<br>' +
             'ESC — Deselect<br>' +
+            'G — Toggle snap-to-grid<br>' +
+            'R — Randomize rotation<br>' +
+            'F — Focus on selected<br>' +
             '<b style="color:#ffb12b;margin-top:4px;display:inline-block">Library Shortcuts</b><br>' +
             'Ctrl+Click — Toggle multi-select<br>' +
             'Ctrl+A — Select all models<br>' +
@@ -451,10 +464,15 @@ var Editor123 = {
         addItem('Sound', 'Sound Source', function () { self._spawnBuiltin('sound', 'sound', 'Sound'); });
         addItem('Water', 'Water Body', function () { self._spawnBuiltin('water', 'water', 'Water Body'); });
         addItem('Ground', 'Ground Plane', function () { self._spawnBuiltin('ground', 'ground', 'Ground Plane'); });
+        addItem('Nature', '🌲 Tree', function () { self._spawnBuiltin('nature', 'tree', 'Tree'); });
+        addItem('Nature', '🪨 Rock', function () { self._spawnBuiltin('nature', 'rock', 'Rock'); });
+        addItem('Nature', '🌿 Bush', function () { self._spawnBuiltin('nature', 'bush', 'Bush'); });
+        addItem('Nature', '🌾 Grass Patch', function () { self._spawnBuiltin('nature', 'grass', 'Grass Patch'); });
+        addItem('Tools', '🎨 Paint Terrain', function () { self._showPaintTool(); });
         var cats = {};
         items.forEach(function (it) { if (!cats[it.cat]) cats[it.cat] = []; cats[it.cat].push(it); });
         var html = '';
-        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️' };
+        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️', Nature: '🌳', Tools: '🔧' };
         Object.keys(cats).forEach(function (cat) {
             html += '<div style="color:#ffb12b;font-size:10px;font-weight:600;padding:6px 8px 2px;text-transform:uppercase;letter-spacing:.5px">' + (catIcons[cat] || '') + ' ' + cat + '</div>';
             cats[cat].forEach(function (it) {
@@ -502,6 +520,13 @@ var Editor123 = {
         if (kind === 'ground') {
             obj.y = 0; obj.planeW = 40; obj.planeH = 40; obj.color = 0x4a6a4a; obj.type = 'wall';
         }
+        if (kind === 'nature') {
+            obj.y = 0; obj.color = 0x3a7a3a;
+            if (subType === 'tree') { obj.y = 0; obj.color = 0x5a8a3a; obj.scale = 1.5; }
+            if (subType === 'rock') { obj.y = 0; obj.color = 0x7a7a7a; obj.scale = 1; }
+            if (subType === 'bush') { obj.y = 0; obj.color = 0x4a8a4a; obj.scale = 0.8; }
+            if (subType === 'grass') { obj.y = 0; obj.color = 0x6aaa4a; obj.scale = 0.5; }
+        }
         this._mapObjs.push(obj);
         var idx = this._mapObjs.length - 1;
         this._selectObject(idx, false);
@@ -509,6 +534,47 @@ var Editor123 = {
         this._rebuildScene();
         this._renderHierarchy();
         this.toast('Added: ' + name);
+    },
+
+    _showPaintTool: function () {
+        var self = this;
+        this._paintMode = !this._paintMode;
+        if (!this._paintMode) { this.toast('Paint mode OFF'); return; }
+        // Create a simple color picker overlay
+        var existing = document.getElementById('e-paint-panel');
+        if (existing) existing.remove();
+        var div = document.createElement('div');
+        div.id = 'e-paint-panel';
+        div.style.cssText = 'position:absolute;top:28px;left:230px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:10px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:180px';
+        div.innerHTML =
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🎨 Paint Terrain</div>' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Color:</label>' +
+            '<input type="color" id="e-paint-color" value="#4a7a4a" style="width:100%;height:30px;border:none;background:transparent;cursor:pointer">' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Brush size:</label>' +
+            '<input type="range" id="e-paint-size" min="1" max="10" step="0.5" value="2" style="width:100%">' +
+            '<div style="margin-top:8px;display:flex;gap:4px">' +
+            '<span class="e123-tbtn e-pri" id="e-paint-apply" style="flex:1;text-align:center">Paint</span>' +
+            '<span class="e123-tbtn" id="e-paint-close" style="flex:1;text-align:center">Close</span></div>' +
+            '<div style="color:#666;font-size:10px;margin-top:6px">Click on ground or objects to paint</div>';
+        var btn = document.getElementById('e-add-btn');
+        if (btn) btn.parentNode.appendChild(div);
+        document.getElementById('e-paint-color').oninput = function () {
+            self._paintColor = parseInt(this.value.substring(1), 16);
+        };
+        document.getElementById('e-paint-size').oninput = function () {
+            self._paintBrushSize = parseFloat(this.value);
+        };
+        document.getElementById('e-paint-apply').onclick = function () {
+            self._paintMode = true;
+            self.toast('Paint mode active — click objects to color them');
+        };
+        document.getElementById('e-paint-close').onclick = function () {
+            self._paintMode = false;
+            div.remove();
+            self.toast('Paint mode OFF');
+        };
+        self._paintMode = true;
+        self.toast('Paint mode active — click objects to color them');
     },
 
     _importImage: function (replaceIdx) {
@@ -704,7 +770,13 @@ var Editor123 = {
             });
         });
         toRemove.sort(function (a, b) { return b - a; });
-        toRemove.forEach(function (i) { self._mapObjs.splice(i, 1); });
+        toRemove.forEach(function (i) {
+            if (self._mapObjs[i]) {
+                if (self._mapObjs[i].imgUrl) URL.revokeObjectURL(self._mapObjs[i].imgUrl);
+                if (self._mapObjs[i].audioUrl) URL.revokeObjectURL(self._mapObjs[i].audioUrl);
+            }
+            self._mapObjs.splice(i, 1);
+        });
     },
 
     _selectObject: function (idx, ctrl) {
@@ -961,6 +1033,92 @@ var Editor123 = {
         var st = document.getElementById('e-shortcuts-toggle');
         var sp = document.getElementById('e-shortcuts-panel');
         if (st && sp) { st.onclick = function () { sp.style.display = sp.style.display === 'none' ? 'block' : 'none'; }; }
+
+        // ---- NEW TOOLS ----
+        // Snap toggle
+        var snapBtn = document.getElementById('e-snap-btn');
+        if (snapBtn) {
+            snapBtn.onclick = function () {
+                self._snapEnabled = !self._snapEnabled;
+                var on = self._snapEnabled;
+                this.style.borderColor = on ? '#ffb12b' : 'transparent';
+                this.style.fontWeight = on ? '600' : 'normal';
+                self.toast('Snap ' + (on ? 'ON (' + self._snapSize + 'm)' : 'OFF'));
+                if (self._transformControls) self._transformControls.setTranslationSnap(on ? self._snapSize : null);
+            };
+        }
+        // Scatter tool
+        var scatterBtn = document.getElementById('e-scatter-btn');
+        if (scatterBtn) {
+            scatterBtn.onclick = function () {
+                var sel = self._mapSelObjs;
+                if (sel.length === 0) { self.toast('Select object(s) to scatter'); return; }
+                var count = parseInt(prompt('Number of copies to scatter:', '10'));
+                if (!count || count < 1) return;
+                var radius = parseFloat(prompt('Scatter radius:', '8'));
+                if (!radius || radius < 0.5) radius = 8;
+                var newIndices = [];
+                for (var si = 0; si < count; si++) {
+                    sel.forEach(function (origIdx) {
+                        var orig = self._mapObjs[origIdx];
+                        if (!orig) return;
+                        var copy = JSON.parse(JSON.stringify(orig));
+                        delete copy.imgUrl; delete copy.audioUrl; delete copy.imgBase64;
+                        copy.x = (Math.random() - 0.5) * radius * 2;
+                        copy.z = (Math.random() - 0.5) * radius * 2;
+                        copy.rot = Math.random() * Math.PI * 2;
+                        copy.scale = orig.scale * (0.5 + Math.random());
+                        self._mapObjs.push(copy);
+                        newIndices.push(self._mapObjs.length - 1);
+                    });
+                }
+                self._mapSelObjs = newIndices;
+                self._mapSelObj = newIndices.length > 0 ? newIndices[0] : null;
+                self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
+                self.toast('Scattered ' + newIndices.length + ' objects');
+            };
+        }
+        // Randomize transform
+        var randBtn = document.getElementById('e-rand-btn');
+        if (randBtn) {
+            randBtn.onclick = function () {
+                var sel = self._mapSelObjs;
+                if (sel.length === 0) { self.toast('Select object(s) to randomize'); return; }
+                sel.forEach(function (idx) {
+                    var o = self._mapObjs[idx];
+                    if (!o) return;
+                    o.rot = Math.random() * Math.PI * 2;
+                    o.scale = 0.3 + Math.random() * 1.7;
+                });
+                self._rebuildScene(); self._renderInspector();
+                self.toast('Randomized ' + sel.length + ' objects');
+            };
+        }
+        // Scene settings
+        var sceneBtn = document.getElementById('e-scene-settings-btn');
+        if (sceneBtn) {
+            sceneBtn.onclick = function () {
+                var bg = parseInt(prompt('Sky color (hex 0xRRGGBB):', '0x' + self._sceneBgColor.toString(16).padStart(6, '0')));
+                if (bg && !isNaN(bg)) self._sceneBgColor = bg;
+                var fog = parseFloat(prompt('Fog density (0=none, 0.01=light, 0.05=thick):', self._sceneFogDensity.toString()));
+                if (fog >= 0) self._sceneFogDensity = fog;
+                var amb = parseInt(prompt('Ambient light color (hex 0xRRGGBB):', '0x' + self._sceneAmbient.toString(16).padStart(6, '0')));
+                if (amb && !isNaN(amb)) self._sceneAmbient = amb;
+                if (self._mapScene) {
+                    self._mapScene.background = new THREE.Color(self._sceneBgColor);
+                    if (self._sceneFogDensity > 0) {
+                        self._mapScene.fog = new THREE.FogExp2(self._sceneBgColor, self._sceneFogDensity);
+                    } else {
+                        self._mapScene.fog = null;
+                    }
+                    // Update ambient light in scene
+                    self._mapScene.children.forEach(function (child) {
+                        if (child.isAmbientLight) child.color.setHex(self._sceneAmbient);
+                    });
+                }
+                self.toast('Scene settings updated');
+            };
+        }
     },
 
     _init3DScene: function () {
@@ -971,8 +1129,8 @@ var Editor123 = {
 
         // Scene
         var scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x14181e);
-        scene.fog = new THREE.Fog(0x14181e, 60, 120);
+        scene.background = new THREE.Color(this._sceneBgColor);
+        scene.fog = this._sceneFogDensity > 0 ? new THREE.FogExp2(this._sceneBgColor, this._sceneFogDensity) : null;
         this._mapScene = scene;
 
         // Camera
@@ -989,7 +1147,7 @@ var Editor123 = {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
-        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.colorSpace = THREE.SRGBColorSpace;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1020,9 +1178,6 @@ var Editor123 = {
         scene.add(amb);
 
         // Grid
-        var grid = new THREE.GridHelper(80, 40, 0x3a4a3a, 0x2a332a);
-        grid.position.y = 0.01;
-        scene.add(grid);
         var grid = new THREE.GridHelper(80, 40, 0x3a4a3a, 0x2a332a);
         grid.position.y = 0.01;
         scene.add(grid);
@@ -1077,6 +1232,8 @@ var Editor123 = {
             });
             scene.add(tc);
             self._transformControls = tc;
+            // Apply snap state to new TransformControls
+            if (self._snapEnabled) tc.setTranslationSnap(self._snapSize);
         }
 
         // Rapier physics world
@@ -1135,6 +1292,29 @@ var Editor123 = {
                     if (hitModelIdx >= 0) break;
                     // Check if it's the ground
                     if (hitObj === self._mapGround) { hitGround = true; break; }
+                }
+            }
+            // Paint mode overrides selection
+            if (self._paintMode && allHits.length > 0) {
+                if (hitModelIdx >= 0) {
+                    var paintObj = self._mapObjs[hitModelIdx];
+                    if (paintObj) {
+                        paintObj.color = self._paintColor;
+                        self._rebuildScene();
+                        return;
+                    }
+                }
+                if (hitGround) {
+                    var hitPt = allHits[0].point;
+                    var patch = {
+                        kind: 'ground', subType: 'painted', name: 'Paint Patch',
+                        x: hitPt.x, z: hitPt.z, y: 0.01, rot: 0, scale: 1,
+                        color: self._paintColor, type: 'wall',
+                        planeW: self._paintBrushSize, planeH: self._paintBrushSize,
+                    };
+                    self._mapObjs.push(patch);
+                    self._rebuildScene(); self._updCnt(); self._renderHierarchy();
+                    return;
                 }
             }
             if (hitModelIdx >= 0) {
@@ -1199,13 +1379,13 @@ var Editor123 = {
                     for (var oi = 0; oi < self._mapObjs.length && proxCount < maxProx; oi++) {
                         var o = self._mapObjs[oi];
                         if (!o || o.kind === 'water' || o.kind === 'light' || o.kind === 'ground') continue;
+                        var ox = o.x || 0, oz = o.z || 0;
                         var oy = o.y != null ? o.y : 0.5;
+                        if (o.parentIdx != null && o.parentIdx >= 0 && self._mapObjs[o.parentIdx]) {
+                            var po = self._mapObjs[o.parentIdx];
+                            ox += (po.x || 0); oz += (po.z || 0); oy += (po.y != null ? po.y : 0.5);
+                        }
                         if (Math.abs(oy - waterY) < 2.0) {
-                            var ox = o.x || 0, oz = o.z || 0;
-                            if (o.parentIdx != null && o.parentIdx >= 0 && self._mapObjs[o.parentIdx]) {
-                                var po = self._mapObjs[o.parentIdx];
-                                ox += (po.x || 0); oz += (po.z || 0);
-                            }
                             if (!arr[proxCount]) arr[proxCount] = new THREE.Vector3();
                             arr[proxCount].set(ox, oy, oz);
                             proxCount++;
@@ -1375,12 +1555,53 @@ var Editor123 = {
                     mesh.renderOrder = 1;
                 }
             } else if (kind === 'ground') {
-                var gw = o.planeW || 40, gh = o.planeH || 40;
-                var gMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.05 });
-                var groundGeo = new THREE.PlaneGeometry(gw, gh);
-                groundGeo.rotateX(-Math.PI / 2);
-                mesh = new THREE.Mesh(groundGeo, gMat);
-                if (!self._mapGround) self._mapGround = mesh;
+                if (o.subType === 'painted') {
+                    var pMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.6 });
+                    var pGeo = new THREE.CircleGeometry((o.planeW || 2) / 2, 16);
+                    pGeo.rotateX(-Math.PI / 2);
+                    mesh = new THREE.Mesh(pGeo, pMat);
+                } else {
+                    var gw = o.planeW || 40, gh = o.planeH || 40;
+                    var gMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.05 });
+                    var groundGeo = new THREE.PlaneGeometry(gw, gh);
+                    groundGeo.rotateX(-Math.PI / 2);
+                    mesh = new THREE.Mesh(groundGeo, gMat);
+                    if (!self._mapGround) self._mapGround = mesh;
+                }
+            } else if (kind === 'nature') {
+                var nMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.8, metalness: 0.0 });
+                if (o.subType === 'tree') {
+                    var trunkMat = new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.9 });
+                    var leafMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x3a8a3a), roughness: 0.8 });
+                    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.2, 6), trunkMat);
+                    trunk.position.y = 0.6;
+                    var leaves = new THREE.Mesh(new THREE.SphereGeometry(0.7, 6, 6), leafMat);
+                    leaves.position.y = 1.3;
+                    var treeGrp = new THREE.Group();
+                    treeGrp.add(trunk); treeGrp.add(leaves);
+                    treeGrp.userData.editorObjIdx = idx;
+                    mesh = treeGrp;
+                } else if (o.subType === 'rock') {
+                    mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), nMat);
+                } else if (o.subType === 'bush') {
+                    var bMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x4a8a4a), roughness: 0.9 });
+                    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 6, 6), bMat);
+                } else if (o.subType === 'grass') {
+                    var gMat2 = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x6aaa4a), roughness: 0.9, side: THREE.DoubleSide });
+                    var grassGeo = new THREE.ConeGeometry(0.2, 0.4, 4);
+                    var grassGrp = new THREE.Group();
+                    for (var gi = 0; gi < 12; gi++) {
+                        var blade = new THREE.Mesh(grassGeo, gMat2);
+                        blade.position.set((Math.random() - 0.5) * 0.6, 0.2, (Math.random() - 0.5) * 0.6);
+                        blade.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI * 2, 0);
+                        blade.scale.setScalar(0.5 + Math.random() * 0.8);
+                        grassGrp.add(blade);
+                    }
+                    grassGrp.userData.editorObjIdx = idx;
+                    mesh = grassGrp;
+                } else {
+                    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 6, 6), nMat);
+                }
             } else {
                 // Existing model kind: need libItem
                 if (!libItem) return;
@@ -1398,17 +1619,20 @@ var Editor123 = {
                 mesh.position.set(px, py, pz);
                 mesh.rotation.y = o.rot || 0;
                 mesh.scale.setScalar(o.scale || 1);
-                if (!isImage && !isWater) { mesh.castShadow = true; mesh.receiveShadow = true; }
+                if (!isImage && !isWater) {
+                    if (mesh.isGroup) {
+                        mesh.traverse(function (c) { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+                    } else { mesh.castShadow = true; mesh.receiveShadow = true; }
+                }
                 mesh.userData.editorObjIdx = idx;
                 self._mapScene.add(mesh);
                 self._mapModels.push(mesh);
 
                 // Physics (skip lights, water)
                 if (self._physics && !isLight && !isWater) {
-                    var pyVal = o.y != null ? o.y : 0.5;
                     var desc = self._physSimulating
-                        ? RAPIER.RigidBodyDesc.dynamic().setTranslation(px, pyVal, pz)
-                        : RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, pyVal, pz);
+                        ? RAPIER.RigidBodyDesc.dynamic().setTranslation(px, py, pz)
+                        : RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, py, pz);
                     var body = self._physics.createRigidBody(desc);
                     var hw = (size / 2) * (o.scale || 1);
                     var col = RAPIER.ColliderDesc.cuboid(hw, hw, hw);
@@ -1833,6 +2057,33 @@ var Editor123 = {
                 self.toast('Duplicated ' + copies.length + ' object(s)');
                 return;
             }
+            // G — Toggle snap
+            if (key === 'KeyG' && !ctrl) {
+                var snapBtn2 = document.getElementById('e-snap-btn');
+                if (snapBtn2) snapBtn2.click();
+                return;
+            }
+            // R — Randomize rotation/scale
+            if (key === 'KeyR' && !ctrl) {
+                var randBtn2 = document.getElementById('e-rand-btn');
+                if (randBtn2) randBtn2.click();
+                return;
+            }
+            // F — Focus on selected
+            if (key === 'KeyF' && !ctrl && self._mapSelObj != null && self._mapModels[self._mapSelObj]) {
+                var targetObj = self._mapModels[self._mapSelObj];
+                if (targetObj && self._mapControls) {
+                    var box = new THREE.Box3().setFromObject(targetObj);
+                    var center = box.getCenter(new THREE.Vector3());
+                    self._mapControls.target.copy(center);
+                    var size = box.getSize(new THREE.Vector3());
+                    var dist = Math.max(size.length(), 5) * 1.5;
+                    var camDir = new THREE.Vector3(1, 0.7, 1).normalize();
+                    self._mapCamera.position.copy(center).add(camDir.multiplyScalar(dist));
+                    self._mapControls.update();
+                }
+                return;
+            }
         };
         window.addEventListener('keydown', this._mapKeyHandler);
     },
@@ -1843,6 +2094,9 @@ var Editor123 = {
         if (this._mapRenderer) { this._mapRenderer.dispose(); var el = this._mapRenderer.domElement; if (el && el.parentNode) el.parentNode.removeChild(el); this._mapRenderer = null; }
         if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
+        this._paintMode = false;
+        var pp = document.getElementById('e-paint-panel');
+        if (pp) pp.remove();
     },
 
     /* ═══════════════════════════
