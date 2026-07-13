@@ -67,6 +67,10 @@ const Menu = {
     if(id === 'menu-storage'){
       this._initStorageGrid();
     }
+    if(id === 'menu-codes'){
+      const revertBtn = document.getElementById('btn-revert-map');
+      if(revertBtn) this._refreshRevertBtn(revertBtn);
+    }
   },
   _customMenuActive(){ return localStorage.getItem('tankparty_custommainmenu') === '1'; },
 
@@ -1363,12 +1367,19 @@ const Menu = {
         this.toast('Code redeemed! Opening Menu Editor...');
         MenuEditor.open();
       } else if(code === 'editor123'){
+        console.log('editor123: typeof Editor123 =', typeof Editor123);
+        if(typeof Editor123 === 'undefined' || !Editor123.open){
+          this.toast('Error: Editor123 not loaded. Check console.');
+          return;
+        }
         this.toast('Code redeemed! Opening Editor Suite...');
-        Editor123.open();
+        try { Editor123.open(); } catch(e){ console.error(e); this.toast('Error: '+e.message); }
       } else if(code === 'op321'){
         this.settings.allUnlocked = true;
         saveSettings(this.settings);
         this.toast('All tanks unlocked!');
+      } else if(code === 'revertmap'){
+        this._revertMap();
       } else {
         this.toast('Invalid code');
       }
@@ -1376,6 +1387,25 @@ const Menu = {
     input.onkeydown = (e)=>{
       if(e.code==='Enter') btn.click();
     };
+    // Revert map button
+    const revertBtn = document.getElementById('btn-revert-map');
+    if(revertBtn){
+      revertBtn.onclick = ()=>{ this._revertMap(); };
+      this._refreshRevertBtn(revertBtn);
+    }
+  },
+  _revertMap(){
+    if(!hasMainMap()){
+      this.toast('No saved main map to revert.');
+      return;
+    }
+    clearMainMap();
+    this.toast('Main map reverted to original!');
+    const revertBtn = document.getElementById('btn-revert-map');
+    if(revertBtn) revertBtn.style.display = 'none';
+  },
+  _refreshRevertBtn(el){
+    el.style.display = hasMainMap() ? '' : 'none';
   },
 
   /* ---------- storage ---------- */

@@ -1,12 +1,3 @@
-/* ============================================================
-   tank.js — Tank entity: BODY + TURRET groups (so we always know
-   which is which). Billboard HP bar/name (face camera, not gun).
-   Camouflage in bushes/trees. View-range circle. Box collider +
-   mass (ram damage). Full death sequence: turret launches, body
-   blackens + burns, 8-point star decal, sinks after 5s.
-   Uses MeshStandardMaterial for proper shadow casting/receiving.
-   ============================================================ */
-
 class Tank {
   constructor(def, opts={}){
     this.def = def;
@@ -17,7 +8,6 @@ class Tank {
     this.color   = opts.color != null ? opts.color : def.color;
     this.ownerPeer = opts.ownerPeer || null;
 
-    // transform
     this.x = opts.x || 0;
     this.z = opts.z || 0;
     this.heading = opts.heading || 0;
@@ -26,11 +16,9 @@ class Tank {
     this.vx = 0; this.vz = 0;
     this.drifting = false;
 
-    // track trails
     this.trailSegments = [];
     this._trailTimer = 0;
 
-    // stats
     this.maxHp = def.hp; this.hp = this.maxHp;
     this.mass  = def.mass || 30;
     this.viewRange = def.viewRange || 70;
@@ -38,43 +26,49 @@ class Tank {
     this.damageDealt = 0; this.kills = 0;
     this.reloadLeft = 0;
 
-    // flamethrower heat (0-1000)
     this.heat = 0;
     this.overheated = false;
 
-    // camo
-    this.camoState = null;     // 'bush' | 'tree' | null
-    this.camoFactor = 1;       // 1 visible, 0 hidden
+    this.camoState = null;
+    this.camoFactor = 1;
 
-    // death animation
     this.dying = false;
     this.deathT = 0;
     this.removeAt = -1;
 
-    // collider half-extents (box)
     this.colHalfW = def.body.w*0.55;
     this.colHalfL = def.body.l*0.55;
 
-    // Rapier physics body
     this._physBody = null;
+    this._physCollider = null;
     this._physWorld = opts.physicsWorld || null;
-    if(this._physWorld && typeof RAPIER !== 'undefined'){
-      try {
-        var desc = RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(this.x, 1.2, this.z);
-        this._physBody = this._physWorld.createRigidBody(desc);
-        var col = RAPIER.ColliderDesc.cuboid(this.colHalfW, 0.5, this.colHalfL);
-        this._physWorld.createCollider(col, this._physBody);
-      } catch(e){ this._physBody = null; }
-    }
+    this._createPhysBody();
 
-    // water
     this._inWater = false;
 
     this._buildCubeMesh();
     if(Models && Models.hasModel(def.model||def.id)) this._loadModel();
   }
 
-  /* ---------- Mesh with MeshStandardMaterial (proper shadow support) ---------- */
+  _createPhysBody(){
+    if(!this._physWorld || typeof RAPIER === 'undefined') return;
+    try {
+      var desc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(this.x, 0.9, this.z)
+        .setEnabledRotations(false, true, false)
+        .setEnabledTranslations(true, false, true)
+        .setLinearDamping(0.0)
+        .setAngularDamping(0.0);
+      this._physBody = this._physWorld.createRigidBody(desc);
+      var col = RAPIER.ColliderDesc.cuboid(this.colHalfW, 0.5, this.colHalfL)
+        .setFriction(0.5)
+        .setRestitution(0.05)
+        .setDensity(this.mass / (this.colHalfW * 2 * this.colHalfL * 2))
+        .setUserData({type:'tank', tank:this});
+      this._physCollider = this._physWorld.createCollider(col, this._physBody);
+    } catch(e){ this._physBody = null; }
+  }
+
   _tankMat(color){
     return new THREE.MeshStandardMaterial({color, roughness:0.65, metalness:0.2, flatShading:false});
   }
@@ -169,15 +163,11 @@ class Tank {
       const scale = this.def.modelScale || 1.0;
       grp.scale.setScalar(scale);
 
-      // Compute bounding box across all meshes to find the Y split point
       let minY = Infinity, maxY = -Infinity;
       const meshes = [];
       grp.traverse(o => { if(o.isMesh){ meshes.push(o); const b=new THREE.Box3().setFromObject(o); minY=Math.min(minY,b.min.y); maxY=Math.max(maxY,b.max.y); } });
       const midY = minY + (maxY - minY) * 0.4;
 
-      // Separate each mesh by its world Y position into body or turret parts.
-      // GLB models often nest meshes under intermediate groups, so we must
-      // iterate individual meshes (not just direct children of grp).
       const bodyParts = new THREE.Group();
       const turretParts = new THREE.Group();
       const tmp = new THREE.Vector3();
@@ -202,7 +192,6 @@ class Tank {
         }
       });
 
-      // Add outlines for each part
       bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent); });
       turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent); });
 
@@ -300,7 +289,6 @@ class Tank {
     }
   }
 
-  /* ---------- View range circle ---------- */
   makeViewRangeCircle(){
     const w = this.def;
     const viewRange = w.viewRange || 70;
@@ -331,8 +319,20 @@ class Tank {
     this.viewCircle.material.color.set(color);
   }
 
-  /* ---------- Movement / Drift ---------- */
   setInput(input){ this._input = input; }
+
+  _readPhysicsState(){
+    if(!this._physBody) return;
+    try {
+      var p = this._physBody.translation();
+      this.x = p.x;
+      this.z = p.z;
+      var vel = this._physBody.linvel();
+      this.vx = vel.x;
+      this.vz = vel.z;
+      this.speed = vel.z >= 0 ? Math.hypot(vel.x, vel.z) : -Math.hypot(vel.x, vel.z);
+    } catch(e){}
+  }
 
   update(dt, world, game){
     this._updateTrails(dt, game);
@@ -342,6 +342,10 @@ class Tank {
     }
     if(!this.alive) return;
 
+    if(this._physBody){
+      this._readPhysicsState();
+    }
+
     const d = this.def;
     const inp = this._input || {};
 
@@ -349,7 +353,6 @@ class Tank {
     this.camoFactor = world.camoFactor(this.x, this.z);
     this._applyCamoVisual();
 
-    // Drift check (must come before acceleration to block throttle during drift)
     this.drifting = false;
     const hasTurn = !!inp.turn && Math.abs(inp.turn) > 0.001;
     const kmh = Math.abs(this.speed) * CONFIG.U_TO_KMH;
@@ -357,12 +360,10 @@ class Tank {
       this.drifting = true;
     }
 
-    // Throttle is ignored during drift (no acceleration while sliding)
     const effThrottle = this.drifting ? 0 : (inp.throttle||0);
     const speedCap = d.speed * (1 - Math.min(0.35, (this.mass-18)/120));
     const target = effThrottle * speedCap * (effThrottle < 0 ? 0.5 : 1);
 
-    // Accel/Decel: fast stop when releasing throttle
     if(this.speed < target){
       this.speed = Math.min(target, this.speed + d.accel * dt);
     } else if(this.speed > target){
@@ -371,59 +372,60 @@ class Tank {
       this.speed = Math.max(target, this.speed - d.accel * dt * brakeMul);
     }
 
-    // Drift turning + speed drain
     if(this.drifting){
       this.heading += inp.turn * d.turn * CONFIG.DRIFT_TURN_BOOST * dt;
-      this.speed *= (1 - 0.6 * dt); // gentle drain so slide lasts long enough
     } else if(hasTurn){
       this.heading += inp.turn * d.turn * dt;
     }
 
-    // Derive desired velocity from heading + speed
-    const fx = Math.sin(this.heading) * this.speed;
-    const fz = Math.cos(this.heading) * this.speed;
+    if(this._physBody){
+      const fwdX = Math.sin(this.heading);
+      const fwdZ = Math.cos(this.heading);
+      const targetVx = fwdX * this.speed;
+      const targetVz = fwdZ * this.speed;
+      this._physBody.setLinvel({x: targetVx, y: 0, z: targetVz}, true);
+      var half = this.heading * 0.5;
+      var q = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
+      this._physBody.setRotation(q, true);
 
-    // Drift: velocity keeps original direction (slow alignment, low friction)
-    // Normal: velocity snaps to heading (high alignment, high friction)
-    const alignRate = this.drifting ? 2 : 40;
-    this.vx += (fx - this.vx) * Math.min(1, alignRate * dt);
-    this.vz += (fz - this.vz) * Math.min(1, alignRate * dt);
-
-    const frictionPerSec = this.drifting ? 0.65 : 0.25;
-    this.vx *= Math.pow(frictionPerSec, dt);
-    this.vz *= Math.pow(frictionPerSec, dt);
-
-    // Instant braking when throttle released
-    const noThrottle = Math.abs(inp.throttle||0) < 0.08;
-    if(noThrottle){
-      this.vx *= Math.pow(0.001, dt);
-      this.vz *= Math.pow(0.001, dt);
-      if(Math.hypot(this.vx, this.vz) < 0.02){
-        this.vx = 0; this.vz = 0; this.speed = 0;
+      if(this.drifting){
+        this._physCollider.setFriction(0.05);
+      } else {
+        this._physCollider.setFriction(d.friction || 0.5);
       }
+    } else {
+      const fx = Math.sin(this.heading) * this.speed;
+      const fz = Math.cos(this.heading) * this.speed;
+      const alignRate = this.drifting ? 2 : 40;
+      this.vx += (fx - this.vx) * Math.min(1, alignRate * dt);
+      this.vz += (fz - this.vz) * Math.min(1, alignRate * dt);
+      const frictionPerSec = this.drifting ? 0.65 : 0.25;
+      this.vx *= Math.pow(frictionPerSec, dt);
+      this.vz *= Math.pow(frictionPerSec, dt);
+      const noThrottle = Math.abs(inp.throttle||0) < 0.08;
+      if(noThrottle){
+        this.vx *= Math.pow(0.001, dt);
+        this.vz *= Math.pow(0.001, dt);
+        if(Math.hypot(this.vx, this.vz) < 0.02){
+          this.vx = 0; this.vz = 0; this.speed = 0;
+        }
+      }
+      var nx = this.x + this.vx * dt;
+      var nz = this.z + this.vz * dt;
+      const inWater = !!(world && world.lakeAt(nx, nz));
+      if(inWater){
+        this.speed *= 0.5; this.vx *= 0.5; this.vz *= 0.5;
+      }
+      this._inWater = inWater;
+      const r = Math.max(this.colHalfW, this.colHalfL);
+      if(!world.collides(nx, this.z, r)) this.x = nx;
+      else { this.speed *= 0.5; this.vx *= 0.4; }
+      if(!world.collides(this.x, nz, r)) this.z = nz;
+      else { this.speed *= 0.5; this.vz *= 0.4; }
+      const lim = world.half - 3;
+      this.x = Math.max(-lim, Math.min(lim, this.x));
+      this.z = Math.max(-lim, Math.min(lim, this.z));
     }
-
-    let nx = this.x + this.vx * dt;
-    let nz = this.z + this.vz * dt;
-
-    // Tank in water: speed cut in half
-    const inWater = !!(world && world.lakeAt(nx, nz));
-    if(inWater){
-      this.speed *= 0.5; this.vx *= 0.5; this.vz *= 0.5;
-    }
-    this._inWater = inWater;
-
-    const r = Math.max(this.colHalfW, this.colHalfL);
-    if(!world.collides(nx, this.z, r)) this.x = nx;
-    else { this.speed *= 0.5; this.vx *= 0.4; }
-    if(!world.collides(this.x, nz, r)) this.z = nz;
-    else { this.speed *= 0.5; this.vz *= 0.4; }
-
-    if(game) this._ramCheck(game);
-
-    const lim = world.half - 3;
-    this.x = Math.max(-lim, Math.min(lim, this.x));
-    this.z = Math.max(-lim, Math.min(lim, this.z));
 
     if(inp.turretWorldAngle != null){
       let diff = ((inp.turretWorldAngle - this.turretAngle + Math.PI) % (Math.PI*2)) - Math.PI;
@@ -434,7 +436,6 @@ class Tank {
 
     if(this.reloadLeft > 0) this.reloadLeft -= dt;
 
-    // Flamethrower heat management (Helix)
     if(d.shellType === 'flame'){
       if(inp.fire && !this.overheated){
         this.heat += (1000 / 7.5) * dt;
@@ -449,12 +450,11 @@ class Tank {
         this.heat -= 500 * dt;
         if(this.heat <= 0){ this.heat = 0; }
       }
-      // Barrel glows redder as it heats up
       if(this.barrelMat){
         const t = this.heat / 1000;
-        const r = 0x16 + Math.round(t * 0xe9);   // 0x16→0xff
-        const g = 0x2e - Math.round(t * 0x2e);    // 0x2e→0x00
-        const b = 0x2e - Math.round(t * 0x2e);    // 0x2e→0x00
+        const r = 0x16 + Math.round(t * 0xe9);
+        const g = 0x2e - Math.round(t * 0x2e);
+        const b = 0x2e - Math.round(t * 0x2e);
         this.barrelMat.color.setRGB(r/255, g/255, b/255);
         this.barrelMat.emissive = new THREE.Color(t * 0.8, t * 0.15, 0);
         this.barrelMat.emissiveIntensity = t * 0.5;
@@ -475,50 +475,15 @@ class Tank {
     if(this.nameSprite) this.nameSprite.material.opacity = op;
   }
 
-  _ramCheck(game){
-    for(const o of game.tanks){
-      if(o===this || !o.alive || o.dying) continue;
-      const dx = o.x - this.x, dz = o.z - this.z;
-      const overlapX = (this.colHalfW + o.colHalfW) - Math.abs(dx);
-      const overlapZ = (this.colHalfL + o.colHalfL) - Math.abs(dz);
-      if(overlapX>0 && overlapZ>0){
-        const heavier = this.mass >= o.mass ? this : o;
-        const lighter = heavier === this ? o : this;
-        const massRatio = heavier.mass / Math.max(1, lighter.mass);
-
-        // Push lighter tank by full overlap (no split = no jitter glitch)
-        if(overlapX < overlapZ){
-          const sign = dx < 0 ? 1 : -1;
-          lighter.x += overlapX * sign;
-          if(lighter.vx * sign < 0) lighter.vx = 0;
-        } else {
-          const sign = dz < 0 ? 1 : -1;
-          lighter.z += overlapZ * sign;
-          if(lighter.vz * sign < 0) lighter.vz = 0;
-        }
-
-        // Ram damage (halved)
-        const relSpeed = Math.abs(this.speed) + Math.abs(o.speed);
-        if(relSpeed > 6){
-          const baseDmg = relSpeed * 0.2 * massRatio;
-          lighter.takeDamage(Math.min(32, baseDmg), heavier, game);
-          heavier.takeDamage(Math.min(15, baseDmg / massRatio), lighter, game);
-        }
-
-        // Speed loss: lighter loses more
-        const factor = 1 - lighter.mass / (heavier.mass + lighter.mass);
-        lighter.speed *= Math.max(0.15, factor * 0.5);
-        lighter.vx *= 0.2;
-        lighter.vz *= 0.2;
-      }
-    }
-  }
-
   _syncTransform(){
-    this.root.position.set(this.x, 0, this.z);
     if(this._physBody){
-      try { this._physBody.setNextKinematicTranslation({x: this.x, y: 1.2, z: this.z}); } catch(e){}
+      try {
+        var p = this._physBody.translation();
+        this.x = p.x;
+        this.z = p.z;
+      } catch(e){}
     }
+    this.root.position.set(this.x, 0, this.z);
     this.bodyGroup.rotation.y = this.heading;
     this.turretGroup.rotation.y = this.turretAngle;
     this.turretGroup.position.y = this.def.body.h + 0.45;
@@ -531,12 +496,10 @@ class Tank {
     }
   }
 
-  /* ---------- Track trails ---------- */
   _updateTrails(dt, game){
     const scene = game ? game.scene : null;
     if(!scene) { this.clearTrails(); return; }
 
-    // Create new trail segments
     if(this.alive && !this.dying){
       const speed = Math.hypot(this.vx, this.vz);
       if(speed >= 0.5){
@@ -566,7 +529,6 @@ class Tank {
       }
     }
 
-    // Fade and clean up
     for(let i=this.trailSegments.length-1; i>=0; i--){
       const seg = this.trailSegments[i];
       seg.life -= dt;
@@ -595,7 +557,6 @@ class Tank {
     this.trailSegments = [];
   }
 
-  /* ---------- Combat ---------- */
   takeDamage(amount, fromTank, game){
     if(!this.alive || this.dying) return;
     this.hp -= amount;
@@ -609,21 +570,21 @@ class Tank {
   }
   heal(amount){ this.hp = Math.min(this.maxHp, this.hp + amount); this._drawHp(); }
 
-  /* ---------- Death sequence ---------- */
   _startDeath(game, killer){
     this.dying = true; this.deathT = 0;
     this.removeAt = (game? game.time : 0) + 48;
+    if(this._physBody){
+      try { this._physBody.setEnabled(false); } catch(e){}
+    }
 
     if(this.hpSprite) this.hpSprite.visible = false;
     if(this.nameSprite) this.nameSprite.visible = false;
     if(this.viewCircle) this.viewCircle.visible = false;
 
-    // Turret launch
     this._turretVel = new THREE.Vector3(
       (Math.random()-0.5)*4, 14 + Math.random()*4, (Math.random()-0.5)*4);
     this._turretSpin = new THREE.Vector3((Math.random()-0.5)*4,(Math.random()-0.5)*6,(Math.random()-0.5)*4);
 
-    // Blacken body + turret (works with MeshStandardMaterial!)
     if(this.bodyMat){ this.bodyMat.color.setHex(0x141414); this.bodyMat.emissive=new THREE.Color(0x3a1500); this.bodyMat.emissiveIntensity=0.6; }
     if(this.turretMat){ this.turretMat.color.setHex(0x1a1a1a); this.turretMat.emissive=new THREE.Color(0x2a1000); this.turretMat.emissiveIntensity=0.5; }
     if(this.bodyMesh && this.bodyMesh.material !== this.bodyMat){
@@ -637,12 +598,10 @@ class Tank {
       this.turretMesh.material.emissiveIntensity = 0.5;
     }
 
-    // Fire particles (on the ground at star)
     this._firePts = this._makeFireParticles();
     this._firePts.position.y = 0;
     this.root.add(this._firePts);
 
-    // 2x bigger death star
     this._star = this._makeStarDecal();
     this._star.position.set(0, 0.25, 0);
     this.root.add(this._star);
@@ -717,7 +676,6 @@ class Tank {
       if(this._firePts){ this._firePts.children.forEach(p=>{ p.material.opacity=Math.max(0, 0.9 - this.deathT/45); }); }
     }
 
-    // Star slowly fades over 45 seconds
     if(this._star){
       this._star.material.opacity = Math.max(0, 1.0 - this.deathT / 45);
     }
@@ -754,6 +712,15 @@ class Tank {
     this._drowning = false;
     this._drownTimer = 0;
     this._drawHp();
+    if(this._physBody){
+      try {
+        this._physBody.setEnabled(true);
+        var half = this.heading * 0.5;
+        this._physBody.setTranslation({x: this.x, y: 0.9, z: this.z}, true);
+        this._physBody.setLinvel({x: 0, y: 0, z: 0}, true);
+        this._physBody.setAngvel({x: 0, y: 0, z: 0}, true);
+      } catch(e){}
+    }
   }
 
   _updateHpBar(){ this._drawHp(); }
@@ -785,5 +752,14 @@ class Tank {
     this.hp = s.hp; this.alive=s.alive; this.dying=s.dying||false;
     this.damageDealt=s.dd; this.kills=s.k;
     this.root.visible=this.alive; this._syncTransform(); this._drawHp();
+    if(this._physBody && this.alive && !this.dying){
+      try {
+        this._physBody.setLinvel({x: 0, y: 0, z: 0}, true);
+        this._physBody.setAngvel({x: 0, y: 0, z: 0}, true);
+        var half = this.heading * 0.5;
+        this._physBody.setRotation({x: 0, y: Math.sin(half), z: 0, w: Math.cos(half)}, true);
+        this._physBody.setTranslation({x: this.x, y: 0.9, z: this.z}, true);
+      } catch(e){}
+    }
   }
 }

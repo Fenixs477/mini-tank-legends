@@ -24,6 +24,7 @@ class Game {
     this._myRemoteId = null;
     this.physicsWorld = null;
     this._physBodies = [];
+    this._eventQueue = null;
   }
 
   /* ---------- Three.js bootstrap ---------- */
@@ -74,10 +75,12 @@ class Game {
     try {
       if(typeof RAPIER === 'undefined') return;
       this.physicsWorld = new RAPIER.World({x:0, y:-20, z:0});
+      this._eventQueue = new RAPIER.EventQueue(true);
       // Ground body
       var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0);
       var gBody = this.physicsWorld.createRigidBody(gDesc);
-      var gCol = RAPIER.ColliderDesc.cuboid(160, 0.5, 160);
+      var gCol = RAPIER.ColliderDesc.cuboid(160, 0.5, 160)
+        .setUserData({type:'ground'});
       this.physicsWorld.createCollider(gCol, gBody);
       this._physBodies.push(gBody);
       // Wall colliders
@@ -86,13 +89,78 @@ class Game {
           try {
             var wDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(w.x, 0.5, w.z);
             var wBody = this.physicsWorld.createRigidBody(wDesc);
-            var wCol = RAPIER.ColliderDesc.cuboid(w.w/2, 0.5, w.d/2);
+            var wCol = RAPIER.ColliderDesc.cuboid(w.w/2, 5.0, w.d/2)
+              .setUserData({type:'wall'});
             this.physicsWorld.createCollider(wCol, wBody);
             this._physBodies.push(wBody);
           } catch(e2){}
         }
       }
     } catch(e){ console.warn('Rapier init:', e); }
+  }
+
+  /* Rapier collision event handler */
+  _onCollision(event){
+    if(!this.physicsWorld) return;
+    var c1Handle = event.collider1();
+    var c2Handle = event.collider2();
+    var c1 = this.physicsWorld.getCollider(c1Handle);
+    var c2 = this.physicsWorld.getCollider(c2Handle);
+    if(!c1 || !c2) return;
+    var d1 = c1.userData;
+    var d2 = c2.userData;
+    if(!d1 || !d2) return;
+
+    // Shell-wall
+    if(d1.type === 'shell' && d2.type === 'wall'){
+      if(!d1.shell.dead){
+        d1.shell.dead = true;
+        var sp1 = d1.shell._physBody ? d1.shell._physBody.translation() : null;
+        this.spawnExplosion(sp1 ? sp1.x : d1.shell.x, 1.0, sp1 ? sp1.z : d1.shell.z, 0xffaa33, 6);
+      }
+      return;
+    }
+    if(d1.type === 'wall' && d2.type === 'shell'){
+      if(!d2.shell.dead){
+        d2.shell.dead = true;
+        var sp2 = d2.shell._physBody ? d2.shell._physBody.translation() : null;
+        this.spawnExplosion(sp2 ? sp2.x : d2.shell.x, 1.0, sp2 ? sp2.z : d2.shell.z, 0xffaa33, 6);
+      }
+      return;
+    }
+
+    // Shell-tank
+    if(d1.type === 'shell' && d2.type === 'tank'){
+      if(!d1.shell.dead) this._onShellHitTank(d1.shell, d2.tank);
+      return;
+    }
+    if(d1.type === 'tank' && d2.type === 'shell'){
+      if(!d2.shell.dead) this._onShellHitTank(d2.shell, d1.tank);
+      return;
+    }
+  }
+
+  _onShellHitTank(shell, tank){
+    if(shell.dead) return;
+    shell._hitByPhysics = true;
+    // Sync position from physics body for accurate collision point
+    if(shell._physBody){
+      var t = shell._physBody.translation();
+      shell.x = t.x; shell.y = t.y; shell.z = t.z;
+    }
+    if(tank === shell.owner && shell.life > (shell.owner.def.shellRange/shell.speed) - 0.15) return;
+    var armor = tank.def.armor;
+    if(armor && shell._tryRicochet(tank, this)){
+      // Shell bounced - update physics body to match reflected state
+      if(shell._physBody){
+        shell._physBody.setTranslation({x: shell.x, y: shell.y, z: shell.z}, true);
+        shell._physBody.setLinvel({x: shell.dir.x * shell.speed, y: 0, z: shell.dir.z * shell.speed}, true);
+      }
+      return;
+    }
+    tank.takeDamage(shell.damage, shell.owner, this);
+    this.spawnExplosion(shell.x, 1.2, shell.z, 0xff6a2a, 8);
+    shell.dead = true;
   }
 
   /* Trajectory / aim line: main line + optional 10m markers (professional) */
@@ -202,10 +270,9 @@ class Game {
   /* ---------- SINGLEPLAYER ---------- */
   startSingleplayer(){
     this.mode='sp'; this._resetArena();
-    if(this._useCustomMap){
-      const m = loadCustomMap();
-      if(m) this.world.loadCustomMapData(m);
-    }
+    var m = this._useCustomMap ? loadCustomMap() : null;
+    if(!m) m = loadMainMap();
+    if(m) this.world.loadCustomMapData(m);
     this._spawnLocal();
     for(let i=0;i<20;i++) this._spawnBot();
     this._spawnDummy();
@@ -308,10 +375,9 @@ class Game {
     Menu.hideConnecting();
     Menu.toast('Room live • Code: '+cfg.code);
     this.mode='host'; this._resetArena();
-    if(this._useCustomMap){
-      const m = loadCustomMap();
-      if(m) this.world.loadCustomMapData(m);
-    }
+    var m = this._useCustomMap ? loadCustomMap() : null;
+    if(!m) m = loadMainMap();
+    if(m) this.world.loadCustomMapData(m);
     this._spawnLocal();
     // fake players (bots)
     for(let i=0;i<cfg.fakePlayers;i++) this._spawnBot();
@@ -521,6 +587,7 @@ class Game {
   _resetPhysics(){
     this._physBodies.forEach(b=>{ try{ this.physicsWorld.removeRigidBody(b); }catch(e){} });
     this._physBodies = [];
+    this._eventQueue = null;
     // Re-create ground and wall colliders
     this._initPhysics();
   }
@@ -623,8 +690,13 @@ class Game {
     this._last = now;
     if(this.running){
       this.dt = dt; this.time += dt;
-      // Step Rapier physics
-      if(this.physicsWorld) this.physicsWorld.step(Math.min(dt, 0.033));
+      // Step Rapier physics with collision events
+      if(this.physicsWorld){
+        this.physicsWorld.step(Math.min(dt, 0.033), null, null, this._eventQueue);
+        this._eventQueue.drainContactEvents((event) => {
+          this._onCollision(event);
+        });
+      }
       this._update(dt);
     }
     this.renderer.render(this.scene, this.camera);

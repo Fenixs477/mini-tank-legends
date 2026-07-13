@@ -20,6 +20,7 @@ class Shell {
     this.radius = 0.4;
     this._physBody = null;
     this._physWorld = physicsWorld || null;
+    this._hitByPhysics = false;
     this._initPhysBody();
     this._build();
   }
@@ -27,9 +28,13 @@ class Shell {
   _initPhysBody(){
     if(!this._physWorld || typeof RAPIER === 'undefined') return;
     try {
-      var desc = RAPIER.RigidBodyDesc.dynamic().setTranslation(this.x, this.y, this.z);
+      var desc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(this.x, this.y, this.z)
+        .setGravityScale(0)
+        .setCcdEnabled(true);
       this._physBody = this._physWorld.createRigidBody(desc);
-      var col = RAPIER.ColliderDesc.ball(this.radius);
+      var col = RAPIER.ColliderDesc.ball(this.radius)
+        .setUserData({type:'shell', shell:this});
       this._physWorld.createCollider(col, this._physBody);
       var vx = this.dir.x * this.speed;
       var vz = this.dir.z * this.speed;
@@ -54,19 +59,8 @@ class Shell {
     const fwdX = Math.sin(t.heading);
     const fwdZ = Math.cos(t.heading);
 
-    // Find exact entry point on perimeter via ray-circle intersection
-    const rad = Math.max(t.def.body.w, t.def.body.l)/2;
-    const ddx = this.x - this._prevX, ddz = this.z - this._prevZ;
-    const ex = this._prevX - t.x, ez = this._prevZ - t.z;
-    const a = ddx*ddx + ddz*ddz;
-    const b2 = 2*(ex*ddx + ez*ddz);
-    const c = ex*ex + ez*ez - rad*rad;
-    const disc = b2*b2 - 4*a*c;
-    const tHit = disc > 0 ? (-b2 - Math.sqrt(disc)) / (2*a) : 0.5;
-    const eX = this._prevX + ddx * Math.max(0, Math.min(tHit, 1));
-    const eZ = this._prevZ + ddz * Math.max(0, Math.min(tHit, 1));
-    const fromX = eX - t.x;
-    const fromZ = eZ - t.z;
+    const fromX = this.x - t.x;
+    const fromZ = this.z - t.z;
     const fromLen = Math.hypot(fromX, fromZ);
     if(fromLen < 0.01) return false;
     const fromDirX = fromX / fromLen;
@@ -135,6 +129,7 @@ class Shell {
   }
 
   update(dt, world, game){
+    if(this.dead) return;
     this.life -= dt;
     if(this.life <= 0){ this.dead = true; return; }
 
@@ -144,20 +139,23 @@ class Shell {
     // Use Rapier body position if available, otherwise manual movement
     if(this._physBody){
       var t = this._physBody.translation();
-      this._prevX = this.x; this._prevZ = this.z;
       this.x = t.x; this.y = t.y; this.z = t.z;
       // Kill if below world
       if(this.y < -10){ this.dead = true; return; }
+      // Defensive wall check (fallback if Rapier collision event missed)
+      if(world.collidesWallsOnly(this.x, this.z, this.radius)){
+        this.dead = true;
+        game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6);
+        return;
+      }
     } else {
       const nx = this.x + this.dir.x * this.speed * dt;
       const nz = this.z + this.dir.z * this.speed * dt;
-      // blocked by walls only — shells fly OVER lakes (use wallsOnly check)
       if(world.collidesWallsOnly(nx, nz, this.radius)){
         this.dead = true;
         game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6);
         return;
       }
-      this._prevX = this.x; this._prevZ = this.z;
       this.x = nx; this.z = nz;
     }
 
@@ -167,9 +165,9 @@ class Shell {
     // orient trail
     this.mesh.lookAt(this.x + this.dir.x, this.y, this.z + this.dir.z);
 
-    // tank hits + ricochet
+    // Tank hit fallback (skip if already handled by Rapier collision events)
     for(const t of game.tanks){
-      if(!t.alive) continue;
+      if(!t.alive || this.dead || this._hitByPhysics) continue;
       if(t === this.owner && this.life > (this.owner.def.shellRange/this.speed) - 0.15) continue;
       const dx = t.x - this.x, dz = t.z - this.z;
       const rad = Math.max(t.def.body.w, t.def.body.l)/2 + this.radius;

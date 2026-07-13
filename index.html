@@ -265,6 +265,7 @@
         <label>Enter your code below</label>
         <input type="text" id="codes-input" placeholder="Paste code here..." maxlength="64">
         <div class="btn btn-primary" id="btn-redeem-code">Redeem</div>
+        <div class="btn" id="btn-revert-map" style="margin-top:8px">Revert Map (restore original)</div>
         <div class="btn btn-back" data-back="menu-main">← Back</div>
       </div>
     </div>
@@ -309,9 +310,18 @@
 
   <!-- Libs -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js?v=1783507886609"></script>
+  <script type="module">
+    import RAPIER from 'https://cdn.skypack.dev/@dimforge/rapier3d-compat@0.12.0';
+    await RAPIER.init();
+    window.RAPIER = RAPIER;
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js?v=1783507886609"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js?v=1783507886609"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js?v=1783507886609"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js?v=1783507886609"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js?v=1783507886609"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js?v=1783507886609"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js?v=1783507886609"></script>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js?v=1783507886609"></script>
   <script src="https://unpkg.com/@heroiclabs/nakama-js@2.5.0/dist/nakama-js.umd.js?v=1783507886609"></script>
 
@@ -331,6 +341,7 @@
   <script src="js/net.js?v=1783507886609"></script>
   <script src="js/menu.js?v=1783507886609"></script>
   <script src="js/menu-editor.js?v=1783507886609"></script>
+  <script src="js/editor123.js?v=1783507886609"></script>
   <script src="js/game.js?v=1783507886609"></script>
 </body>
 </html>

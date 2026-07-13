@@ -264,3 +264,9 @@ function hasCustomMap(){ return !!localStorage.getItem('tankparty_custommap'); }
 const MAP_UNLOCK_CODE = 'TANKMASTER';
 function isMapUnlocked(){ return localStorage.getItem('tankparty_mapunlocked')==='1'; }
 function setMapUnlocked(v){ localStorage.setItem('tankparty_mapunlocked', v?'1':'0'); }
+
+/* Main map (replaces procedural default) */
+function saveMainMap(mapData){ localStorage.setItem('tankparty_mainmap', JSON.stringify(mapData)); }
+function loadMainMap(){ try{ return JSON.parse(localStorage.getItem('tankparty_mainmap')||'null'); }catch(e){ return null; } }
+function hasMainMap(){ return !!localStorage.getItem('tankparty_mainmap'); }
+function clearMainMap(){ localStorage.removeItem('tankparty_mainmap'); }

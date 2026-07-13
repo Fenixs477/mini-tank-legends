@@ -59,6 +59,7 @@ var Editor123 = {
     toast: function (m) { if (Menu && Menu.toast) Menu.toast(m); },
 
     _buildOverlay: function () {
+        console.log('editor123._buildOverlay');
         var ex = document.getElementById('editor123-overlay');
         if (ex) ex.remove();
         var d = document.createElement('div');
@@ -66,6 +67,7 @@ var Editor123 = {
         d.style.cssText = 'position:fixed;inset:0;z-index:200;background:#181c22;display:flex;flex-direction:column;color:#eee;font:14px Segoe UI,sans-serif';
         d.innerHTML = '<div id="editor123-content" style="flex:1;display:flex;overflow:hidden"></div>';
         document.body.appendChild(d);
+        console.log('editor123._buildOverlay done, overlay appended');
     },
 
     /* ────── LAUNCHER ────── */
@@ -91,8 +93,10 @@ var Editor123 = {
             b.onmouseover = function () { this.style.borderColor = '#ffb12b'; this.style.background = 'linear-gradient(145deg,#2a303a,#222830)'; };
             b.onmouseout = function () { this.style.borderColor = '#2a2f36'; this.style.background = 'linear-gradient(145deg,#252a32,#1e232a)'; };
             b.onclick = function () {
-                if (this.dataset.mode === 'menus') Editor123._renderMenuList();
-                else Editor123._render3DEditor();
+                try {
+                    if (this.dataset.mode === 'menus') Editor123._renderMenuList();
+                    else Editor123._render3DEditor();
+                } catch(e){ console.error(e); Editor123.toast('Error: '+e.message); }
             };
         });
         document.getElementById('e123-l-back').onclick = function () { Editor123.close(); };
@@ -888,7 +892,8 @@ var Editor123 = {
         var mapData = { objects: gameObjects };
         try {
             localStorage.setItem('tankparty_custommap', JSON.stringify(mapData));
-            self.toast('Saved ' + gameObjects.length + ' objects to game map! Open tank-party.html or index.html and select "Custom Map" to play.');
+            saveMainMap(mapData);
+            self.toast('Saved ' + gameObjects.length + ' objects as your main map!');
         } catch (e) {
             self.toast('Error saving: ' + e.message);
         }
