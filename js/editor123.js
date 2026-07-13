@@ -23,6 +23,7 @@ var Editor123 = {
     _snapEnabled: false, _snapSize: 1,
     _sceneBgColor: 0x14181e, _sceneFogDensity: 0.008, _sceneAmbient: 0x404060,
     _paintMode: false, _paintColor: 0x4a7a4a, _paintBrushSize: 2,
+    _grassMode: false, _grassTexUrl: null, _grassBrushSize: 3, _grassDensity: 20, _grassScale: 0.5, _grassColor: 0x6aaa4a,
 
     MENU_NAMES: {
         'menu-main': 'Main Menu', 'menu-play-select': 'Play Select',
@@ -464,15 +465,12 @@ var Editor123 = {
         addItem('Sound', 'Sound Source', function () { self._spawnBuiltin('sound', 'sound', 'Sound'); });
         addItem('Water', 'Water Body', function () { self._spawnBuiltin('water', 'water', 'Water Body'); });
         addItem('Ground', 'Ground Plane', function () { self._spawnBuiltin('ground', 'ground', 'Ground Plane'); });
-        addItem('Nature', '🌲 Tree', function () { self._spawnBuiltin('nature', 'tree', 'Tree'); });
-        addItem('Nature', '🪨 Rock', function () { self._spawnBuiltin('nature', 'rock', 'Rock'); });
-        addItem('Nature', '🌿 Bush', function () { self._spawnBuiltin('nature', 'bush', 'Bush'); });
-        addItem('Nature', '🌾 Grass Patch', function () { self._spawnBuiltin('nature', 'grass', 'Grass Patch'); });
+        addItem('Tools', '🌿 Grass Painter', function () { self._showGrassPainter(); });
         addItem('Tools', '🎨 Paint Terrain', function () { self._showPaintTool(); });
         var cats = {};
         items.forEach(function (it) { if (!cats[it.cat]) cats[it.cat] = []; cats[it.cat].push(it); });
         var html = '';
-        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️', Nature: '🌳', Tools: '🔧' };
+        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️', Tools: '🔧' };
         Object.keys(cats).forEach(function (cat) {
             html += '<div style="color:#ffb12b;font-size:10px;font-weight:600;padding:6px 8px 2px;text-transform:uppercase;letter-spacing:.5px">' + (catIcons[cat] || '') + ' ' + cat + '</div>';
             cats[cat].forEach(function (it) {
@@ -519,13 +517,6 @@ var Editor123 = {
         }
         if (kind === 'ground') {
             obj.y = 0; obj.planeW = 40; obj.planeH = 40; obj.color = 0x4a6a4a; obj.type = 'wall';
-        }
-        if (kind === 'nature') {
-            obj.y = 0; obj.color = 0x3a7a3a;
-            if (subType === 'tree') { obj.y = 0; obj.color = 0x5a8a3a; obj.scale = 1.5; }
-            if (subType === 'rock') { obj.y = 0; obj.color = 0x7a7a7a; obj.scale = 1; }
-            if (subType === 'bush') { obj.y = 0; obj.color = 0x4a8a4a; obj.scale = 0.8; }
-            if (subType === 'grass') { obj.y = 0; obj.color = 0x6aaa4a; obj.scale = 0.5; }
         }
         this._mapObjs.push(obj);
         var idx = this._mapObjs.length - 1;
@@ -575,6 +566,97 @@ var Editor123 = {
         };
         self._paintMode = true;
         self.toast('Paint mode active — click objects to color them');
+    },
+
+    _showGrassPainter: function () {
+        var self = this;
+        var existing = document.getElementById('e-grass-panel');
+        if (existing) { existing.remove(); self._grassMode = false; self.toast('Grass painter closed'); return; }
+        var div = document.createElement('div');
+        div.id = 'e-grass-panel';
+        div.style.cssText = 'position:absolute;top:28px;left:230px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:10px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:200px';
+        div.innerHTML =
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🌿 Grass Painter</div>' +
+            '<div style="color:#888;font-size:10px;margin-bottom:8px">Upload a grass PNG with transparency</div>' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Texture (PNG with alpha):</label>' +
+            '<input type="file" id="e-grass-tex" accept="image/png,image/jpeg,image/webp" style="color:#aaa;font-size:10px;margin-bottom:6px">' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Brush radius:</label>' +
+            '<input type="range" id="e-grass-radius" min="1" max="15" step="0.5" value="3" style="width:100%">' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Blades per click:</label>' +
+            '<input type="range" id="e-grass-density" min="5" max="100" step="5" value="20" style="width:100%">' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Blade size:</label>' +
+            '<input type="range" id="e-grass-scale" min="0.1" max="2" step="0.1" value="0.5" style="width:100%">' +
+            '<label style="color:#aaa;display:block;margin:4px 0">Color:</label>' +
+            '<input type="color" id="e-grass-color" value="#6aaa4a" style="width:100%;height:30px;border:none;background:transparent;cursor:pointer">' +
+            '<div style="margin-top:8px;display:flex;gap:4px">' +
+            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">Paint</span>' +
+            '<span class="e123-tbtn" id="e-grass-close" style="flex:1;text-align:center">Close</span></div>' +
+            '<div style="color:#666;font-size:10px;margin-top:6px">Click on ground to paint grass (Points, single draw call)</div>';
+        var btn = document.getElementById('e-add-btn');
+        if (btn) btn.parentNode.appendChild(div);
+
+        document.getElementById('e-grass-tex').onchange = function (e) {
+            var f = e.target.files[0];
+            if (!f) return;
+            if (self._grassTexUrl) URL.revokeObjectURL(self._grassTexUrl);
+            self._grassTexUrl = URL.createObjectURL(f);
+            self.toast('Grass texture loaded: ' + f.name);
+        };
+        document.getElementById('e-grass-radius').oninput = function () { self._grassBrushSize = parseFloat(this.value); };
+        document.getElementById('e-grass-density').oninput = function () { self._grassDensity = parseInt(this.value); };
+        document.getElementById('e-grass-scale').oninput = function () { self._grassScale = parseFloat(this.value); };
+        document.getElementById('e-grass-color').oninput = function () {
+            self._grassColor = parseInt(this.value.substring(1), 16);
+        };
+
+        var startPaint = function () {
+            if (!self._grassTexUrl) { self.toast('Upload a grass texture first!'); return; }
+            self._grassMode = true;
+            self.toast('Grass paint active — click ground to stamp grass');
+        };
+
+        document.getElementById('e-grass-paint').onclick = startPaint;
+        document.getElementById('e-grass-close').onclick = function () {
+            self._grassMode = false;
+            div.remove();
+            self.toast('Grass painter closed');
+        };
+        // Also activate on texture load
+        self._grassMode = true;
+        if (self._grassTexUrl) self.toast('Grass paint active — click ground to stamp grass');
+        else self.toast('Upload a grass texture, then click ground to paint');
+    },
+
+    _spawnGrass: function (pos) {
+        var positions = [];
+        var count = this._grassDensity || 20;
+        var radius = this._grassBrushSize || 3;
+        var scale = this._grassScale || 0.5;
+        for (var gi = 0; gi < count; gi++) {
+            var angle = Math.random() * Math.PI * 2;
+            var dist = Math.sqrt(Math.random()) * radius;
+            positions.push({
+                x: pos.x + Math.cos(angle) * dist,
+                y: 0,
+                z: pos.z + Math.sin(angle) * dist,
+            });
+        }
+        var obj = {
+            kind: 'grass', subType: 'painter', name: 'Grass Layer',
+            x: pos.x, z: pos.z, y: 0,
+            positions: positions,
+            textureUrl: this._grassTexUrl,
+            bladeScale: scale,
+            brushSize: radius,
+            color: this._grassColor,
+        };
+        this._mapObjs.push(obj);
+        var idx = this._mapObjs.length - 1;
+        this._selectObject(idx, false);
+        this._updCnt();
+        this._rebuildScene();
+        this._renderHierarchy();
+        this.toast('Placed ' + count + ' grass blades');
     },
 
     _importImage: function (replaceIdx) {
@@ -1294,6 +1376,11 @@ var Editor123 = {
                     if (hitObj === self._mapGround) { hitGround = true; break; }
                 }
             }
+            // Grass painter mode
+            if (self._grassMode && self._grassTexUrl && allHits.length > 0 && hitGround) {
+                self._spawnGrass(allHits[0].point);
+                return;
+            }
             // Paint mode overrides selection
             if (self._paintMode && allHits.length > 0) {
                 if (hitModelIdx >= 0) {
@@ -1568,40 +1655,34 @@ var Editor123 = {
                     mesh = new THREE.Mesh(groundGeo, gMat);
                     if (!self._mapGround) self._mapGround = mesh;
                 }
-            } else if (kind === 'nature') {
-                var nMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.8, metalness: 0.0 });
-                if (o.subType === 'tree') {
-                    var trunkMat = new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.9 });
-                    var leafMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x3a8a3a), roughness: 0.8 });
-                    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.2, 6), trunkMat);
-                    trunk.position.y = 0.6;
-                    var leaves = new THREE.Mesh(new THREE.SphereGeometry(0.7, 6, 6), leafMat);
-                    leaves.position.y = 1.3;
-                    var treeGrp = new THREE.Group();
-                    treeGrp.add(trunk); treeGrp.add(leaves);
-                    treeGrp.userData.editorObjIdx = idx;
-                    mesh = treeGrp;
-                } else if (o.subType === 'rock') {
-                    mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5, 0), nMat);
-                } else if (o.subType === 'bush') {
-                    var bMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x4a8a4a), roughness: 0.9 });
-                    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 6, 6), bMat);
-                } else if (o.subType === 'grass') {
-                    var gMat2 = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : (o.color || 0x6aaa4a), roughness: 0.9, side: THREE.DoubleSide });
-                    var grassGeo = new THREE.ConeGeometry(0.2, 0.4, 4);
-                    var grassGrp = new THREE.Group();
-                    for (var gi = 0; gi < 12; gi++) {
-                        var blade = new THREE.Mesh(grassGeo, gMat2);
-                        blade.position.set((Math.random() - 0.5) * 0.6, 0.2, (Math.random() - 0.5) * 0.6);
-                        blade.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * Math.PI * 2, 0);
-                        blade.scale.setScalar(0.5 + Math.random() * 0.8);
-                        grassGrp.add(blade);
-                    }
-                    grassGrp.userData.editorObjIdx = idx;
-                    mesh = grassGrp;
-                } else {
-                    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 6, 6), nMat);
+            } else if (kind === 'grass') {
+                // Grass layer rendered as Points (billboarded particles)
+                var grassTex = null;
+                if (o.textureUrl) {
+                    var texLoader = new THREE.TextureLoader();
+                    grassTex = texLoader.load(o.textureUrl);
                 }
+                var gMat = new THREE.PointsMaterial({
+                    map: grassTex || null,
+                    color: isSelected ? 0xffb12b : baseColor,
+                    size: o.bladeScale || 0.5,
+                    sizeAttenuation: true,
+                    transparent: true,
+                    alphaTest: 0.01,
+                    depthWrite: true,
+                    blending: THREE.NormalBlending,
+                });
+                var positions = o.positions || [];
+                var geo = new THREE.BufferGeometry();
+                var posArr = new Float32Array(positions.length * 3);
+                for (var pi = 0; pi < positions.length; pi++) {
+                    posArr[pi * 3] = positions[pi].x;
+                    posArr[pi * 3 + 1] = (positions[pi].y != null ? positions[pi].y : 0);
+                    posArr[pi * 3 + 2] = positions[pi].z;
+                }
+                geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+                mesh = new THREE.Points(geo, gMat);
+                mesh.frustumCulled = false;
             } else {
                 // Existing model kind: need libItem
                 if (!libItem) return;
@@ -1628,8 +1709,8 @@ var Editor123 = {
                 self._mapScene.add(mesh);
                 self._mapModels.push(mesh);
 
-                // Physics (skip lights, water)
-                if (self._physics && !isLight && !isWater) {
+                // Physics (skip lights, water, grass)
+                if (self._physics && !isLight && !isWater && kind !== 'grass') {
                     var desc = self._physSimulating
                         ? RAPIER.RigidBodyDesc.dynamic().setTranslation(px, py, pz)
                         : RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, py, pz);
@@ -2095,8 +2176,12 @@ var Editor123 = {
         if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
         this._paintMode = false;
+        this._grassMode = false;
         var pp = document.getElementById('e-paint-panel');
         if (pp) pp.remove();
+        var gp = document.getElementById('e-grass-panel');
+        if (gp) gp.remove();
+        if (this._grassTexUrl) { URL.revokeObjectURL(this._grassTexUrl); this._grassTexUrl = null; }
     },
 
     /* ═══════════════════════════
