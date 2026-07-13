@@ -1210,6 +1210,10 @@ var Editor123 = {
         var W = host.clientWidth || 800, H = host.clientHeight || 500;
         if (W < 1 || H < 1) { console.error('_init3DScene: viewport has zero size', W, H); W = 800; H = 500; }
 
+        // Check critical dependencies
+        if (typeof THREE === 'undefined') { host.innerHTML = '<div style="color:#f66;padding:20px">Error: THREE not loaded</div>'; return; }
+        if (typeof THREE.OrbitControls === 'undefined') { host.innerHTML = '<div style="color:#f66;padding:20px">Error: OrbitControls not loaded (check network tab for jsDelivr 404)</div>'; return; }
+
         // Scene
         var scene = new THREE.Scene();
         scene.background = new THREE.Color(0x2a3a5a); // lighter blue so black is obvious
@@ -1235,14 +1239,20 @@ var Editor123 = {
         this._mapRenderer = renderer;
 
         // Controls
-        var controls = new THREE.OrbitControls(cam, renderer.domElement);
-        controls.enableDamping = true; controls.dampingFactor = 0.1;
-        controls.maxPolarAngle = Math.PI / 2.05;
-        controls.minDistance = 3; controls.maxDistance = 120;
-        controls.keys = { LEFT: 65, UP: 87, RIGHT: 68, BOTTOM: 83 }; // A/W/D/S
-        controls.target.set(0, 0, 0);
-        controls.update();
-        this._mapControls = controls;
+        try {
+            var controls = new THREE.OrbitControls(cam, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.1;
+            controls.maxPolarAngle = Math.PI / 2.05;
+            controls.minDistance = 3; controls.maxDistance = 120;
+            controls.keys = { LEFT: 65, UP: 87, RIGHT: 68, BOTTOM: 83 };
+            controls.target.set(0, 0, 0);
+            controls.update();
+            this._mapControls = controls;
+        } catch(e) {
+            host.innerHTML = '<div style="color:#f66;padding:20px">Error creating controls: ' + e.message + '</div>';
+            console.error(e);
+            return;
+        }
 
         // Lights
         var hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.8);
