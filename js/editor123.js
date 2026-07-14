@@ -1211,32 +1211,22 @@ var Editor123 = {
         try { W = host.clientWidth || 800; H = host.clientHeight || 500; } catch(e){}
         if (W < 100) W = 800; if (H < 100) H = 500;
 
-        // Scene
         var scene = new THREE.Scene();
         scene.background = new THREE.Color(0x7ab8e0);
-        scene.fog = new THREE.FogExp2(0x7ab8e0, 0.006);
         this._mapScene = scene;
 
-        // Camera
         var cam = new THREE.PerspectiveCamera(50, W / H, 0.1, 250);
         cam.position.set(25, 20, 25);
         this._mapCamera = cam;
 
-        // Renderer
         var renderer;
         try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch(e){ host.innerHTML = 'WebGL unavailable'; return; }
         renderer.setSize(W, H);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.toneMappingExposure = 1.0;
-        renderer.domElement.style.display = 'block';
-        renderer.domElement.style.width = '100%';
-        renderer.domElement.style.height = '100%';
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
-        // OrbitControls
         var controls = new THREE.OrbitControls(cam, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.12;
@@ -1247,14 +1237,13 @@ var Editor123 = {
         controls.update();
         this._mapControls = controls;
 
-        // WASD camera movement
+        // WASD keyboard state
         var keys = {};
         document.addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
         document.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
 
         // Lights
-        var hemi = new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9);
-        scene.add(hemi);
+        scene.add(new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9));
         var sun = new THREE.DirectionalLight(0xffeedd, 1.8);
         sun.position.set(25, 35, 20);
         sun.castShadow = true;
@@ -1263,9 +1252,7 @@ var Editor123 = {
         var sc = sun.shadow.camera;
         sc.near = 0.5; sc.far = 90; sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40;
         scene.add(sun);
-        var fill = new THREE.DirectionalLight(0x8899ff, 0.3);
-        fill.position.set(-20, 10, -20);
-        scene.add(fill);
+        scene.add(new THREE.DirectionalLight(0x8899ff, 0.3).position.set(-20, 10, -20));
         scene.add(new THREE.AmbientLight(0x666688, 0.35));
 
         // Grid
@@ -1277,47 +1264,49 @@ var Editor123 = {
         if (window.THREE && THREE.GLTFLoader) this._gltfLoader = new THREE.GLTFLoader();
         if (window.THREE && THREE.FBXLoader) this._fbxLoader = new THREE.FBXLoader();
 
-        // TransformControls gizmo
+        // TransformControls
         if (window.THREE && THREE.TransformControls) {
             var tc = new THREE.TransformControls(cam, renderer.domElement);
             tc.addEventListener('dragging-changed', function (ev) { controls.enabled = !ev.value; });
             tc.addEventListener('change', function () {
-                if (tc.object && tc.object.userData && tc.object.userData.editorObjIdx !== undefined) {
-                    var idx = tc.object.userData.editorObjIdx;
-                    var obj = self._mapObjs[idx];
-                    if (obj && tc.mode) {
-                        if (tc.mode === 'translate') {
-                            var parentObj = (obj.parentIdx != null && obj.parentIdx >= 0) ? self._mapObjs[obj.parentIdx] : null;
-                            if (parentObj) { obj.x = tc.object.position.x - parentObj.x; obj.z = tc.object.position.z - parentObj.z; obj.y = tc.object.position.y - (parentObj.y != null ? parentObj.y : 0.5); }
-                            else { obj.x = tc.object.position.x; obj.z = tc.object.position.z; obj.y = tc.object.position.y; }
-                            var body = tc.object.userData._physBody;
-                            if (body) body.setTranslation({ x: tc.object.position.x, y: tc.object.position.y, z: tc.object.position.z }, true);
-                        }
-                        if (tc.mode === 'rotate') obj.rot = tc.object.rotation.y;
-                        if (tc.mode === 'scale') {
-                            obj.scale = tc.object.scale.x;
-                            var body = tc.object.userData._physBody;
-                            if (body && body.userData._collider) body.userData._collider.setHalfExtents(new RAPIER.Vector3(0.75 * obj.scale, 0.75 * obj.scale, 0.75 * obj.scale));
-                        }
-                        self._renderInspector();
-                    }
+                if (!tc.object || !tc.object.userData || tc.object.userData.editorObjIdx === undefined) return;
+                var idx = tc.object.userData.editorObjIdx;
+                var obj = self._mapObjs[idx];
+                if (!obj || !tc.mode) return;
+                if (tc.mode === 'translate') {
+                    var parentObj = (obj.parentIdx != null && obj.parentIdx >= 0) ? self._mapObjs[obj.parentIdx] : null;
+                    if (parentObj) { obj.x = tc.object.position.x - parentObj.x; obj.z = tc.object.position.z - parentObj.z; obj.y = tc.object.position.y - (parentObj.y != null ? parentObj.y : 0.5); }
+                    else { obj.x = tc.object.position.x; obj.z = tc.object.position.z; obj.y = tc.object.position.y; }
+                    var body = tc.object.userData._physBody;
+                    if (body) try { body.setTranslation({ x: tc.object.position.x, y: tc.object.position.y, z: tc.object.position.z }, true); } catch(e){}
                 }
+                if (tc.mode === 'rotate') obj.rot = tc.object.rotation.y;
+                if (tc.mode === 'scale') {
+                    obj.scale = tc.object.scale.x;
+                    var body = tc.object.userData._physBody;
+                    if (body && body.userData && body.userData._collider) try { body.userData._collider.setHalfExtents(new RAPIER.Vector3(0.75 * obj.scale, 0.75 * obj.scale, 0.75 * obj.scale)); } catch(e){}
+                }
+                self._renderInspector();
             });
             scene.add(tc);
             self._transformControls = tc;
             if (self._snapEnabled) tc.setTranslationSnap(self._snapSize);
         }
 
-        // Rapier physics world
+        // Rapier physics
+        this._physics = null;
+        this._physBodies = [];
+        this._physGround = null;
         if (typeof RAPIER !== 'undefined') {
-            var world = new RAPIER.World({ x: 0, y: -20, z: 0 });
-            this._physics = world;
-            var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
-            var gBody = world.createRigidBody(gDesc);
-            var gCol = RAPIER.ColliderDesc.cuboid(40, 0.1, 40);
-            world.createCollider(gCol, gBody);
-            this._physGround = gBody;
-            this._physBodies = [gBody];
+            try {
+                var world = new RAPIER.World({ x: 0, y: -20, z: 0 });
+                this._physics = world;
+                var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
+                var gBody = world.createRigidBody(gDesc);
+                world.createCollider(RAPIER.ColliderDesc.cuboid(40, 0.1, 40), gBody);
+                this._physGround = gBody;
+                this._physBodies = [gBody];
+            } catch(e){ console.warn('Editor physics init:', e); }
         }
 
         // Resize handler
@@ -1330,56 +1319,57 @@ var Editor123 = {
         window.addEventListener('resize', ro);
         this._mapResizeHandler = ro;
 
-        // Raycaster for object selection
+        // Raycaster click handler
         var raycaster = new THREE.Raycaster();
         var mouse = new THREE.Vector2();
         renderer.domElement.onclick = function (e) {
-            var r = renderer.domElement.getBoundingClientRect();
-            mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
-            mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
-            raycaster.setFromCamera(mouse, cam);
-            var allSceneObjects = [];
-            if (self._mapGround) allSceneObjects.push(self._mapGround);
-            self._mapModels.forEach(function (m) { if (m) allSceneObjects.push(m); });
-            var allMeshes = [];
-            self._mapModels.forEach(function (m) { if (m) m.traverse(function (c) { if (c.isMesh) allMeshes.push(c); }); });
-            allSceneObjects = allSceneObjects.concat(allMeshes);
-            var allHits = raycaster.intersectObjects(allSceneObjects, false);
-            var hitModelIdx = -1, hitGround = false;
-            if (allHits.length > 0) {
-                for (var hi = 0; hi < allHits.length; hi++) {
-                    var hitObj = allHits[hi].object;
-                    for (var mi = 0; mi < self._mapModels.length; mi++) {
-                        var g = self._mapModels[mi]; if (!g) continue;
-                        var found = false;
-                        g.traverse(function (c) { if (c === hitObj) found = true; });
-                        if (found) { hitModelIdx = mi; break; }
+            try {
+                var r = renderer.domElement.getBoundingClientRect();
+                mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+                mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+                raycaster.setFromCamera(mouse, cam);
+                var objs = [];
+                if (self._mapGround) objs.push(self._mapGround);
+                self._mapModels.forEach(function (m) { if (m) objs.push(m); });
+                var meshes = [];
+                self._mapModels.forEach(function (m) { if (m) m.traverse(function (c) { if (c.isMesh) meshes.push(c); }); });
+                objs = objs.concat(meshes);
+                var hits = raycaster.intersectObjects(objs, false);
+                var mi = -1, gd = false;
+                if (hits.length > 0) {
+                    for (var hi = 0; hi < hits.length; hi++) {
+                        var ho = hits[hi].object;
+                        for (var mi2 = 0; mi2 < self._mapModels.length; mi2++) {
+                            var gm = self._mapModels[mi2]; if (!gm) continue;
+                            var f = false; gm.traverse(function (c) { if (c === ho) f = true; });
+                            if (f) { mi = mi2; break; }
+                        }
+                        if (mi >= 0) break;
+                        if (ho === self._mapGround) { gd = true; break; }
                     }
-                    if (hitModelIdx >= 0) break;
-                    if (hitObj === self._mapGround) { hitGround = true; break; }
                 }
-            }
-            if (self._grassMode && self._grassTexUrl && allHits.length > 0 && hitGround) { self._spawnGrass(allHits[0].point); return; }
-            if (self._paintMode && allHits.length > 0) {
-                if (hitModelIdx >= 0) { var paintObj = self._mapObjs[hitModelIdx]; if (paintObj) { paintObj.color = self._paintColor; self._rebuildScene(); return; } }
-                if (hitGround) { var hitPt = allHits[0].point; self._mapObjs.push({ kind: 'ground', subType: 'painted', name: 'Paint Patch', x: hitPt.x, z: hitPt.z, y: 0.01, rot: 0, scale: 1, color: self._paintColor, type: 'wall', planeW: self._paintBrushSize, planeH: self._paintBrushSize }); self._rebuildScene(); self._updCnt(); self._renderHierarchy(); return; }
-            }
-            if (hitModelIdx >= 0) { self._selectObject(hitModelIdx, e.ctrlKey || e.metaKey); }
-            else if (hitGround || allHits.length > 0) {
-                if (self._mapPlacing !== false && self._mapPlacing !== null && self._mapLib[self._mapPlacing]) {
-                    var pt = allHits[0].point; var lib = self._mapLib[self._mapPlacing];
-                    self._mapObjs.push({ libIdx: self._mapPlacing, name: lib.name || 'Model', x: pt.x, z: pt.z, y: 0.5, rot: 0, scale: 1 });
-                    self._updCnt(); self._rebuildScene(); self._renderHierarchy(); self.toast('Placed: ' + lib.name);
-                } else { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
-            } else if (allHits.length === 0) { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
+                if (self._grassMode && self._grassTexUrl && hits.length > 0 && gd) { self._spawnGrass(hits[0].point); return; }
+                if (self._paintMode && hits.length > 0) {
+                    if (mi >= 0 && self._mapObjs[mi]) { self._mapObjs[mi].color = self._paintColor; self._rebuildScene(); return; }
+                    if (gd) { var hp = hits[0].point; self._mapObjs.push({ kind: 'ground', subType: 'painted', name: 'Paint Patch', x: hp.x, z: hp.z, y: 0.01, rot: 0, scale: 1, color: self._paintColor, type: 'wall', planeW: self._paintBrushSize, planeH: self._paintBrushSize }); self._rebuildScene(); self._updCnt(); self._renderHierarchy(); return; }
+                }
+                if (mi >= 0) self._selectObject(mi, e.ctrlKey || e.metaKey);
+                else if (gd || hits.length > 0) {
+                    if (self._mapPlacing !== false && self._mapPlacing !== null && self._mapLib[self._mapPlacing]) { var pt = hits[0].point; var lib = self._mapLib[self._mapPlacing]; self._mapObjs.push({ libIdx: self._mapPlacing, name: lib.name || 'Model', x: pt.x, z: pt.z, y: 0.5, rot: 0, scale: 1 }); self._updCnt(); self._rebuildScene(); self._renderHierarchy(); self.toast('Placed: ' + lib.name); }
+                    else { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
+                } else if (hits.length === 0) { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
+            } catch(e){ console.warn('Editor click:', e); }
         };
         renderer.domElement.oncontextmenu = function (e) {
             e.preventDefault();
-            if (self._mapSelObjs.length > 0 && confirm('Delete ' + self._mapSelObjs.length + ' selected object(s)?')) {
+            if (self._mapSelObjs.length > 0 && confirm('Delete selected?')) {
                 self._recursiveDelete(self._mapSelObjs.slice()); self._mapSelObj = null; self._mapSelObjs = [];
                 self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
             }
         };
+
+        // Build scene objects BEFORE starting animation
+        this._rebuildScene();
 
         // Animation loop
         var time = 0;
@@ -1387,36 +1377,32 @@ var Editor123 = {
             self._mapAnimId = requestAnimationFrame(anim);
             try {
                 time += 0.016;
+                var ms = 12 * 0.016;
+                if (keys['w']) controls.target.y += ms;
+                if (keys['s']) controls.target.y -= ms;
+                if (keys['a']) { var va = new THREE.Vector3(-1, 0, 0).applyQuaternion(cam.quaternion); va.y = 0; va.normalize(); controls.target.add(va.multiplyScalar(ms)); }
+                if (keys['d']) { var vd = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion); vd.y = 0; vd.normalize(); controls.target.add(vd.multiplyScalar(ms)); }
+                if (keys['q']) controls.target.y -= ms;
+                if (keys['e']) controls.target.y += ms;
 
-                // WASD camera orbit movement
-                var moveSpeed = 12 * 0.016;
-                if (keys['w']) controls.target.y += moveSpeed;
-                if (keys['s']) controls.target.y -= moveSpeed;
-                if (keys['a']) { var la = new THREE.Vector3(-1, 0, 0).applyQuaternion(cam.quaternion); la.y = 0; la.normalize(); controls.target.add(la.multiplyScalar(moveSpeed)); }
-                if (keys['d']) { var ld = new THREE.Vector3(1, 0, 0).applyQuaternion(cam.quaternion); ld.y = 0; ld.normalize(); controls.target.add(ld.multiplyScalar(moveSpeed)); }
-                if (keys['q']) controls.target.y -= moveSpeed;
-                if (keys['e']) controls.target.y += moveSpeed;
-
-                // Update water shader uniforms
-                var proxCount = 0, proxArr = null;
+                // Water shader uniforms
+                var pc = 0, pa = null;
                 self._mapModels.forEach(function (m) {
                     if (!m || !m.material || !m.material.uniforms || !m.material.uniforms.uTime) return;
                     m.material.uniforms.uTime.value = time;
                     if (!m.material.uniforms.uProxPositions) return;
-                    if (!proxArr) {
-                        var waterY = m.position.y;
-                        var arr = m.material.uniforms.uProxPositions.value; proxCount = 0;
-                        for (var oi = 0; oi < self._mapObjs.length && proxCount < 48; oi++) {
-                            var o = self._mapObjs[oi];
-                            if (!o || o.kind === 'water' || o.kind === 'light' || o.kind === 'ground') continue;
+                    if (!pa) {
+                        var wy = m.position.y, ar = m.material.uniforms.uProxPositions.value; pc = 0;
+                        for (var oi = 0; oi < self._mapObjs.length && pc < 48; oi++) {
+                            var o = self._mapObjs[oi]; if (!o || o.kind === 'water' || o.kind === 'light' || o.kind === 'ground') continue;
                             var ox = o.x || 0, oz = o.z || 0, oy = o.y != null ? o.y : 0.5;
                             if (o.parentIdx != null && o.parentIdx >= 0 && self._mapObjs[o.parentIdx]) { var po = self._mapObjs[o.parentIdx]; ox += (po.x || 0); oz += (po.z || 0); oy += (po.y != null ? po.y : 0.5); }
-                            if (Math.abs(oy - waterY) < 2.0) { if (!arr[proxCount]) arr[proxCount] = new THREE.Vector3(); arr[proxCount].set(ox, oy, oz); proxCount++; }
+                            if (Math.abs(oy - wy) < 2.0) { if (!ar[pc]) ar[pc] = new THREE.Vector3(); ar[pc].set(ox, oy, oz); pc++; }
                         }
-                        proxArr = arr;
+                        pa = ar;
                     }
-                    m.material.uniforms.uProxCount.value = proxCount;
-                    if (proxArr && m.material.uniforms.uProxPositions.value !== proxArr) { var dst = m.material.uniforms.uProxPositions.value; for (var pi = 0; pi < 48; pi++) dst[pi].copy(proxArr[pi]); }
+                    m.material.uniforms.uProxCount.value = pc;
+                    if (pa && m.material.uniforms.uProxPositions.value !== pa) { var dst = m.material.uniforms.uProxPositions.value; for (var pi = 0; pi < 48; pi++) dst[pi].copy(pa[pi]); }
                 });
 
                 // Physics step
@@ -1431,11 +1417,9 @@ var Editor123 = {
 
                 controls.update();
                 renderer.render(scene, cam);
-            } catch(e){ console.error('Editor render error:', e); }
+            } catch(e){}
         };
         anim();
-
-        this._rebuildScene();
     },
 
     _rebuildScene: function () {
