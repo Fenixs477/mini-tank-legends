@@ -1236,6 +1236,10 @@ var Editor123 = {
         renderer.toneMappingExposure = 1.0;
         if (THREE.SRGBColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
         else if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+        // Style canvas to fill container
+        renderer.domElement.style.display = 'block';
+        renderer.domElement.style.width = '100%';
+        renderer.domElement.style.height = '100%';
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1275,6 +1279,15 @@ var Editor123 = {
         var grid = new THREE.GridHelper(80, 40, 0x99cc99, 0x668866);
         grid.position.y = 0.01;
         scene.add(grid);
+
+        // Test cube to verify rendering works
+        var testCube = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 1.5, 1.5),
+            new THREE.MeshStandardMaterial({ color: 0xff3366 })
+        );
+        testCube.position.set(0, 1.5, 4);
+        scene.add(testCube);
+        this._editorTestCube = testCube;
 
         // Loaders
         if (window.THREE && THREE.GLTFLoader) this._gltfLoader = new THREE.GLTFLoader();
@@ -1462,7 +1475,13 @@ var Editor123 = {
         var time = 0;
         var anim = function () {
             self._mapAnimId = requestAnimationFrame(anim);
+            try {
             time += 0.016;
+            // Spin test cube so user can tell it's alive
+            if (self._editorTestCube) {
+                self._editorTestCube.rotation.x = time * 0.5;
+                self._editorTestCube.rotation.y = time * 0.8;
+            }
             // Update water shader uniforms (time + proximity foam)
             var proxCount = 0, proxArr = null;
             self._mapModels.forEach(function (m) {
@@ -1521,6 +1540,7 @@ var Editor123 = {
             }
             controls.update();
             renderer.render(scene, cam);
+            } catch(e){ console.error('Editor render error:', e); }
         };
         anim();
 
