@@ -1,0 +1,30 @@
+# Cloudflare Pages headers
+# Always serve fresh HTML so updates are instant
+/index.html
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+
+# JS/CSS - revalidate on every request (fast with Cloudflare ETags)
+/js/*
+  Cache-Control: no-cache
+/css/*
+  Cache-Control: no-cache
+
+# Model files - cache 1 week (rarely change)
+/mini_tank_legends_models/*
+  Cache-Control: public, max-age=604800
+  Access-Control-Allow-Origin: *
+
+# VFX shader files - cache 1 week
+/vfx/*
+  Cache-Control: public, max-age=604800
+
+# Nature assets - cache 1 week
+/nature/*
+  Cache-Control: public, max-age=604800
+
+# Images - cache 1 month
+*.jpg
+  Cache-Control: public, max-age=2592000
+*.png
+  Cache-Control: public, max-age=2592000
