@@ -39,6 +39,7 @@ class Game {
     this.scene.__renderer = this.renderer;
     this.camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 1000);
     this.camera.position.set(0, CONFIG.CAM_HEIGHT, -CONFIG.CAM_DIST);
+    this.camera.lookAt(0, 1.2, 0);
 
     this.world = new World(this.scene);
     this._initPhysics();
@@ -275,9 +276,11 @@ class Game {
       if(!m) m = loadMainMap();
       if(m) this.world.loadCustomMapData(m);
     } catch(e){ console.warn('Map load error:', e); }
-    this._spawnLocal();
-    for(let i=0;i<20;i++) this._spawnBot();
-    this._spawnDummy();
+    try {
+      this._spawnLocal();
+      for(let i=0;i<20;i++) this._spawnBot();
+      this._spawnDummy();
+    } catch(e){ console.warn('Spawn error:', e); }
     this._begin();
   }
 
@@ -620,8 +623,10 @@ class Game {
 
   _spawnBot(){
     const ids = TANK_ORDER.filter(id=>id!==this.settings.selectedTank && id!=='tankdisplay' && id!=='dummy');
+    if(!ids.length) return;
     const id = ids[Math.floor(Math.random()*ids.length)];
     const def = TANKS[id];
+    if(!def) return;
     const sp = this.world.randomSpawn();
     const t = new Tank(def, {id:'bot-'+Math.random().toString(36).slice(2,6), name:BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)], isBot:true, x:sp.x, z:sp.z, heading:Math.random()*6, physicsWorld:this.physicsWorld});
     t.brain = new BotBrain(t);
@@ -707,6 +712,7 @@ class Game {
   }
 
   _update(dt){
+    try {
     this.world.update(dt, this.time);
 
     // Camera zoom & orbit
@@ -859,7 +865,7 @@ class Game {
 
     // HUD
     this._updateHUD();
-  }
+  } catch(e){ console.warn('Update error:', e); }
 
   _updateAimLine(){
     if(!this.aimLine) return;
