@@ -431,7 +431,7 @@ var Editor123 = {
         var hasGround = false;
         this._mapObjs.forEach(function (o) { if ((o.kind || '') === 'ground') hasGround = true; });
         if (!hasGround) {
-            this._mapObjs.push({ kind: 'ground', subType: 'ground', name: 'Ground', x: 0, z: 0, y: 0, rot: 0, scale: 1, color: 0x2a302a, planeW: 80, planeH: 80, type: 'wall' });
+            this._mapObjs.push({ kind: 'ground', subType: 'ground', name: 'Ground', x: 0, z: 0, y: 0, rot: 0, scale: 1, color: 0x5a7a5a, planeW: 80, planeH: 80, type: 'wall' });
         }
     },
 
@@ -1216,7 +1216,7 @@ var Editor123 = {
 
         // Scene
         var scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x4a7aaa); // sky blue
+        scene.background = new THREE.Color(0x7ab8e0); // bright sky blue
         scene.fog = null; // remove fog entirely for clarity
         this._mapScene = scene;
 
@@ -1232,9 +1232,10 @@ var Editor123 = {
         renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        if (THREE.ACESFilmicToneMapping !== undefined) renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
-        renderer.outputEncoding = THREE.sRGBEncoding;
+        if (THREE.SRGBColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
+        else if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1255,7 +1256,7 @@ var Editor123 = {
         }
 
         // Lights
-        var hemi = new THREE.HemisphereLight(0x87ceeb, 0x3a2a1a, 0.8);
+        var hemi = new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 1.2);
         scene.add(hemi);
         var sun = new THREE.DirectionalLight(0xffeedd, 2.0);
         sun.position.set(25, 35, 20);
@@ -1267,11 +1268,11 @@ var Editor123 = {
         var fill = new THREE.DirectionalLight(0x8888ff, 0.3);
         fill.position.set(-20, 10, -20);
         scene.add(fill);
-        var amb = new THREE.AmbientLight(0x404060, 0.2);
+        var amb = new THREE.AmbientLight(0x606080, 0.5);
         scene.add(amb);
 
         // Grid
-        var grid = new THREE.GridHelper(80, 40, 0x88aa88, 0x557755);
+        var grid = new THREE.GridHelper(80, 40, 0x99cc99, 0x668866);
         grid.position.y = 0.01;
         scene.add(grid);
 
