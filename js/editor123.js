@@ -1222,8 +1222,6 @@ var Editor123 = {
         var renderer;
         try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch(e){ host.innerHTML = 'WebGL unavailable'; return; }
         renderer.setSize(W, H);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1251,11 +1249,7 @@ var Editor123 = {
         scene.add(new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9));
         var sun = new THREE.DirectionalLight(0xffeedd, 1.8);
         sun.position.set(25, 35, 20);
-        sun.castShadow = true;
-        sun.shadow.mapSize.width = 2048;
-        sun.shadow.mapSize.height = 2048;
-        var sc = sun.shadow.camera;
-        sc.near = 0.5; sc.far = 90; sc.left = -40; sc.right = 40; sc.top = 40; sc.bottom = -40;
+        sun.castShadow = false;
         scene.add(sun);
         scene.add(new THREE.DirectionalLight(0x8899ff, 0.3).position.set(-20, 10, -20));
         scene.add(new THREE.AmbientLight(0x666688, 0.35));
@@ -1264,55 +1258,6 @@ var Editor123 = {
         var grid = new THREE.GridHelper(80, 40, 0x88bb88, 0x558855);
         grid.position.y = 0.01;
         scene.add(grid);
-
-        // Loaders
-        if (window.THREE && THREE.GLTFLoader) this._gltfLoader = new THREE.GLTFLoader();
-        if (window.THREE && THREE.FBXLoader) this._fbxLoader = new THREE.FBXLoader();
-
-        // TransformControls
-        if (window.THREE && THREE.TransformControls) {
-            var tc = new THREE.TransformControls(cam, renderer.domElement);
-            tc.addEventListener('dragging-changed', function (ev) { controls.enabled = !ev.value; });
-            tc.addEventListener('change', function () {
-                if (!tc.object || !tc.object.userData || tc.object.userData.editorObjIdx === undefined) return;
-                var idx = tc.object.userData.editorObjIdx;
-                var obj = self._mapObjs[idx];
-                if (!obj || !tc.mode) return;
-                if (tc.mode === 'translate') {
-                    var parentObj = (obj.parentIdx != null && obj.parentIdx >= 0) ? self._mapObjs[obj.parentIdx] : null;
-                    if (parentObj) { obj.x = tc.object.position.x - parentObj.x; obj.z = tc.object.position.z - parentObj.z; obj.y = tc.object.position.y - (parentObj.y != null ? parentObj.y : 0.5); }
-                    else { obj.x = tc.object.position.x; obj.z = tc.object.position.z; obj.y = tc.object.position.y; }
-                    var body = tc.object.userData._physBody;
-                    if (body) try { body.setTranslation({ x: tc.object.position.x, y: tc.object.position.y, z: tc.object.position.z }, true); } catch(e){}
-                }
-                if (tc.mode === 'rotate') obj.rot = tc.object.rotation.y;
-                if (tc.mode === 'scale') {
-                    obj.scale = tc.object.scale.x;
-                    var body = tc.object.userData._physBody;
-                    if (body && body.userData && body.userData._collider) try { body.userData._collider.setHalfExtents(new RAPIER.Vector3(0.75 * obj.scale, 0.75 * obj.scale, 0.75 * obj.scale)); } catch(e){}
-                }
-                self._renderInspector();
-            });
-            scene.add(tc);
-            self._transformControls = tc;
-            if (self._snapEnabled) tc.setTranslationSnap(self._snapSize);
-        }
-
-        // Rapier physics
-        this._physics = null;
-        this._physBodies = [];
-        this._physGround = null;
-        if (typeof RAPIER !== 'undefined') {
-            try {
-                var world = new RAPIER.World({ x: 0, y: -20, z: 0 });
-                this._physics = world;
-                var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0, 0);
-                var gBody = world.createRigidBody(gDesc);
-                world.createCollider(RAPIER.ColliderDesc.cuboid(40, 0.1, 40), gBody);
-                this._physGround = gBody;
-                this._physBodies = [gBody];
-            } catch(e){ console.warn('Editor physics init:', e); }
-        }
 
         // Resize handler
         var ro = function () {
@@ -1323,58 +1268,6 @@ var Editor123 = {
         };
         window.addEventListener('resize', ro);
         this._mapResizeHandler = ro;
-
-        // Raycaster click handler
-        var raycaster = new THREE.Raycaster();
-        var mouse = new THREE.Vector2();
-        renderer.domElement.onclick = function (e) {
-            try {
-                var r = renderer.domElement.getBoundingClientRect();
-                mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
-                mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1;
-                raycaster.setFromCamera(mouse, cam);
-                var objs = [];
-                if (self._mapGround) objs.push(self._mapGround);
-                self._mapModels.forEach(function (m) { if (m) objs.push(m); });
-                var meshes = [];
-                self._mapModels.forEach(function (m) { if (m) m.traverse(function (c) { if (c.isMesh) meshes.push(c); }); });
-                objs = objs.concat(meshes);
-                var hits = raycaster.intersectObjects(objs, false);
-                var mi = -1, gd = false;
-                if (hits.length > 0) {
-                    for (var hi = 0; hi < hits.length; hi++) {
-                        var ho = hits[hi].object;
-                        for (var mi2 = 0; mi2 < self._mapModels.length; mi2++) {
-                            var gm = self._mapModels[mi2]; if (!gm) continue;
-                            var f = false; gm.traverse(function (c) { if (c === ho) f = true; });
-                            if (f) { mi = mi2; break; }
-                        }
-                        if (mi >= 0) break;
-                        if (ho === self._mapGround) { gd = true; break; }
-                    }
-                }
-                if (self._grassMode && self._grassTexUrl && hits.length > 0 && gd) { self._spawnGrass(hits[0].point); return; }
-                if (self._paintMode && hits.length > 0) {
-                    if (mi >= 0 && self._mapObjs[mi]) { self._mapObjs[mi].color = self._paintColor; self._rebuildScene(); return; }
-                    if (gd) { var hp = hits[0].point; self._mapObjs.push({ kind: 'ground', subType: 'painted', name: 'Paint Patch', x: hp.x, z: hp.z, y: 0.01, rot: 0, scale: 1, color: self._paintColor, type: 'wall', planeW: self._paintBrushSize, planeH: self._paintBrushSize }); self._rebuildScene(); self._updCnt(); self._renderHierarchy(); return; }
-                }
-                if (mi >= 0) self._selectObject(mi, e.ctrlKey || e.metaKey);
-                else if (gd || hits.length > 0) {
-                    if (self._mapPlacing !== false && self._mapPlacing !== null && self._mapLib[self._mapPlacing]) { var pt = hits[0].point; var lib = self._mapLib[self._mapPlacing]; self._mapObjs.push({ libIdx: self._mapPlacing, name: lib.name || 'Model', x: pt.x, z: pt.z, y: 0.5, rot: 0, scale: 1 }); self._updCnt(); self._rebuildScene(); self._renderHierarchy(); self.toast('Placed: ' + lib.name); }
-                    else { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
-                } else if (hits.length === 0) { if (self._transformControls) self._transformControls.detach(); self._mapSelObj = null; self._mapSelObjs = []; self._highlightSelected(); self._renderHierarchy(); self._renderInspector(); }
-            } catch(e){ console.warn('Editor click:', e); }
-        };
-        renderer.domElement.oncontextmenu = function (e) {
-            e.preventDefault();
-            if (self._mapSelObjs.length > 0 && confirm('Delete selected?')) {
-                self._recursiveDelete(self._mapSelObjs.slice()); self._mapSelObj = null; self._mapSelObjs = [];
-                self._rebuildScene(); self._updCnt(); self._renderHierarchy(); self._renderInspector();
-            }
-        };
-
-        // Build scene objects BEFORE starting animation
-        this._rebuildScene();
 
         // Animation loop
         var time = 0;
