@@ -594,8 +594,8 @@ class Game {
   _resetPhysics(){
     this._physBodies.forEach(b=>{ try{ this.physicsWorld.removeRigidBody(b); }catch(e){} });
     this._physBodies = [];
+    this.physicsWorld = null;
     this._eventQueue = null;
-    // Re-create ground and wall colliders
     this._initPhysics();
   }
 
@@ -699,13 +699,14 @@ class Game {
     this._last = now;
     if(this.running){
       this.dt = dt; this.time += dt;
-      // Step Rapier physics with collision events
-      if(this.physicsWorld){
-        this.physicsWorld.step(Math.min(dt, 0.033), null, null, this._eventQueue);
-        this._eventQueue.drainContactEvents((event) => {
-          this._onCollision(event);
-        });
-      }
+      try {
+        if(this.physicsWorld){
+          this.physicsWorld.step(Math.min(dt, 0.033), null, null, this._eventQueue);
+          if(this._eventQueue) this._eventQueue.drainContactEvents((event) => {
+            this._onCollision(event);
+          });
+        }
+      } catch(e){ console.warn('Physics step:', e); }
       this._update(dt);
     }
     this.renderer.render(this.scene, this.camera);
