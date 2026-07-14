@@ -1227,6 +1227,11 @@ var Editor123 = {
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
+        // Diagnostic cube - remove me when scene works
+        var dCube = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0xff4488 }));
+        dCube.position.set(0, 1.5, 3);
+        scene.add(dCube);
+
         var controls = new THREE.OrbitControls(cam, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.12;
@@ -1377,6 +1382,8 @@ var Editor123 = {
             self._mapAnimId = requestAnimationFrame(anim);
             try {
                 time += 0.016;
+                dCube.rotation.x = time * 0.5;
+                dCube.rotation.y = time * 0.8;
                 var ms = 12 * 0.016;
                 if (keys['w']) controls.target.y += ms;
                 if (keys['s']) controls.target.y -= ms;
