@@ -865,7 +865,8 @@ class Game {
 
     // HUD
     this._updateHUD();
-  } catch(e){ console.warn('Update error:', e); }
+    } catch(e){ console.warn('Update error:', e); }
+  }
 
   _updateAimLine(){
     if(!this.aimLine) return;
