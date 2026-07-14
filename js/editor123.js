@@ -1227,11 +1227,6 @@ var Editor123 = {
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
-        // Diagnostic cube - remove me when scene works
-        var dCube = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0xff4488 }));
-        dCube.position.set(0, 1.5, 3);
-        scene.add(dCube);
-
         var controls = new THREE.OrbitControls(cam, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.12;
@@ -1241,6 +1236,17 @@ var Editor123 = {
         controls.target.set(0, 0, 0);
         controls.update();
         this._mapControls = controls;
+
+        // Transform gizmo
+        var gizmo = new THREE.TransformControls(cam, renderer.domElement);
+        gizmo.setSize(0.8);
+        gizmo.space = 'world';
+        scene.add(gizmo);
+        this._transformControls = gizmo;
+
+        gizmo.addEventListener('dragging-changed', function (ev) {
+            controls.enabled = !ev.value;
+        });
 
         // WASD keyboard state
         var keys = {};
@@ -1271,14 +1277,41 @@ var Editor123 = {
         window.addEventListener('resize', ro);
         this._mapResizeHandler = ro;
 
+        // Click-to-select raycaster
+        var raycaster = new THREE.Raycaster();
+        var mouse = new THREE.Vector2();
+        renderer.domElement.addEventListener('click', function (ev) {
+            if (gizmo.dragging) return;
+            var rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouse, cam);
+            var meshes = [];
+            self._mapModels.forEach(function (m) {
+                if (!m) return;
+                m.traverse(function (c) { if (c.isMesh) meshes.push(c); });
+                if (m.isMesh) meshes.push(m);
+            });
+            var hits = raycaster.intersectObjects(meshes, false);
+            if (hits.length > 0) {
+                var hitObj = hits[0].object;
+                while (hitObj && hitObj.userData.editorObjIdx == null) hitObj = hitObj.parent;
+                if (hitObj && hitObj.userData.editorObjIdx != null) {
+                    self._selectObject(hitObj.userData.editorObjIdx, ev.ctrlKey || ev.metaKey);
+                }
+            } else if (!ev.ctrlKey && !ev.metaKey) {
+                if (self._transformControls) self._transformControls.detach();
+                self._mapSelObj = null; self._mapSelObjs = [];
+                self._highlightSelected(); self._renderHierarchy(); self._renderInspector();
+            }
+        });
+
         // Animation loop
         var time = 0;
         var anim = function () {
             self._mapAnimId = requestAnimationFrame(anim);
             try {
                 time += 0.016;
-                dCube.rotation.x = time * 0.5;
-                dCube.rotation.y = time * 0.8;
                 var ms = 12 * 0.016;
                 if (keys['w']) controls.target.y += ms;
                 if (keys['s']) controls.target.y -= ms;
@@ -1386,7 +1419,7 @@ var Editor123 = {
             } else if (kind === 'image') {
                 isImage = true;
                 var pw = o.planeW || 2, ph = o.planeH || 2;
-                var imgMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
+                var imgMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.5, metalness: 0.0, side: THREE.DoubleSide });
                 if (o.imgUrl) {
                     var tex = new THREE.TextureLoader().load(o.imgUrl);
                     imgMat.map = tex; imgMat.needsUpdate = true;
@@ -1982,6 +2015,7 @@ var Editor123 = {
         if (this._mapKeyHandler) { window.removeEventListener('keydown', this._mapKeyHandler); this._mapKeyHandler = null; }
         if (this._mapRenderer) { this._mapRenderer.dispose(); var el = this._mapRenderer.domElement; if (el && el.parentNode) el.parentNode.removeChild(el); this._mapRenderer = null; }
         if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
+        if (this._transformControls) { this._transformControls.dispose(); this._transformControls = null; }
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
         this._paintMode = false;
         this._grassMode = false;
