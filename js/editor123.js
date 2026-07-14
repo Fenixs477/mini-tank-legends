@@ -1222,6 +1222,8 @@ var Editor123 = {
         var renderer;
         try { renderer = new THREE.WebGLRenderer({ antialias: true }); } catch(e){ host.innerHTML = 'WebGL unavailable'; return; }
         renderer.setSize(W, H);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1249,7 +1251,7 @@ var Editor123 = {
         scene.add(new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9));
         var sun = new THREE.DirectionalLight(0xffeedd, 1.8);
         sun.position.set(25, 35, 20);
-        sun.castShadow = false;
+        sun.castShadow = true;
         scene.add(sun);
         scene.add(new THREE.DirectionalLight(0x8899ff, 0.3).position.set(-20, 10, -20));
         scene.add(new THREE.AmbientLight(0x666688, 0.35));
