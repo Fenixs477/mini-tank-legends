@@ -1216,7 +1216,7 @@ var Editor123 = {
 
         // Scene
         var scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x2a3a5a); // lighter blue so black is obvious
+        scene.background = new THREE.Color(0x4a7aaa); // sky blue
         scene.fog = null; // remove fog entirely for clarity
         this._mapScene = scene;
 
@@ -1271,7 +1271,7 @@ var Editor123 = {
         scene.add(amb);
 
         // Grid
-        var grid = new THREE.GridHelper(80, 40, 0x3a4a3a, 0x2a332a);
+        var grid = new THREE.GridHelper(80, 40, 0x88aa88, 0x557755);
         grid.position.y = 0.01;
         scene.add(grid);
 
