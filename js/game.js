@@ -594,7 +594,6 @@ class Game {
   _resetPhysics(){
     this._physBodies.forEach(b=>{ try{ this.physicsWorld.removeRigidBody(b); }catch(e){} });
     this._physBodies = [];
-    this.physicsWorld = null;
     this._eventQueue = null;
     this._initPhysics();
   }
