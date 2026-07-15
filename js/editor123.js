@@ -18,6 +18,7 @@ var Editor123 = {
     _mapLib: [], _mapAnimId: null,
     _gltfLoader: null, _fbxLoader: null,
     _physics: null, _physBodies: [], _physSimulating: false, _physLock: false,
+    _mapOutlines: [], _mapMouseDown: null,
 
     // Editor tools state
     _snapEnabled: false, _snapSize: 1,
@@ -1280,8 +1281,12 @@ var Editor123 = {
         // Click-to-select raycaster
         var raycaster = new THREE.Raycaster();
         var mouse = new THREE.Vector2();
+        renderer.domElement.addEventListener('pointerdown', function (ev) {
+            self._mapMouseDown = { x: ev.clientX, y: ev.clientY };
+        });
         renderer.domElement.addEventListener('click', function (ev) {
             if (gizmo.dragging) return;
+            if (self._mapMouseDown && (Math.abs(ev.clientX - self._mapMouseDown.x) > 4 || Math.abs(ev.clientY - self._mapMouseDown.y) > 4)) return;
             var rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1360,6 +1365,8 @@ var Editor123 = {
     _rebuildScene: function () {
         this._physLock = true;
         var self = this;
+        this._mapOutlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+        this._mapOutlines = [];
         this._mapModels.forEach(function (m) { self._mapScene.remove(m); });
         this._mapModels = [];
         if (this._physics) {
@@ -1381,7 +1388,7 @@ var Editor123 = {
             var kind = o.kind || 'model';
             var size = 1.5;
             var isSelected = !!rebuildSelSet[idx];
-            var baseColor = o.color != null ? o.color : (isSelected ? 0xffb12b : 0x5a7acc);
+            var baseColor = o.color != null ? o.color : 0x5a7acc;
 
             // Compute geometry and material based on kind
             var mesh = null;
@@ -1397,7 +1404,7 @@ var Editor123 = {
                     case 'torus': geo = new THREE.TorusGeometry(size / 2, size / 4, 16, 32); break;
                     default: geo = new THREE.BoxGeometry(size, size, size);
                 }
-                var mat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1 });
+                var mat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, metalness: 0.1 });
                 mesh = new THREE.Mesh(geo, mat);
             } else if (kind === 'shape2d') {
                 var shape;
@@ -1414,7 +1421,7 @@ var Editor123 = {
                         shape = new THREE.Shape([new THREE.Vector2(-size / 2, -size / 2), new THREE.Vector2(size / 2, -size / 2), new THREE.Vector2(size / 2, size / 2), new THREE.Vector2(-size / 2, size / 2)]);
                 }
                 var sGeo = new THREE.ShapeGeometry(shape);
-                var sMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+                var sMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
                 mesh = new THREE.Mesh(sGeo, sMat);
             } else if (kind === 'image') {
                 isImage = true;
@@ -1484,13 +1491,13 @@ var Editor123 = {
                 }
             } else if (kind === 'ground') {
                 if (o.subType === 'painted') {
-                    var pMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.6 });
+                    var pMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.6 });
                     var pGeo = new THREE.CircleGeometry((o.planeW || 2) / 2, 16);
                     pGeo.rotateX(-Math.PI / 2);
                     mesh = new THREE.Mesh(pGeo, pMat);
                 } else {
                     var gw = o.planeW || 40, gh = o.planeH || 40;
-                    var gMat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.9, metalness: 0.05 });
+                    var gMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.9, metalness: 0.05 });
                     var groundGeo = new THREE.PlaneGeometry(gw, gh);
                     groundGeo.rotateX(-Math.PI / 2);
                     mesh = new THREE.Mesh(groundGeo, gMat);
@@ -1505,7 +1512,7 @@ var Editor123 = {
                 }
                 var gMat = new THREE.PointsMaterial({
                     map: grassTex || null,
-                    color: isSelected ? 0xffb12b : baseColor,
+                    color: baseColor,
                     size: o.bladeScale || 0.5,
                     sizeAttenuation: true,
                     transparent: true,
@@ -1527,7 +1534,7 @@ var Editor123 = {
             } else {
                 // Existing model kind: need libItem
                 if (!libItem) return;
-                var mat = new THREE.MeshStandardMaterial({ color: isSelected ? 0xffb12b : baseColor, roughness: 0.6, metalness: 0.1 });
+                var mat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, metalness: 0.1 });
                 mesh = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), mat);
             }
 
@@ -1634,18 +1641,20 @@ var Editor123 = {
 
     _highlightSelected: function () {
         var self = this;
+        // Remove old outlines
+        this._mapOutlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+        this._mapOutlines = [];
+
         var selSet = {};
         this._mapSelObjs.forEach(function (i) { selSet[i] = true; });
+
         this._mapModels.forEach(function (m, idx) {
             var selected = !!selSet[idx];
             m.traverse(function (c) {
                 if (c.isMesh && c.material) {
                     var mats = Array.isArray(c.material) ? c.material : [c.material];
                     mats.forEach(function (mat) {
-                        if (selected) {
-                            mat.emissive = new THREE.Color(0xffb12b);
-                            mat.emissiveIntensity = 0.3;
-                        } else if (mat.userData && mat.userData._origEmissive) {
+                        if (mat.userData && mat.userData._origEmissive) {
                             mat.emissive.copy(mat.userData._origEmissive);
                             mat.emissiveIntensity = mat.userData._origEmissiveIntensity;
                         } else {
@@ -1655,6 +1664,25 @@ var Editor123 = {
                     });
                 }
             });
+            // Add black edge outline for selected objects
+            if (selected) {
+                m.traverse(function (c) {
+                    if (c.isMesh) {
+                        var edges = new THREE.EdgesGeometry(c.geometry);
+                        var lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+                        var outline = new THREE.LineSegments(edges, lineMat);
+                        outline.position.copy(c.position);
+                        outline.rotation.copy(c.rotation);
+                        outline.scale.copy(c.scale);
+                        if (c.parent) {
+                            c.parent.add(outline);
+                        } else {
+                            self._mapScene.add(outline);
+                        }
+                        self._mapOutlines.push(outline);
+                    }
+                });
+            }
         });
     },
 
@@ -2024,6 +2052,8 @@ var Editor123 = {
         var gp = document.getElementById('e-grass-panel');
         if (gp) gp.remove();
         if (this._grassTexUrl) { URL.revokeObjectURL(this._grassTexUrl); this._grassTexUrl = null; }
+        this._mapOutlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+        this._mapOutlines = [];
     },
 
     /* ═══════════════════════════
