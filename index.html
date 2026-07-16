@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Mini Tank Legends Cline</title>
 <link rel="stylesheet" href="css/style.css?v=1784052772">
 </head>
@@ -12,6 +14,55 @@
 
   <!-- ============ OVERLAYS ============ -->
   <div id="ui-layer">
+
+    <!-- FULLSCREEN / ORIENTATION PROMPT (platform-specific content) -->
+    <div class="fullscreen-overlay" id="menu-fullscreen-prompt">
+      <div class="menu-card" style="text-align:center">
+
+        <!-- Section: Desktop fullscreen prompt -->
+        <div class="fs-section" id="fs-desktop">
+          <div class="fullscreen-icon">⛶</div>
+          <h2>Enter Fullscreen</h2>
+          <div class="muted">This game is best played in fullscreen mode.</div>
+          <div class="fullscreen-hint">Press <kbd>F11</kbd> or click the button below</div>
+          <div class="btn btn-primary" id="btn-enter-fullscreen">Enter Fullscreen</div>
+          <div class="btn btn-subtle" id="btn-dismiss-fullscreen">Play anyway (not recommended)</div>
+        </div>
+
+        <!-- Section: iOS tutorial (not standalone) -->
+        <div class="fs-section hidden" id="fs-ios-tutorial">
+          <h2>Set Up for Best Experience</h2>
+          <div class="muted">Follow these steps for fullscreen gameplay on iPhone/iPad:</div>
+          <div class="fs-step">1. Rotate your device to landscape</div>
+          <div class="fs-step">2. Tap Share <span class="fs-icon">⎙</span> → <strong>Add to Home Screen</strong></div>
+          <div class="fs-step">3. Open Mini Tank Legends from your home screen</div>
+          <div class="btn btn-subtle" id="btn-ios-dismiss">Play anyway (not recommended)</div>
+        </div>
+
+        <!-- Section: iOS standalone + portrait -->
+        <div class="fs-section hidden" id="fs-ios-rotate">
+          <div class="rotate-icon-wrap"><span class="rotate-icon">↻</span></div>
+          <h2>Rotate to Landscape</h2>
+          <div class="muted">Please rotate your device to landscape mode to play.</div>
+        </div>
+
+        <!-- Section: Android portrait (waiting for landscape) -->
+        <div class="fs-section hidden" id="fs-android-rotate">
+          <div class="rotate-icon-wrap"><span class="rotate-icon">↻</span></div>
+          <h2>Rotate to Landscape</h2>
+          <div class="muted">Please rotate your device to landscape mode.</div>
+        </div>
+
+        <!-- Section: Android landscape (not fullscreen) -->
+        <div class="fs-section hidden" id="fs-android-buttons">
+          <h2>Enable Fullscreen</h2>
+          <div class="muted">For the best experience on your device</div>
+          <div class="btn btn-primary" id="btn-android-fullscreen">Open in Fullscreen</div>
+          <div class="btn btn-subtle" id="btn-android-play">Play game (extremely not recommended)</div>
+        </div>
+
+      </div>
+    </div>
 
     <!-- MAIN MENU -->
     <div class="menu menu-preview" id="menu-main">
@@ -238,6 +289,13 @@
       <div id="drift-hint" class="hidden">DRIFT</div>
       <div id="heat-wrap" class="hidden"><div id="heat-bar-outer"><div id="heat-bar"></div></div><span class="heat-tick" style="top:0">1000</span><span class="heat-tick" style="top:50%">500</span><span class="heat-tick" style="top:100%">0</span><span id="heat-text"></span></div>
       <div id="net-status" class="hidden"></div>
+      <!-- In-game portrait warning -->
+      <div id="portrait-warning" class="hidden">
+        <div class="portrait-warning-box">
+          <span class="portrait-icon">↻</span>
+          <span>Please rotate your device to landscape</span>
+        </div>
+      </div>
     </div>
 
     <!-- FULLSCREEN MAP -->

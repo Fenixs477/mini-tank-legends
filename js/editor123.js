@@ -389,6 +389,7 @@ var Editor123 = {
             '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">▶ Sim</span>' +
             '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">🗑️ Clear</span>' +
             '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">💾 Save</span>' +
+            '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">✕ Deselect</span>' +
             '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">🎮 Save to Game</span>' +
             '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">⌨️</span></div>' +
             '<div id="e-shortcuts-panel" style="display:none;position:absolute;top:32px;right:8px;background:#1a1e24;border:1px solid #2a2f36;border-radius:6px;padding:8px 12px;font-size:10px;color:#aaa;z-index:50;line-height:1.6;white-space:nowrap">' +
@@ -955,6 +956,11 @@ var Editor123 = {
         if (kind !== 'water') {
             html += '<div style="margin-top:4px"><label style="color:#888;font-size:10px">Color <input id="e-insp-color" type="color" value="' + colorHex + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;padding:1px 4px;height:24px"></label></div>';
         }
+        // Ambient color picker (model kind only)
+        if (kind === 'model') {
+            var ambientHex = obj.ambient != null ? '#' + obj.ambient.toString(16).padStart(6, '0') : '#ffffff';
+            html += '<div style="margin-top:4px"><label style="color:#888;font-size:10px">Ambient <input id="e-insp-ambient" type="color" value="' + ambientHex + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;padding:1px 4px;height:24px"></label></div>';
+        }
         // Type selector (not for lights, water)
         if (kind !== 'light' && kind !== 'water') {
             html += '<div style="margin-top:4px"><label style="color:#888;font-size:10px">Type <select id="e-insp-type" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px">' +
@@ -1017,6 +1023,39 @@ var Editor123 = {
             // Common
             var colorEl = document.getElementById('e-insp-color');
             if (colorEl) colorEl.onchange = function () { obj.color = parseInt(this.value.slice(1), 16); self._rebuildScene(); };
+            var ambientEl = document.getElementById('e-insp-ambient');
+            if (ambientEl) ambientEl.onchange = function () {
+                obj.ambient = parseInt(this.value.slice(1), 16);
+                var modelMesh = self._mapModels[self._mapSelObj];
+                if (modelMesh) {
+                    var ambientCol = new THREE.Color(obj.ambient);
+                    modelMesh.traverse(function (c) { if (c.isMesh && c.material) {
+                        var mats = Array.isArray(c.material) ? c.material : [c.material];
+                        mats.forEach(function (mat) {
+                            if (mat.isMeshPhongMaterial && mat.ambient) mat.ambient.copy(ambientCol);
+                            if (mat.isMeshStandardMaterial) {
+                                var intensity = obj.ambient === 0xffffff ? 0.12 : 0;
+                                mat.emissive.copy(ambientCol).multiplyScalar(intensity > 0 ? 1 : 0);
+                                mat.emissiveIntensity = intensity;
+                                mat.userData._ambientHex = obj.ambient;
+                                mat.userData._ambientIntensity = intensity;
+                                mat.roughness = 1.0;
+                                mat.metalness = 0;
+                                mat.roughnessMap = null;
+                                mat.metalnessMap = null;
+                            } else if (mat.isMeshPhongMaterial) {
+                                var intensity = obj.ambient === 0xffffff ? 0.12 : 0;
+                                mat.emissive.copy(ambientCol).multiplyScalar(intensity > 0 ? 1 : 0);
+                                mat.emissiveIntensity = intensity;
+                                mat.userData._ambientHex = obj.ambient;
+                                mat.userData._ambientIntensity = intensity;
+                                mat.specular.setHex(0x000000);
+                                mat.shininess = 0;
+                            }
+                        });
+                    }});
+                }
+            };
             var typeEl = document.getElementById('e-insp-type');
             if (typeEl) typeEl.onchange = function () { obj.type = this.value; self.toast('Type: ' + this.value); };
         }, 50);
@@ -1109,6 +1148,16 @@ var Editor123 = {
         });
         // Save to Game
         document.getElementById('e-save-game').onclick = function () { self._saveToGame(); };
+        // Deselect button
+        document.getElementById('e-deselect-btn').onclick = function () {
+            if (self._transformControls) self._transformControls.detach();
+            self._mapSelObj = null; self._mapSelObjs = [];
+            self._highlightSelected(); self._renderHierarchy(); self._renderInspector();
+            self._mapPlacing = false; self._mapPlacingMulti = [];
+            var ind = document.getElementById('e-placing-indicator'); if (ind) ind.style.display = 'none';
+            self._renderLibList();
+            self.toast('Deselected');
+        };
         // + Add button
         var addBtn = document.getElementById('e-add-btn');
         if (addBtn) addBtn.onclick = function () { self._showAddMenu(); };
@@ -1249,6 +1298,12 @@ var Editor123 = {
             controls.enabled = !ev.value;
         });
 
+        // Loaders for model parsing
+        this._gltfLoader = new THREE.GLTFLoader();
+        if (typeof THREE.FBXLoader !== 'undefined') {
+            this._fbxLoader = new THREE.FBXLoader();
+        }
+
         // WASD keyboard state
         var keys = {};
         document.addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
@@ -1256,7 +1311,7 @@ var Editor123 = {
 
         // Lights
         scene.add(new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9));
-        var sun = new THREE.DirectionalLight(0xffeedd, 1.8);
+        var sun = new THREE.DirectionalLight(0xffdd99, 1.4);
         sun.position.set(25, 35, 20);
         sun.castShadow = true;
         scene.add(sun);
@@ -1291,6 +1346,33 @@ var Editor123 = {
             mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
             raycaster.setFromCamera(mouse, cam);
+
+            // Place mode: click on ground to place a model from library
+            if (self._mapPlacing !== false && self._mapLib[self._mapPlacing]) {
+                var groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                var pt = new THREE.Vector3();
+                raycaster.ray.intersectPlane(groundPlane, pt);
+                if (pt) {
+                    var libEntry = self._mapLib[self._mapPlacing];
+                    var obj = {
+                        kind: 'model', subType: 'model',
+                        name: libEntry.name || 'Model',
+                        x: pt.x, z: pt.z, y: 0,
+                        rot: 0, scale: 1,
+                        libIdx: self._mapPlacing,
+                        type: 'wall', color: 0xffffff, ambient: 0xffffff,
+                    };
+                    self._mapObjs.push(obj);
+                    var idx = self._mapObjs.length - 1;
+                    self._selectObject(idx, false);
+                    self._updCnt();
+                    self._rebuildScene();
+                    self._renderHierarchy();
+                    self.toast('Placed: ' + obj.name);
+                }
+                return;
+            }
+
             var meshes = [];
             self._mapModels.forEach(function (m) {
                 if (!m) return;
@@ -1302,7 +1384,15 @@ var Editor123 = {
                 var hitObj = hits[0].object;
                 while (hitObj && hitObj.userData.editorObjIdx == null) hitObj = hitObj.parent;
                 if (hitObj && hitObj.userData.editorObjIdx != null) {
-                    self._selectObject(hitObj.userData.editorObjIdx, ev.ctrlKey || ev.metaKey);
+                    var hitIdx = hitObj.userData.editorObjIdx;
+                    // Click on already-selected object -> deselect (single select, no ctrl)
+                    if (self._mapSelObj === hitIdx && !ev.ctrlKey && !ev.metaKey && self._mapSelObjs.length <= 1) {
+                        if (self._transformControls) self._transformControls.detach();
+                        self._mapSelObj = null; self._mapSelObjs = [];
+                        self._highlightSelected(); self._renderHierarchy(); self._renderInspector();
+                    } else {
+                        self._selectObject(hitIdx, ev.ctrlKey || ev.metaKey);
+                    }
                 }
             } else if (!ev.ctrlKey && !ev.metaKey) {
                 if (self._transformControls) self._transformControls.detach();
@@ -1578,8 +1668,13 @@ var Editor123 = {
                 // For existing models, try to load actual 3D model
                 if (kind === 'model' && libItem) {
                     (function (boxIdx) {
-                        self._loadModelData(libItem, function (group) {
-                            if (!group) return;
+                        self._loadModelData(libItem, function (srcGroup) {
+                            if (!srcGroup) return;
+                            // Clone so each instance has independent geometry/materials
+                            var group = srcGroup.clone();
+                            group.traverse(function (c) { if (c.isMesh && c.material) {
+                                c.material = Array.isArray(c.material) ? c.material.map(function (m) { return m.clone(); }) : c.material.clone();
+                            }});
                             var currentBox = null;
                             var replaceIdx = -1;
                             for (var mi = 0; mi < self._mapModels.length; mi++) {
@@ -1596,7 +1691,32 @@ var Editor123 = {
                             group.position.copy(currentBox.position);
                             group.rotation.y = currentBox.rotation.y;
                             group.scale.copy(currentBox.scale);
-                            group.traverse(function (c) { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (!c.geometry.attributes.normal) { c.geometry.computeVertexNormals(); } if (c.material) { var mats = Array.isArray(c.material) ? c.material : [c.material]; mats.forEach(function (mat) { mat.userData._origEmissive = (mat.emissive || new THREE.Color(0)).clone(); mat.userData._origEmissiveIntensity = mat.emissiveIntensity || 0; }); } } });
+                            var applyAmbient = function (mat, ambientHex) {
+                                var ac = new THREE.Color(ambientHex);
+                                if (mat.isMeshPhongMaterial && mat.ambient) {
+                                    mat.ambient.copy(ac);
+                                }
+                                if (mat.isMeshStandardMaterial) {
+                                    var intensity = ambientHex === 0xffffff ? 0.12 : 0;
+                                    mat.emissive.copy(ac).multiplyScalar(intensity > 0 ? 1 : 0);
+                                    mat.emissiveIntensity = intensity;
+                                    mat.userData._ambientHex = ambientHex;
+                                    mat.userData._ambientIntensity = intensity;
+                                    mat.roughness = 1.0;
+                                    mat.metalness = 0;
+                                    mat.roughnessMap = null;
+                                    mat.metalnessMap = null;
+                                } else if (mat.isMeshPhongMaterial) {
+                                    var intensity = ambientHex === 0xffffff ? 0.12 : 0;
+                                    mat.emissive.copy(ac).multiplyScalar(intensity > 0 ? 1 : 0);
+                                    mat.emissiveIntensity = intensity;
+                                    mat.userData._ambientHex = ambientHex;
+                                    mat.userData._ambientIntensity = intensity;
+                                    mat.specular.setHex(0x000000);
+                                    mat.shininess = 0;
+                                }
+                            };
+                            group.traverse(function (c) { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (!c.geometry.attributes.normal) { c.geometry.computeVertexNormals(); } if (c.material) { var mats = Array.isArray(c.material) ? c.material : [c.material]; mats.forEach(function (mat) { mat.userData._origEmissive = (mat.emissive || new THREE.Color(0)).clone(); mat.userData._origEmissiveIntensity = mat.emissiveIntensity || 0; var ambientVal = objData && objData.ambient != null ? objData.ambient : 0xffffff; applyAmbient(mat, ambientVal); }); } } });
                             self._mapScene.add(group);
                             var box3 = new THREE.Box3().setFromObject(group);
                             var sz = box3.max.clone().sub(box3.min);
@@ -1650,20 +1770,6 @@ var Editor123 = {
 
         this._mapModels.forEach(function (m, idx) {
             var selected = !!selSet[idx];
-            m.traverse(function (c) {
-                if (c.isMesh && c.material) {
-                    var mats = Array.isArray(c.material) ? c.material : [c.material];
-                    mats.forEach(function (mat) {
-                        if (mat.userData && mat.userData._origEmissive) {
-                            mat.emissive.copy(mat.userData._origEmissive);
-                            mat.emissiveIntensity = mat.userData._origEmissiveIntensity;
-                        } else {
-                            mat.emissive = new THREE.Color(0);
-                            mat.emissiveIntensity = 0;
-                        }
-                    });
-                }
-            });
             // Add black edge outline for selected objects
             if (selected) {
                 m.traverse(function (c) {
@@ -1745,95 +1851,54 @@ var Editor123 = {
 
     _importModel: function () {
         var self = this;
-        var inp = document.createElement('input');
-        inp.type = 'file';
-        inp.multiple = true;
-        inp.accept = '.glb,.gltf,.fbx,.png,.jpg,.jpeg,.tga,.bmp,.dds';
-        inp.onchange = function (e) {
-            var files = Array.from(e.target.files);
-            // Separate model files from texture files
-            var modelFiles = [];
-            var texFiles = [];
-            files.forEach(function (f) {
-                var ext = f.name.split('.').pop().toLowerCase();
-                if (ext === 'fbx' || ext === 'glb' || ext === 'gltf') {
-                    modelFiles.push(f);
-                } else {
-                    texFiles.push(f);
-                }
-            });
-            if (modelFiles.length === 0) { self.toast('No model file (FBX/GLB) selected'); return; }
-            var host = 'http://localhost:3120';
-            // Upload ALL files (models + textures) to server in parallel
-            // Preserve file indices so we can map responses back to model files
-            var fileToIdx = {};
-            var uploadPromises = [];
-            files.forEach(function (f, i) {
-                fileToIdx[f.name] = i;
-                var fd = new FormData();
-                fd.append('file', f);
-                uploadPromises.push(
-                    fetch(host + '/api/upload', { method: 'POST', body: fd }).then(function (r) { return r.json(); })
-                );
-            });
-            Promise.all(uploadPromises)
-                .then(function (results) {
-                    var count = 0;
-                    modelFiles.forEach(function (mf) {
-                        var ext = mf.name.split('.').pop().toLowerCase();
-                        var isGLB = ext === 'glb' || ext === 'gltf';
-                        var idx = fileToIdx[mf.name];
-                        var serverUrl = (results[idx] && results[idx].url) ? host + results[idx].url : null;
-                        if (!serverUrl) return;
-                        var entry = {
-                            name: mf.name.replace(/\.(glb|gltf|fbx)$/i, ''),
-                            type: isGLB ? 'glb' : 'fbx',
-                            data: serverUrl,
-                            serverUrl: serverUrl,
-                        };
-                        self._mapLib.push(entry);
-                        self._loadModelData(entry, function (group) {
-                            entry._cachedGroup = group;
-                        });
-                        count++;
-                    });
-                    self._saveLib(self._mapLib);
-                    self._renderLibList();
-                    inp.value = '';
-                    self.toast('Imported ' + count + ' model(s)');
-                })
-                .catch(function () {
-                    // Server offline → fall back to base64 for each model
-                    var done = 0;
-                    modelFiles.forEach(function (mf, idx) {
-                        var reader = new FileReader();
-                        reader.onload = function (ev) {
+        var inp = document.getElementById('e123-file-input');
+        if (!inp) {
+            inp = document.createElement('input');
+            inp.id = 'e123-file-input';
+            inp.type = 'file';
+            inp.multiple = true;
+            inp.accept = '.fbx,.glb,.gltf';
+            inp.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;opacity:0;pointer-events:none;z-index:-1';
+            document.body.appendChild(inp);
+            inp.onchange = function (e) {
+                var files = Array.from(e.target.files || []);
+                inp.value = '';
+                if (files.length === 0) return;
+                var modelFiles = [];
+                files.forEach(function (f) {
+                    var ext = f.name.split('.').pop().toLowerCase();
+                    if (ext === 'fbx' || ext === 'glb' || ext === 'gltf') modelFiles.push(f);
+                });
+                if (modelFiles.length === 0) { self.toast('No model file (FBX/GLB) selected'); return; }
+                var done = 0;
+                modelFiles.forEach(function (mf) {
+                    var reader = new FileReader();
+                    reader.onload = function (ev) {
+                        try {
                             var arrayBuf = ev.target.result;
                             var bytes = new Uint8Array(arrayBuf); var bin = ''; for (var bi = 0; bi < bytes.length; bi++) bin += String.fromCharCode(bytes[bi]); var base64 = btoa(bin);
                             var ext = mf.name.split('.').pop().toLowerCase();
-                            var isGLB = ext === 'glb' || ext === 'gltf';
                             var entry = {
                                 name: mf.name.replace(/\.(glb|gltf|fbx)$/i, ''),
-                                type: isGLB ? 'glb' : 'fbx',
+                                type: (ext === 'glb' || ext === 'gltf') ? 'glb' : 'fbx',
                                 data: arrayBuf,
                                 base64: base64,
                             };
                             self._mapLib.push(entry);
-                            self._parseModelData(entry, function (group) {
-                                entry._cachedGroup = group;
-                            });
+                            self._loadModelData(entry, function (group) { entry._cachedGroup = group; });
                             done++;
                             if (done === modelFiles.length) {
                                 self._saveLib(self._mapLib);
                                 self._renderLibList();
-                                inp.value = '';
-                                self.toast('Imported ' + done + ' model(s) (offline)');
+                                self.toast('Imported ' + done + ' model(s)');
                             }
-                        };
-                        reader.readAsArrayBuffer(mf);
-                    });
+                        } catch (err) { console.error('Import error:', err); self.toast('Error: ' + mf.name); }
+                    };
+                    reader.onerror = function () { self.toast('Error reading ' + mf.name); };
+                    reader.readAsArrayBuffer(mf);
                 });
-        };
+            };
+        }
         inp.click();
     },
 

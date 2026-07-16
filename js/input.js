@@ -40,21 +40,28 @@ class TouchJoystick {
 
   _build(){
     this.container.innerHTML = '';
-    this.container.style.width = this.opts.size+'px';
-    this.container.style.height = this.opts.size+'px';
+
+    // Dynamic sizing: scale joystick to viewport, cap at desired size
+    const shortSide = Math.min(window.innerWidth, window.innerHeight);
+    const joySize = Math.min(this.opts.size, Math.max(64, shortSide * 0.24));
+    this.container.style.width = joySize + 'px';
+    this.container.style.height = joySize + 'px';
 
     // Outer ring
     this.outer = document.createElement('div');
     this.outer.className = 'joystick-outer';
     this.container.appendChild(this.outer);
 
-    // Inner knob
+    // Inner knob — size relative to container
     this.knob = document.createElement('div');
     this.knob.className = 'joystick-knob';
+    const knobSize = Math.round(joySize * 0.37);
+    this.knob.style.width = knobSize + 'px';
+    this.knob.style.height = knobSize + 'px';
     this.outer.appendChild(this.knob);
 
-    this._half = this.opts.size / 2;
-    this._maxDist = this._half - 12;
+    this._half = joySize / 2;
+    this._maxDist = this._half - knobSize / 2 - 4;
   }
 
   _bindEvents(){
@@ -66,6 +73,10 @@ class TouchJoystick {
       }
       return null;
     };
+
+    // document-level handler to prevent iOS WKWebView from
+    // stealing the gesture in standalone/PWA mode
+    const preventDocMove = (e) => { e.preventDefault(); };
 
     const onStart = (e) => {
       e.preventDefault();
@@ -90,6 +101,10 @@ class TouchJoystick {
 
           // reset armed when touch begins; it will re-arm onMove
           this.armed = false;
+
+          // Lock all touchmove to this document while joystick is
+          // active — necessary for iOS standalone (home screen) mode
+          document.addEventListener('touchmove', preventDocMove, {passive: false});
         }
       }
     };
@@ -149,6 +164,8 @@ class TouchJoystick {
           this.firePulse = false;
 
           this._updateKnob(0, 0);
+
+          document.removeEventListener('touchmove', preventDocMove, {passive: false});
         }
       }
     };
@@ -209,6 +226,12 @@ class Input {
 
     window.addEventListener('blur', ()=>{ this.keys={}; this.mouse.down=false; this._camRotateTouch=0; });
 
+    // Prevent iOS in standalone mode (home screen) from intercepting
+    // the first touch as a system gesture
+    document.addEventListener('touchstart', (e) => {
+      if(e.target.closest('.joystick-container, .cam-rotate-btns, #game-root')) e.preventDefault();
+    }, {passive: false});
+
     // Initialize touch joysticks if on mobile
     if(this.isTouchDevice){
       // Create joystick containers if they don't exist
@@ -253,12 +276,12 @@ class Input {
       const setCamTouch = (dir) => {
         this._camRotateTouch = dir;
       };
-      leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setCamTouch(-1); });
-      leftBtn.addEventListener('touchend', (e) => { e.preventDefault(); if(this._camRotateTouch === -1) setCamTouch(0); });
-      leftBtn.addEventListener('touchcancel', (e) => { if(this._camRotateTouch === -1) setCamTouch(0); });
-      rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setCamTouch(1); });
-      rightBtn.addEventListener('touchend', (e) => { e.preventDefault(); if(this._camRotateTouch === 1) setCamTouch(0); });
-      rightBtn.addEventListener('touchcancel', (e) => { if(this._camRotateTouch === 1) setCamTouch(0); });
+      leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setCamTouch(-1); }, {passive: false});
+      leftBtn.addEventListener('touchend', (e) => { e.preventDefault(); if(this._camRotateTouch === -1) setCamTouch(0); }, {passive: false});
+      leftBtn.addEventListener('touchcancel', (e) => { if(this._camRotateTouch === -1) setCamTouch(0); }, {passive: false});
+      rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); setCamTouch(1); }, {passive: false});
+      rightBtn.addEventListener('touchend', (e) => { e.preventDefault(); if(this._camRotateTouch === 1) setCamTouch(0); }, {passive: false});
+      rightBtn.addEventListener('touchcancel', (e) => { if(this._camRotateTouch === 1) setCamTouch(0); }, {passive: false});
       // Also support mouse clicks for testing
       leftBtn.addEventListener('mousedown', () => setCamTouch(-1));
       leftBtn.addEventListener('mouseup', () => { if(this._camRotateTouch === -1) setCamTouch(0); });

@@ -664,11 +664,16 @@ class Game {
 
   _begin(){
     Menu.showHUD();
+    document.getElementById('ui-layer').classList.add('game-active');
     this.running = true;
     this._last = performance.now();
     // Show touch joysticks when game starts (only on mobile)
     if(this.input && this.input.setJoysticksVisible){
       this.input.setJoysticksVisible(true);
+    }
+    // Lock to landscape on mobile
+    if(screen.orientation && screen.orientation.lock){
+      screen.orientation.lock('landscape').catch(() => {});
     }
   }
 
@@ -687,6 +692,13 @@ class Game {
     if(this.input && this.input.setJoysticksVisible){
       this.input.setJoysticksVisible(false);
     }
+    // Clean up orientation poll timer if any
+    Menu._stopOrientationPoll();
+    // Remove in-game portrait warning
+    const pw = document.getElementById('portrait-warning');
+    if(pw) pw.classList.add('hidden');
+    // Unlock orientation
+    if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
   }
 
   /* ===========================================================
@@ -1436,6 +1448,19 @@ class Game {
       .sort((a,b)=> b.damageDealt - a.damageDealt).slice(0,5);
     const lb = document.getElementById('lb-list');
     lb.innerHTML = sorted.map((o,i)=> `<li><span class="lname">${o.name}</span><span class="ldmg">${Math.round(o.damageDealt)}</span></li>`).join('');
+
+    // In-game portrait warning
+    const pw = document.getElementById('portrait-warning');
+    if(pw){
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.standalone;
+      const isPortrait = window.innerHeight > window.innerWidth;
+      const orientPortrait = screen.orientation && screen.orientation.type && screen.orientation.type.startsWith('portrait');
+      if(isMobile && (isPortrait || orientPortrait)){
+        pw.classList.remove('hidden');
+      } else {
+        pw.classList.add('hidden');
+      }
+    }
   }
 
   /* ---------- Big map ---------- */

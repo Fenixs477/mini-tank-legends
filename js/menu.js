@@ -27,6 +27,8 @@ const Menu = {
     this._wireCodes();
     this._wireCollectionEdit();
     this._loadMysteryImg();
+    this._initFullscreen();
+    this._initScaling();
     this.show('menu-main');
     // Auto-join from URL param ?room=CODE
     const params = new URLSearchParams(window.location.search);
@@ -34,6 +36,126 @@ const Menu = {
     if(roomCode && roomCode.length >= 4 && this.game){
       setTimeout(() => this.game.startClient(roomCode.toUpperCase()), 500);
     }
+  },
+
+  /* ============================================================
+     Fullscreen / Orientation system
+     ============================================================ */
+
+  /* --- Platform detection --- */
+  _detectPlatform(){
+    const ua = navigator.userAgent;
+    // iPadOS 13+ reports as Mac but has touch support
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(ua) && 'ontouchstart' in window && navigator.maxTouchPoints > 0);
+    const isAndroid = /Android/i.test(ua);
+    if(isIOS){
+      if(window.navigator.standalone === true) return 'ios-standalone';
+      try {
+        if(window.matchMedia('(display-mode: standalone)').matches) return 'ios-standalone';
+        if(window.matchMedia('(display-mode: fullscreen)').matches) return 'ios-standalone';
+        if(window.matchMedia('(display-mode: minimal-ui)').matches) return 'ios-standalone';
+      } catch(e){}
+      return 'ios';
+    }
+    if(isAndroid) return 'android';
+    return 'desktop';
+  },
+
+  _isFullscreen(){
+    if(document.fullscreenElement || document.webkitFullscreenElement) return true;
+    const w = window.innerWidth, h = window.innerHeight;
+    if(h >= screen.height - 2 || h >= screen.availHeight - 2) return true;
+    if(h >= screen.width - 2) return true;
+    if(w >= screen.width - 1 && h >= screen.availHeight - 30) return true;
+    if(w >= screen.height - 1 && h >= screen.availWidth - 30) return true;
+    return false;
+  },
+
+  _requestFullscreen(){
+    const el = document.documentElement;
+    if(el.requestFullscreen){
+      el.requestFullscreen().catch(() => {});
+    } else if(el.webkitRequestFullscreen){
+      el.webkitRequestFullscreen();
+    }
+  },
+
+  /* --- Show only one section inside the overlay --- */
+  _showSection(id){
+    document.querySelectorAll('.fs-section').forEach(s => s.classList.add('hidden'));
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('hidden');
+  },
+
+  /* --- Orientation polling --- */
+  _startOrientationPoll(callback, interval){
+    this._stopOrientationPoll();
+    this._orientTimer = setInterval(() => {
+      const result = callback();
+      if(result === 'stop'){
+        this._stopOrientationPoll();
+      }
+    }, interval || 200);
+  },
+
+  _stopOrientationPoll(){
+    if(this._orientTimer){
+      clearInterval(this._orientTimer);
+      this._orientTimer = null;
+    }
+  },
+
+  /* --- UI scaling --- */
+  _initScaling(){
+    const update = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      // Always treat viewport as landscape: longer side = width, shorter = height
+      const vpW = Math.max(w, h);
+      const vpH = Math.min(w, h);
+      const scale = Math.min(vpW / 896, vpH / 414, 1.5); // cap at 1.5x
+      document.documentElement.style.setProperty('--ui-scale', scale);
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', () => setTimeout(update, 200));
+  },
+
+  /* --- Init: entry point --- */
+  _initFullscreen(){
+    this._fsDismissed = true;
+    this._stopOrientationPoll();
+    const overlay = document.getElementById('menu-fullscreen-prompt');
+    if(overlay) overlay.classList.add('hidden');
+  },
+
+  /* --- Wire Android buttons --- */
+  _wireAndroidButtons(overlay){
+    document.getElementById('btn-android-fullscreen').onclick = () => {
+      this._requestFullscreen();
+      // Wait a moment for fullscreen transition, then hide
+      setTimeout(() => {
+        if(this._isFullscreen() || this._fsDismissed){
+          overlay.classList.add('hidden');
+        }
+      }, 400);
+    };
+    document.getElementById('btn-android-play').onclick = () => {
+      this._fsDismissed = true;
+      overlay.classList.add('hidden');
+    };
+    // Also listen for fullscreen change
+    const onFsChange = () => {
+      if(this._isFullscreen()) overlay.classList.add('hidden');
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+  },
+
+  /* Re-check when returning to a menu */
+  _refreshFullscreenState(){
+    const overlay = document.getElementById('menu-fullscreen-prompt');
+    if(overlay) overlay.classList.add('hidden');
   },
 
   _loadMysteryImg(){
@@ -47,6 +169,9 @@ const Menu = {
     document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
     document.getElementById('hud').classList.add('hidden');
+    document.getElementById('ui-layer').classList.remove('game-active');
+    // Re-evaluate fullscreen overlay when returning to any menu
+    this._refreshFullscreenState();
     if(id === 'menu-main'){
       if(!this._customMenuActive()){
         this._startMainPreview();
@@ -647,10 +772,26 @@ const Menu = {
 
       renderer.render(scene, cam);
     };
+
+    // Resize handler for orientation changes
+    const onResize = () => {
+      const w = host.clientWidth || 320;
+      const h = host.clientHeight || 220;
+      renderer.setSize(w, h);
+      cam.aspect = w / h;
+      cam.updateProjectionMatrix();
+    };
+    window.addEventListener('resize', onResize);
+    this._mainPreviewResizeHandler = onResize;
+
     loop();
   },
 
   _stopMainPreview(){
+    if(this._mainPreviewResizeHandler){
+      window.removeEventListener('resize', this._mainPreviewResizeHandler);
+      this._mainPreviewResizeHandler = null;
+    }
     if(this._mainPreviewLoopId){
       cancelAnimationFrame(this._mainPreviewLoopId);
       this._mainPreviewLoopId = null;
