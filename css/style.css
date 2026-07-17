@@ -781,7 +781,7 @@ html, body {
 .menu-card { padding: calc(var(--ui-scale) * 18px); }
 .title { font-size: calc(var(--ui-scale) * 28px); margin-bottom: calc(var(--ui-scale) * 18px); }
 .menu-card h2 { font-size: calc(var(--ui-scale) * 18px); margin-bottom: calc(var(--ui-scale) * 10px); }
-.profile { top: calc(var(--ui-scale) * 30px); left: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 20px); }
+.profile { top: calc(var(--ui-scale) * 12px); left: calc(var(--ui-scale) * 12px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 20px); }
 .profile-name { font-size: calc(var(--ui-scale) * 16px); }
 .profile-bottom { font-size: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 10px); }
 .profile-sep { margin: calc(var(--ui-scale) * 4px) 0; }
