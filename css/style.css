@@ -785,7 +785,7 @@ html, body {
 .profile-name { font-size: calc(var(--ui-scale) * 16px); }
 .profile-bottom { font-size: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 10px); }
 .profile-sep { margin: calc(var(--ui-scale) * 4px) 0; }
-.main-menu-side { left: calc(var(--ui-scale) * 25px); top: 48%; gap: calc(var(--ui-scale) * 10px); }
+.main-menu-side { left: calc(var(--ui-scale) * 12px); top: 54%; gap: calc(var(--ui-scale) * 10px); }
 .main-menu-side .btn { padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); font-size: calc(var(--ui-scale) * 14px); }
 .main-menu-crates { top: calc(var(--ui-scale) * 35px); right: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 8px); }
 .crate-slot { width: calc(var(--ui-scale) * 64px); height: calc(var(--ui-scale) * 64px); font-size: calc(var(--ui-scale) * 24px); }
