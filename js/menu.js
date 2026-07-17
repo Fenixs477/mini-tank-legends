@@ -123,40 +123,63 @@ const Menu = {
 
   /* --- Init: entry point --- */
   _initFullscreen(){
-    this._fsDismissed = true;
-    this._stopOrientationPoll();
+    this._fsDismissed = false;
     const overlay = document.getElementById('menu-fullscreen-prompt');
-    if(overlay) overlay.classList.add('hidden');
-  },
+    if(!overlay) return;
+    this._fullscreenOverlay = overlay;
 
-  /* --- Wire Android buttons --- */
-  _wireAndroidButtons(overlay){
-    document.getElementById('btn-android-fullscreen').onclick = () => {
-      this._requestFullscreen();
-      // Wait a moment for fullscreen transition, then hide
-      setTimeout(() => {
-        if(this._isFullscreen() || this._fsDismissed){
-          overlay.classList.add('hidden');
-        }
-      }, 400);
+    // Determine which sections to show/hide
+    const update = (forceShow) => {
+      if(overlay.classList.contains('hidden') && !forceShow) return;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const plat = this._detectPlatform();
+      const isMobile = plat === 'ios' || plat === 'ios-standalone' || plat === 'android';
+
+      if(!isMobile || isLandscape || this._fsDismissed){
+        overlay.classList.add('hidden');
+        return;
+      }
+      // Portrait on mobile
+      this._showSection(plat === 'android' ? 'fs-android-rotate' : 'fs-ios-rotate');
+      overlay.classList.remove('hidden');
     };
-    document.getElementById('btn-android-play').onclick = () => {
+
+    // Also show during gameplay when rotated to portrait
+    this._refreshFullscreenState = update;
+
+    // Listen for orientation changes
+    const onResize = () => {
+      if(overlay.classList.contains('hidden') && !this._fsDismissed){
+        // Show if we just rotated to portrait
+        const isLandscape = window.innerWidth > window.innerHeight;
+        const plat = this._detectPlatform();
+        const isMobile = plat === 'ios' || plat === 'ios-standalone' || plat === 'android';
+        if(isMobile && !isLandscape && !this._fsDismissed){
+          update(true);
+        }
+      } else {
+        // Hide if we just rotated to landscape
+        update();
+      }
+    };
+    window.addEventListener('resize', onResize);
+
+    // Dismiss buttons
+    document.getElementById('btn-ios-rotate-dismiss').onclick = () => {
       this._fsDismissed = true;
       overlay.classList.add('hidden');
     };
-    // Also listen for fullscreen change
-    const onFsChange = () => {
-      if(this._isFullscreen()) overlay.classList.add('hidden');
+    document.getElementById('btn-android-rotate-dismiss').onclick = () => {
+      this._fsDismissed = true;
+      overlay.classList.add('hidden');
     };
-    document.addEventListener('fullscreenchange', onFsChange);
-    document.addEventListener('webkitfullscreenchange', onFsChange);
+
+    // Initial check
+    update(true);
   },
 
-  /* Re-check when returning to a menu */
-  _refreshFullscreenState(){
-    const overlay = document.getElementById('menu-fullscreen-prompt');
-    if(overlay) overlay.classList.add('hidden');
-  },
+  /* Re-check when returning to a menu or during gameplay */
+  _refreshFullscreenState(){}, // placeholder, overridden in _initFullscreen
 
   _loadMysteryImg(){
     const img = new Image();

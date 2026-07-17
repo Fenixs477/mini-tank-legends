@@ -25,7 +25,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
 .hidden{display:none !important}
 
 /* ---------- Menus ---------- */
-.menu{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+.menu{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow-y:auto;
   background-color:#1a1a1a;
   background-image:
     radial-gradient(circle at 50% 30%, rgba(255,177,43,.08), transparent 60%),
@@ -773,9 +773,30 @@ html, body {
   .cam-rot-btn { width: 30px; height: 30px; font-size: 12px; }
 }
 
-/* ===== Mobile menu card sizing ===== */
+/* ===== Proportional UI scaling ===== */
+.btn-play { font-size: calc(var(--ui-scale) * 22px); padding: calc(var(--ui-scale) * 18px) calc(var(--ui-scale) * 60px); bottom: calc(var(--ui-scale) * 70px); }
+.btn { font-size: calc(var(--ui-scale) * 14px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); border-radius: calc(var(--ui-scale) * 6px); }
+.btn-primary { font-size: calc(var(--ui-scale) * 14px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); }
+.btn-subtle { font-size: calc(var(--ui-scale) * 13px); padding: calc(var(--ui-scale) * 6px) calc(var(--ui-scale) * 14px); }
+.menu-card { padding: calc(var(--ui-scale) * 18px); }
+.title { font-size: calc(var(--ui-scale) * 28px); margin-bottom: calc(var(--ui-scale) * 18px); }
+.menu-card h2 { font-size: calc(var(--ui-scale) * 18px); margin-bottom: calc(var(--ui-scale) * 10px); }
+.profile { top: calc(var(--ui-scale) * 30px); left: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 20px); }
+.profile-name { font-size: calc(var(--ui-scale) * 16px); }
+.profile-bottom { font-size: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 10px); }
+.profile-sep { margin: calc(var(--ui-scale) * 4px) 0; }
+.main-menu-side { left: calc(var(--ui-scale) * 290px); top: calc(var(--ui-scale) * 35px); gap: calc(var(--ui-scale) * 8px); max-width: 60vw; }
+.main-menu-side .btn { padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); font-size: calc(var(--ui-scale) * 14px); }
+.main-menu-crates { top: calc(var(--ui-scale) * 35px); right: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 8px); }
+.crate-slot { width: calc(var(--ui-scale) * 64px); height: calc(var(--ui-scale) * 64px); font-size: calc(var(--ui-scale) * 24px); }
+.back-bar { gap: calc(var(--ui-scale) * 8px); }
+.back-bar .btn { font-size: calc(var(--ui-scale) * 12px); padding: calc(var(--ui-scale) * 6px) calc(var(--ui-scale) * 12px); }
+.tank-grid { gap: calc(var(--ui-scale) * 8px); }
+.tank-grid .tank-option { font-size: calc(var(--ui-scale) * 11px); }
+.storage-grid { gap: calc(var(--ui-scale) * 8px); }
+.slider-label { font-size: calc(var(--ui-scale) * 14px); min-width: calc(var(--ui-scale) * 60px); }
 
-/* ===== Compact landscape menu layout ===== */
+/* ===== Compact landscape menu layout (overrides scaling on small screens) ===== */
 @media (orientation: landscape) and (max-height: 520px) {
   .menu-card { padding: 14px; width: 320px; }
   .menu-card.wide { width: 90vw; }
@@ -865,26 +886,3 @@ html, body {
 #e123-menu-clone .btn, #e123-menu-clone .btn-primary, #e123-menu-clone .btn-subtle,
 #e123-menu-clone .btn-back { opacity: 0.5; }
 #e-view-3d canvas { display: block; }
-
-/* ===== Proportional UI scaling ===== */
-.btn-play { font-size: calc(var(--ui-scale) * 22px); padding: calc(var(--ui-scale) * 18px) calc(var(--ui-scale) * 60px); bottom: calc(var(--ui-scale) * 70px); }
-.btn { font-size: calc(var(--ui-scale) * 14px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); border-radius: calc(var(--ui-scale) * 6px); }
-.btn-primary { font-size: calc(var(--ui-scale) * 14px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); }
-.btn-subtle { font-size: calc(var(--ui-scale) * 13px); padding: calc(var(--ui-scale) * 6px) calc(var(--ui-scale) * 14px); }
-.menu-card { padding: calc(var(--ui-scale) * 18px); }
-.title { font-size: calc(var(--ui-scale) * 28px); margin-bottom: calc(var(--ui-scale) * 18px); }
-.menu-card h2 { font-size: calc(var(--ui-scale) * 18px); margin-bottom: calc(var(--ui-scale) * 10px); }
-.profile { top: calc(var(--ui-scale) * 30px); left: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 20px); }
-.profile-name { font-size: calc(var(--ui-scale) * 16px); }
-.profile-bottom { font-size: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 10px); }
-.profile-sep { margin: calc(var(--ui-scale) * 4px) 0; }
-.main-menu-side { left: calc(var(--ui-scale) * 290px); top: calc(var(--ui-scale) * 35px); gap: calc(var(--ui-scale) * 8px); max-width: 60vw; }
-.main-menu-side .btn { padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); font-size: calc(var(--ui-scale) * 14px); }
-.main-menu-crates { top: calc(var(--ui-scale) * 35px); right: calc(var(--ui-scale) * 30px); padding: calc(var(--ui-scale) * 12px); gap: calc(var(--ui-scale) * 8px); }
-.crate-slot { width: calc(var(--ui-scale) * 64px); height: calc(var(--ui-scale) * 64px); font-size: calc(var(--ui-scale) * 24px); }
-.back-bar { gap: calc(var(--ui-scale) * 8px); }
-.back-bar .btn { font-size: calc(var(--ui-scale) * 12px); padding: calc(var(--ui-scale) * 6px) calc(var(--ui-scale) * 12px); }
-.tank-grid { gap: calc(var(--ui-scale) * 8px); }
-.tank-grid .tank-option { font-size: calc(var(--ui-scale) * 11px); }
-.storage-grid { gap: calc(var(--ui-scale) * 8px); }
-.slider-label { font-size: calc(var(--ui-scale) * 14px); min-width: calc(var(--ui-scale) * 60px); }
