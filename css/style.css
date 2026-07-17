@@ -16,8 +16,8 @@
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
   font-family:'Segoe UI',Tahoma,sans-serif;user-select:none}
 
-#game-root{position:fixed;inset:0;z-index:0;pointer-events:none}
-#game-root canvas{display:block;pointer-events:auto}
+#game-root{position:fixed;inset:0;z-index:0}
+#game-root canvas{display:block}
 #ui-layer{position:fixed;inset:0;z-index:10;pointer-events:auto}
 #ui-layer.game-active{pointer-events:none}
 #ui-layer > *{pointer-events:auto}
