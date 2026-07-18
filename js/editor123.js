@@ -1345,7 +1345,7 @@ var Editor123 = {
         sun.position.set(25, 35, 20);
         sun.castShadow = true;
         scene.add(sun);
-        scene.add(new THREE.DirectionalLight(0x8899ff, 0.3).position.set(-20, 10, -20));
+        var fillLight = new THREE.DirectionalLight(0x8899ff, 0.3); fillLight.position.set(-20, 10, -20); scene.add(fillLight);
         scene.add(new THREE.AmbientLight(0x666688, 0.35));
 
         // Grid
@@ -1370,8 +1370,12 @@ var Editor123 = {
             self._mapMouseDown = { x: ev.clientX, y: ev.clientY };
         });
         renderer.domElement.addEventListener('click', function (ev) {
+            console.log('[Editor123] click fired, _grassMode=' + self._grassMode + ' _mapPlacing=' + self._mapPlacing + ' gizmo.dragging=' + gizmo.dragging + ' _mapMouseDown=' + JSON.stringify(self._mapMouseDown));
             if (gizmo.dragging) return;
-            if (self._mapMouseDown && (Math.abs(ev.clientX - self._mapMouseDown.x) > 4 || Math.abs(ev.clientY - self._mapMouseDown.y) > 4)) return;
+            if (self._mapMouseDown && (Math.abs(ev.clientX - self._mapMouseDown.x) > 4 || Math.abs(ev.clientY - self._mapMouseDown.y) > 4)) {
+                console.log('[Editor123] click ignored (drag threshold), moved:', Math.abs(ev.clientX - self._mapMouseDown.x), Math.abs(ev.clientY - self._mapMouseDown.y));
+                return;
+            }
             var rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
