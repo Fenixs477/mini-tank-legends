@@ -1001,7 +1001,7 @@ var Editor123 = {
         if (libItem) html += '<div style="color:#666;font-size:10px;margin-top:2px">Model: ' + libItem.name + '</div>';
         panel.innerHTML = html;
         // Wire inspector inputs
-        setTimeout(function () {
+        var _wireInsp = function () {
             var nameEl = document.getElementById('e-insp-name');
             if (nameEl) nameEl.onchange = function () { obj.name = this.value || 'Object'; self._renderHierarchy(); };
             var xEl = document.getElementById('e-insp-x');
@@ -1050,7 +1050,7 @@ var Editor123 = {
             var ghEl = document.getElementById('e-insp-gh');
             if (ghEl) ghEl.onchange = function () { obj.planeH = parseFloat(this.value) || 40; self._rebuildScene(); };
             var copyGrassColorEl = document.getElementById('e-insp-copy-grass-color');
-            if (copyGrassColorEl) copyGrassColorEl.onclick = function () {
+            if (copyGrassColorEl) copyGrassColorEl.addEventListener('click', function () {
                 var c = '#' + (obj.color != null ? obj.color : 0x5a7a5a).toString(16).padStart(6, '0');
                 self._grass3dColorBottom = c;
                 self._grass3dColorTop = c;
@@ -1059,7 +1059,7 @@ var Editor123 = {
                 var topEl = document.getElementById('e-grass-color-top');
                 if (topEl) topEl.value = c;
                 self.toast('Grass painter colors set to ground color ' + c);
-            };
+            });
             // Common
             var colorEl = document.getElementById('e-insp-color');
             if (colorEl) colorEl.onchange = function () { obj.color = parseInt(this.value.slice(1), 16); self._rebuildScene(); };
@@ -1098,7 +1098,7 @@ var Editor123 = {
             };
             var typeEl = document.getElementById('e-insp-type');
             if (typeEl) typeEl.onchange = function () { obj.type = this.value; self.toast('Type: ' + this.value); };
-        }, 50);
+        }; _wireInsp();
     },
 
     _saveToGame: function () {
