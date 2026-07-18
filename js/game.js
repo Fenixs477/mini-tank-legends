@@ -70,6 +70,19 @@ class Game {
     this._loop = this._loop.bind(this);
     requestAnimationFrame(this._loop);
     this.applyGraphicsSettings();
+
+    /* ---- FPS Stats (hold Tab to show) ---- */
+    this.stats = new Stats();
+    this.stats.dom.style.display = 'none';
+    document.body.appendChild(this.stats.dom);
+    this._onKeyDown = (e) => {
+      if (e.key === 'Tab') { e.preventDefault(); this.stats.dom.style.display = 'block'; }
+    };
+    this._onKeyUp = (e) => {
+      if (e.key === 'Tab') { this.stats.dom.style.display = 'none'; }
+    };
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('keyup', this._onKeyUp);
   }
 
   _initPhysics(){
@@ -720,6 +733,7 @@ class Game {
       } catch(e){ console.warn('Physics step:', e); }
       this._update(dt);
     }
+    if (this.stats) this.stats.update();
     this.renderer.render(this.scene, this.camera);
   }
 
