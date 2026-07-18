@@ -704,9 +704,11 @@ var Editor123 = {
         for (var vi = 0; vi < newBlades.length; vi++) {
             var bd = newBlades[vi];
             var idx = startIdx + vi;
+            var sw = bd.sx || 0.08;
+            var sh = bd.sy || 0.3;
             dummy.position.set(bd.x, bd.y, bd.z);
             dummy.rotation.set(0, bd.rotY || 0, 0);
-            dummy.scale.set(bd.sx || 0.08, bd.sy || 0.3, 1);
+            dummy.scale.set(sw, sh, sw);
             dummy.updateMatrix();
             this._grassMesh.setMatrixAt(idx, dummy.matrix);
         }
@@ -744,6 +746,7 @@ var Editor123 = {
         });
         g3dMat.uniforms.uColorBottom.value.set(this._grass3dColorBottom);
         g3dMat.uniforms.uColorTop.value.set(this._grass3dColorTop);
+        g3dMat.uniforms.uTime.value = performance.now() / 1000;
 
         var bladeGeo = this._makeBladeGeometry(3);
         var im = new THREE.InstancedMesh(bladeGeo, g3dMat, this._grassMaxBlades);
@@ -757,9 +760,11 @@ var Editor123 = {
             var dummy2 = new THREE.Object3D();
             for (var bi = 0; bi < this._grassCount; bi++) {
                 var bd2 = this._grassBladeData[bi];
+                var sw2 = bd2.sx || 0.08;
+                var sh2 = bd2.sy || 0.3;
                 dummy2.position.set(bd2.x, bd2.y, bd2.z);
                 dummy2.rotation.set(0, bd2.rotY || 0, 0);
-                dummy2.scale.set(bd2.sx || 0.08, bd2.sy || 0.3, 1);
+                dummy2.scale.set(sw2, sh2, sw2);
                 dummy2.updateMatrix();
                 im.setMatrixAt(bi, dummy2.matrix);
             }
@@ -1664,6 +1669,11 @@ var Editor123 = {
                     m.material.uniforms.uProxCount.value = pc;
                     if (pa && m.material.uniforms.uProxPositions.value !== pa) { var dst = m.material.uniforms.uProxPositions.value; for (var pi = 0; pi < 48; pi++) dst[pi].copy(pa[pi]); }
                 });
+
+                // Grass shader uTime (global InstancedMesh — not in _mapModels)
+                if (self._grassMesh && self._grassMesh.material && self._grassMesh.material.uniforms && self._grassMesh.material.uniforms.uTime) {
+                    self._grassMesh.material.uniforms.uTime.value = time;
+                }
 
                 // Physics step
                 if (self._physics && !self._physLock) {
