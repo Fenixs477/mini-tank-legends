@@ -1,0 +1,23 @@
+{
+  "name": "mini-tank-legends-ts",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "server": "node server/server.js",
+    "deploy": "wrangler pages deploy . --project-name mini-tank-legends --branch master"
+  },
+  "dependencies": {
+    "three": "^0.162.0",
+    "peerjs": "^1.5.2",
+    "nakama-js": "^2.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "@types/three": "^0.162.0"
+  }
+}

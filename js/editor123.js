@@ -1405,11 +1405,31 @@ var Editor123 = {
 
             // Grass paint mode: click on ground to stamp 3D blades
             if (self._grassMode) {
+                console.log('[Editor123] grassMode click, raycaster.ray:', raycaster.ray);
                 var grassPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
                 var grassPt = new THREE.Vector3();
-                raycaster.ray.intersectPlane(grassPlane, grassPt);
-                if (grassPt) {
+                var hit = raycaster.ray.intersectPlane(grassPlane, grassPt);
+                console.log('[Editor123] intersectPlane hit:', hit, 'grassPt:', grassPt);
+                if (hit) {
                     self._spawnGrass(grassPt);
+                }
+                return;
+            }
+
+            // Paint terrain mode: click on ground to stamp terrain color circles
+            if (self._paintMode) {
+                var paintPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                var paintPt = new THREE.Vector3();
+                if (raycaster.ray.intersectPlane(paintPlane, paintPt)) {
+                    self._mapObjs.push({
+                        kind: 'ground', subType: 'painted', name: 'Painted terrain',
+                        x: paintPt.x, z: paintPt.z, y: 0, rot: 0, scale: 1,
+                        color: self._paintColor, planeW: self._paintBrushSize, planeH: self._paintBrushSize,
+                    });
+                    self._updCnt();
+                    self._rebuildScene();
+                    self._renderHierarchy();
+                    self.toast('Painted terrain at ' + paintPt.x.toFixed(1) + ', ' + paintPt.z.toFixed(1));
                 }
                 return;
             }
