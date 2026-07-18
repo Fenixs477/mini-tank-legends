@@ -26,6 +26,7 @@ var Editor123 = {
     _paintMode: false, _paintColor: 0x4a7a4a, _paintBrushSize: 2,
     _grassMode: false, _grassTexUrl: null, _grassBrushSize: 3, _grassDensity: 20, _grassScale: 0.5, _grassColor: 0x6aaa4a,
     _grass3dWidth: 0.08, _grass3dHeight: 0.3, _grass3dColorBottom: '#4f7c13', _grass3dColorTop: '#79a01c',
+    _grassBrushCircle: null, _grassMouseDown: false, _grassLastSpawnTime: 0, _grassSpawnMs: 150, _mapMouseNDC: null,
 
     MENU_NAMES: {
         'menu-main': 'Main Menu', 'menu-play-select': 'Play Select',
@@ -600,7 +601,7 @@ var Editor123 = {
         var btn = document.getElementById('e-add-btn');
         if (btn) btn.parentNode.appendChild(div);
 
-        document.getElementById('e-grass-radius').oninput = function () { self._grassBrushSize = parseFloat(this.value); };
+        document.getElementById('e-grass-radius').oninput = function () { self._grassBrushSize = parseFloat(this.value); if (self._grassBrushCircle) { self._grassBrushCircle.scale.setScalar(self._grassBrushSize); } };
         document.getElementById('e-grass-density').oninput = function () { self._grassDensity = parseInt(this.value); };
         document.getElementById('e-grass-w').oninput = function () { self._grass3dWidth = parseFloat(this.value); };
         document.getElementById('e-grass-h').oninput = function () { self._grass3dHeight = parseFloat(this.value); };
@@ -1383,6 +1384,19 @@ var Editor123 = {
         grid.position.y = 0.01;
         scene.add(grid);
 
+        // Grass brush circle overlay
+        var circlePts = [];
+        for (var ci = 0; ci <= 64; ci++) { var th2 = (ci / 64) * Math.PI * 2; circlePts.push(Math.cos(th2) * 1, 0, Math.sin(th2) * 1); }
+        var circleGeo = new THREE.BufferGeometry();
+        circleGeo.setAttribute('position', new THREE.Float32BufferAttribute(circlePts, 3));
+        var circleMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+        var brushCircle = new THREE.Line(new THREE.LineLoop(circleGeo, circleMat));
+        brushCircle.position.y = 0.015;
+        brushCircle.visible = false;
+        brushCircle.scale.setScalar(self._grassBrushSize || 3);
+        scene.add(brushCircle);
+        self._grassBrushCircle = brushCircle;
+
         // Resize handler
         var ro = function () {
             var w2 = host.clientWidth || W, h2 = host.clientHeight || H;
@@ -1398,6 +1412,21 @@ var Editor123 = {
         var mouse = new THREE.Vector2();
         renderer.domElement.addEventListener('pointerdown', function (ev) {
             self._mapMouseDown = { x: ev.clientX, y: ev.clientY };
+            self._grassMouseDown = true;
+        });
+        renderer.domElement.addEventListener('pointermove', function (ev) {
+            var rect2 = renderer.domElement.getBoundingClientRect();
+            self._mapMouseNDC = {
+                x: ((ev.clientX - rect2.left) / rect2.width) * 2 - 1,
+                y: -((ev.clientY - rect2.top) / rect2.height) * 2 + 1,
+            };
+        });
+        renderer.domElement.addEventListener('pointerup', function () {
+            self._grassMouseDown = false;
+        });
+        renderer.domElement.addEventListener('pointerleave', function () {
+            self._grassMouseDown = false;
+            if (self._grassBrushCircle) self._grassBrushCircle.visible = false;
         });
         renderer.domElement.addEventListener('click', function (ev) {
             console.log('[Editor123] click fired, _grassMode=' + self._grassMode + ' _mapPlacing=' + self._mapPlacing + ' gizmo.dragging=' + gizmo.dragging + ' _mapMouseDown=' + JSON.stringify(self._mapMouseDown));
@@ -1537,6 +1566,29 @@ var Editor123 = {
                         for (var bi = 1; bi < self._physBodies.length; bi++) {
                             try { var pos = self._physBodies[bi].translation(); var rot = self._physBodies[bi].rotation(); if (self._mapModels[bi - 1]) { self._mapModels[bi - 1].position.set(pos.x, pos.y, pos.z); self._mapModels[bi - 1].quaternion.set(rot.x, rot.y, rot.z, rot.w); } } catch(e){}
                         }
+                    }
+                }
+
+                // Brush circle + continuous grass painting
+                if (self._grassBrushCircle) {
+                    if (self._grassMode && self._mapMouseNDC) {
+                        var bcRay = new THREE.Raycaster();
+                        bcRay.setFromCamera(new THREE.Vector2(self._mapMouseNDC.x, self._mapMouseNDC.y), cam);
+                        var bcPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                        var bcPt = new THREE.Vector3();
+                        if (bcRay.ray.intersectPlane(bcPlane, bcPt)) {
+                            self._grassBrushCircle.position.x = bcPt.x;
+                            self._grassBrushCircle.position.z = bcPt.z;
+                            self._grassBrushCircle.visible = true;
+                            if (self._grassMouseDown && time - self._grassLastSpawnTime > self._grassSpawnMs / 1000) {
+                                self._spawnGrass(bcPt);
+                                self._grassLastSpawnTime = time;
+                            }
+                        } else {
+                            self._grassBrushCircle.visible = false;
+                        }
+                    } else {
+                        self._grassBrushCircle.visible = false;
                     }
                 }
 
@@ -2247,6 +2299,7 @@ var Editor123 = {
         if (this._mapRenderer) { this._mapRenderer.dispose(); var el = this._mapRenderer.domElement; if (el && el.parentNode) el.parentNode.removeChild(el); this._mapRenderer = null; }
         if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
         if (this._transformControls) { this._transformControls.dispose(); this._transformControls = null; }
+        if (this._grassBrushCircle) { if (this._mapScene) this._mapScene.remove(this._grassBrushCircle); this._grassBrushCircle = null; }
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
         this._paintMode = false;
         this._grassMode = false;
