@@ -713,6 +713,100 @@ const SHADERS = {
       }
     `,
   },
+
+  /* ---- 3D instanced grass (wind-swept, cel-shaded gradient) ---- */
+  grass3d: {
+    uniforms: {
+      uTime:          { value: 0 },
+      uColorBottom:   { value: new THREE.Color(0x4f7c13) },
+      uColorTop:      { value: new THREE.Color(0x79a01c) },
+      uBrightness:    { value: 0.8 },
+      uGradStart:     { value: 0.15 },
+      uGradEnd:       { value: 1.0 },
+      uGradPower:     { value: 1.6 },
+      uWindStrength:  { value: 0.3 },
+      uWindSpeed:     { value: 1.2 },
+      uWindFreq:      { value: 0.4 },
+      uWindTurb:      { value: 0.3 },
+      uWindLean:      { value: 0.5 },
+      uWindDir:       { value: new THREE.Vector2(1, 0) },
+      uTransColor:    { value: new THREE.Color(0xc1e54d) },
+      uTransStrength: { value: 0.9 },
+      uTransPower:    { value: 3.0 },
+      uTransTip:      { value: 0.6 },
+      uSunDir:        { value: new THREE.Vector3(0.3, 1, 0.2).normalize() },
+    },
+    vertexShader: /*glsl*/`
+      uniform float uTime;
+      uniform float uWindStrength;
+      uniform float uWindSpeed;
+      uniform float uWindFreq;
+      uniform float uWindTurb;
+      uniform float uWindLean;
+      uniform vec2  uWindDir;
+      varying float vBH;
+      varying vec3  vWorldPos;
+      void main(){
+        vec3 basePos = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vec2 baseXZ = basePos.xz;
+        float bh = position.y;
+        float hMask = bh * bh;
+        vBH = bh;
+
+        float primary = sin(dot(baseXZ, uWindDir) * uWindFreq + uTime * uWindSpeed);
+        float second  = sin(dot(baseXZ, uWindDir) * uWindFreq * 2.6 + uTime * uWindSpeed * 1.8 + 1.3) * 0.35;
+        vec2  perp    = vec2(-uWindDir.y, uWindDir.x);
+        float turb    = sin(dot(baseXZ, perp) * uWindFreq * 1.9 + uTime * uWindSpeed * 0.7 + 2.6) * uWindTurb;
+        float swing   = (primary + second + turb) * uWindStrength * hMask;
+        float lean    = uWindLean * hMask;
+
+        mat3 instRot = mat3(
+          normalize(vec3(instanceMatrix[0])),
+          normalize(vec3(instanceMatrix[1])),
+          normalize(vec3(instanceMatrix[2]))
+        );
+        vec3 windWorld = vec3(uWindDir.x, 0.0, uWindDir.y);
+        vec3 windLocal = transpose(instRot) * windWorld;
+
+        vec3 pos = position + windLocal * (swing + lean);
+        vec4 worldPos = modelMatrix * instanceMatrix * vec4(pos, 1.0);
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: /*glsl*/`
+      uniform vec3  uColorBottom;
+      uniform vec3  uColorTop;
+      uniform float uBrightness;
+      uniform float uGradStart;
+      uniform float uGradEnd;
+      uniform float uGradPower;
+      uniform vec3  uTransColor;
+      uniform float uTransStrength;
+      uniform float uTransPower;
+      uniform float uTransTip;
+      uniform vec3  uSunDir;
+      varying float vBH;
+      varying vec3  vWorldPos;
+      void main(){
+        float t = clamp((vBH - uGradStart) / max(uGradEnd - uGradStart, 0.001), 0.0, 1.0);
+        t = pow(t, uGradPower);
+        vec3 col = mix(uColorBottom, uColorTop, t) * uBrightness;
+
+        vec3 N = vec3(0.0, 1.0, 0.0);
+        vec3 L = normalize(uSunDir);
+        float diff = 0.35 + 0.65 * max(dot(N, L), 0.0);
+        col *= diff;
+
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        float back = pow(max(dot(V, -L), 0.0), uTransPower);
+        float thin = mix(1.0, vBH, uTransTip);
+        col += uTransColor * uTransStrength * back * thin;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  },
 };
 
 /* ---------- Perlin noise texture generation ---------- */

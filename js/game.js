@@ -745,13 +745,33 @@ class Game {
       const touchInput = this.input.getTouchInput();
       
       if(touchInput && touchInput.isTouch){
-        // Touch device: use joystick values
-        throttle = touchInput.throttle;
-        turn = touchInput.turn;
+        // Camera-relative controls: joystick direction maps to camera view
+        if(this.localTank){
+          const mThrottle = touchInput.throttle;
+          const mTurn = touchInput.turn;
+          const moveMag = Math.sqrt(mThrottle*mThrottle + mTurn*mTurn);
+          const dz = 0.15;
+          if(moveMag > dz){
+            const joyAngle = Math.atan2(mTurn, mThrottle);
+            const camFwdHeading = (this.camAngle || Math.PI) + Math.PI;
+            const worldMoveHeading = camFwdHeading + joyAngle;
+            let diff = worldMoveHeading - this.localTank.heading;
+            while(diff > Math.PI) diff -= Math.PI*2;
+            while(diff < -Math.PI) diff += Math.PI*2;
+            throttle = moveMag;
+            turn = -diff * 2;
+          } else {
+            throttle = 0;
+            turn = 0;
+          }
+        } else {
+          throttle = touchInput.throttle;
+          turn = touchInput.turn;
+        }
 
-        // Turret: drag direction sets absolute turret world angle (only when active)
+        // Turret: camera-relative aim
         if(this.input._turretJoystick && this.input._turretJoystick.active){
-          turretAngle = this.localTank.heading + (touchInput.turretRelAngle || 0);
+          turretAngle = (this.camAngle || Math.PI) + Math.PI - (touchInput.turretRelAngle || 0);
         }
 
         // Fire only when knob is dragged to max distance (armed)
@@ -853,6 +873,9 @@ class Game {
     } else if(this.localTank && !this.localTank.alive){
       // Keep camera at last position when dead (don't follow dying tank)
     }
+
+    // Dynamic UI and outline scaling based on camera distance
+    for(const t of this.tanks) t.updateDistanceScaling(this.camera.position);
 
     // Aim line
     this._updateAimLine();
@@ -1464,8 +1487,11 @@ class Game {
   }
 
   /* ---------- Big map ---------- */
-  openBigMap(){
+  toggleBigMap(){
     const wrap = document.getElementById('bigmap');
+    if(!wrap.classList.contains('hidden')){
+      wrap.classList.add('hidden'); return;
+    }
     const cv = document.getElementById('bigmap-canvas');
     const S = 720;
     cv.width = cv.height = S;

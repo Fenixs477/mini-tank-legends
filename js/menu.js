@@ -13,6 +13,7 @@ const Menu = {
 
   init(game){
     this.game = game;
+    document.body.classList.add(this._detectPlatform() === 'desktop' ? 'is-desktop' : 'is-mobile');
     this._wireButtons();
     this._renderBinds();
     this._renderAimSettings();
@@ -24,6 +25,8 @@ const Menu = {
     this._renderProfile();
     this._applyBackgrounds();
     this._wireEsc();
+    this._wireMinimapKey();
+    this._updateMapHint();
     this._wireCodes();
     this._wireCollectionEdit();
     this._loadMysteryImg();
@@ -137,6 +140,7 @@ const Menu = {
 
       if(!isMobile || isLandscape || this._fsDismissed){
         overlay.classList.add('hidden');
+        this._checkRenderingTips();
         return;
       }
       // Portrait on mobile
@@ -160,6 +164,7 @@ const Menu = {
       } else {
         // Hide if we just rotated to landscape
         update();
+        this._checkRenderingTips();
       }
     };
     window.addEventListener('resize', onResize);
@@ -168,14 +173,41 @@ const Menu = {
     document.getElementById('btn-ios-rotate-dismiss').onclick = () => {
       this._fsDismissed = true;
       overlay.classList.add('hidden');
+      this._checkRenderingTips();
     };
     document.getElementById('btn-android-rotate-dismiss').onclick = () => {
       this._fsDismissed = true;
       overlay.classList.add('hidden');
+      this._checkRenderingTips();
     };
 
     // Initial check
     update(true);
+    // If overlay stayed hidden (already landscape or desktop), show tips now
+    this._checkRenderingTips();
+  },
+
+  /* --- Rendering tips (mobile, after fullscreen/orientation prompt) --- */
+  _checkRenderingTips: function(){
+    var rt = document.getElementById('rendering-tips');
+    if(!rt || rt.classList.contains('hidden') === false) return;
+    var plat = this._detectPlatform();
+    var isMobile = plat === 'ios' || plat === 'ios-standalone' || plat === 'android';
+    if(!isMobile) return;
+    if(localStorage.getItem('tankparty_rt_dismissed')) return;
+    // Don't show if fullscreen overlay is still visible
+    if(this._fullscreenOverlay && !this._fullscreenOverlay.classList.contains('hidden')) return;
+
+    rt.classList.remove('hidden');
+    document.getElementById('rt-check-row').onclick = function(){
+      document.getElementById('rt-checkbox').classList.toggle('checked');
+    };
+    document.getElementById('rt-understood').onclick = function(){
+      if(document.getElementById('rt-checkbox').classList.contains('checked')){
+        localStorage.setItem('tankparty_rt_dismissed', '1');
+      }
+      document.getElementById('rendering-tips').classList.add('hidden');
+    };
   },
 
   /* Re-check when returning to a menu or during gameplay */
@@ -443,7 +475,7 @@ const Menu = {
       this.game.startClient(code);
     };
     document.getElementById('bigmap-close').onclick = ()=> document.getElementById('bigmap').classList.add('hidden');
-    document.getElementById('minimap-btn').onclick = ()=> this.game.openBigMap();
+      document.getElementById('minimap-btn').onclick = ()=> this.game.toggleBigMap();
 
     // Play buttons
     const btnPlay = document.getElementById('btn-play');
@@ -478,6 +510,7 @@ const Menu = {
       this._renderGraphicsSettings();
       this._wireSettingsTabs();
       if(this.game) this.game.applySettings(this.settings);
+      this._updateMapHint();
       this.toast('Settings reset to defaults');
     };
     if(btnSaveExit) btnSaveExit.onclick = ()=>{
@@ -901,6 +934,21 @@ const Menu = {
       this.toggleEsc();
     });
   },
+  _wireMinimapKey(){
+    if(document.body.classList.contains('is-mobile')) return;
+    const self = this;
+    window.addEventListener('keydown', e=>{
+      if(document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
+      if(e.code !== (self.settings.binds.minimap || 'KeyM')) return;
+      if(document.getElementById('hud').classList.contains('hidden')) return;
+      self.game.toggleBigMap();
+    });
+  },
+  _updateMapHint(){
+    if(document.body.classList.contains('is-mobile')) return;
+    const el = document.querySelector('.map-key-hint');
+    if(el) el.textContent = this._keyLabel(this.settings.binds.minimap || 'KeyM');
+  },
   toggleEsc(){
     if(this.escOpen){ this._closeEsc(); }
     else{
@@ -917,7 +965,9 @@ const Menu = {
   _renderBinds(){
     const wrap = document.getElementById('bind-list');
     wrap.innerHTML='';
+    const isMobile = document.body.classList.contains('is-mobile');
     Object.keys(DEFAULT_BINDS).forEach(action=>{
+      if(isMobile && action === 'minimap') return;
       const row = document.createElement('div'); row.className='bind-row';
       row.innerHTML = `<div class="bl">${DEFAULT_BINDS[action].label}</div><div class="bind-key" data-action="${action}">${this._keyLabel(this.settings.binds[action])}</div>`;
       wrap.appendChild(row);
@@ -931,6 +981,7 @@ const Menu = {
         el.classList.remove('binding');
         el.textContent = this._keyLabel(captured);
         this.game.applySettings(this.settings);
+        this._updateMapHint();
       };
     });
   },

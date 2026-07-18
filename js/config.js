@@ -214,6 +214,7 @@ const DEFAULT_BINDS = {
   zoomOut:  { key:'WheelDown', label:'Zoom Out' },
   camLeft:  { key:'ArrowLeft',  label:'Camera Left' },
   camRight: { key:'ArrowRight', label:'Camera Right' },
+  minimap:  { key:'KeyM',       label:'Toggle Map' },
 };
 
 function loadSettings(){

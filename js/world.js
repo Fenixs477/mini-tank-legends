@@ -389,29 +389,40 @@ class World {
         }
         
         // Try to load the actual model async
-        if(window.Models){
-          Models.load(d.modelName).then(grp => {
-            if(!grp) return;
-            const clone = grp.clone(true);
-            clone.position.set(d.x, d.y, d.z);
-            clone.scale.set(d.sx, d.sy, d.sz);
-            clone.rotation.y = d.ry;
-            clone.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
-            this.scene.add(clone);
-            // Remove placeholder, replace wall/bush refs
-            this.scene.remove(mesh);
-            if(d.type==='water'){
-              // update lake ref
-              const idx = this.lakes.findIndex(l=> l.x===d.x && l.z===d.z);
-              if(idx>=0) this.lakes[idx].mesh = clone;
-            } else if(d.type==='bush'){
-              const idx = this.bushes.findIndex(b=> b.mesh===mesh);
-              if(idx>=0) this.bushes[idx].mesh = clone;
-            } else {
-              const idx = this.walls.findIndex(w=> w.mesh===mesh);
-              if(idx>=0){ this.walls[idx].mesh = clone; }
-            }
-          });
+        const loadModel = (grp) => {
+          if(!grp) return;
+          const clone = grp.clone(true);
+          clone.position.set(d.x, d.y, d.z);
+          clone.scale.set(d.sx, d.sy, d.sz);
+          clone.rotation.y = d.ry;
+          clone.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+          this.scene.add(clone);
+          this.scene.remove(mesh);
+          if(d.type==='water'){
+            const idx = this.lakes.findIndex(l=> l.x===d.x && l.z===d.z);
+            if(idx>=0) this.lakes[idx].mesh = clone;
+          } else if(d.type==='bush'){
+            const idx = this.bushes.findIndex(b=> b.mesh===mesh);
+            if(idx>=0) this.bushes[idx].mesh = clone;
+          } else {
+            const idx = this.walls.findIndex(w=> w.mesh===mesh);
+            if(idx>=0){ this.walls[idx].mesh = clone; }
+          }
+        };
+        if(d.modelData){
+          // Load from embedded base64 data (editor-imported GLB)
+          const loader = Models.loader();
+          if(loader){
+            const bin = atob(d.modelData);
+            const buf = new ArrayBuffer(bin.length);
+            const view = new Uint8Array(buf);
+            for(let i=0;i<bin.length;i++) view[i]=bin.charCodeAt(i);
+            loader.parse(buf, '', (result) => {
+              loadModel(result && result.scene ? result.scene : result);
+            }, () => {});
+          }
+        } else if(window.Models){
+          Models.load(d.modelName).then(grp => loadModel(grp));
         }
         return;
       }

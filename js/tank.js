@@ -35,6 +35,7 @@ class Tank {
     this.dying = false;
     this.deathT = 0;
     this.removeAt = -1;
+    this._uiScale = 1.0;
 
     this.colHalfW = def.body.w*0.55;
     this.colHalfL = def.body.l*0.55;
@@ -57,11 +58,11 @@ class Tank {
         .setTranslation(this.x, 0.9, this.z)
         .setEnabledRotations(false, true, false)
         .setEnabledTranslations(true, false, true)
-        .setLinearDamping(0.0)
-        .setAngularDamping(0.0);
+        .setLinearDamping(0.5)
+        .setAngularDamping(2.0);
       this._physBody = this._physWorld.createRigidBody(desc);
       var col = RAPIER.ColliderDesc.cuboid(this.colHalfW, 0.5, this.colHalfL)
-        .setFriction(0.5)
+        .setFriction(0.8)
         .setRestitution(0.05)
         .setDensity(this.mass / (this.colHalfW * 2 * this.colHalfL * 2))
         .setUserData({type:'tank', tank:this});
@@ -148,6 +149,7 @@ class Tank {
     outline.rotation.copy(mesh.rotation);
     outline.scale.copy(mesh.scale);
     outline.renderOrder = -1;
+    outline.userData.isOutline = true;
     return outline;
   }
 
@@ -330,7 +332,11 @@ class Tank {
       var vel = this._physBody.linvel();
       this.vx = vel.x;
       this.vz = vel.z;
-      this.speed = vel.z >= 0 ? Math.hypot(vel.x, vel.z) : -Math.hypot(vel.x, vel.z);
+      var q = this._physBody.rotation();
+      this.heading = 2 * Math.atan2(q.y, q.w);
+      const fwdX = Math.sin(this.heading);
+      const fwdZ = Math.cos(this.heading);
+      this.speed = vel.x * fwdX + vel.z * fwdZ;
     } catch(e){}
   }
 
@@ -364,36 +370,35 @@ class Tank {
     const speedCap = d.speed * (1 - Math.min(0.35, (this.mass-18)/120));
     const target = effThrottle * speedCap * (effThrottle < 0 ? 0.5 : 1);
 
-    if(this.speed < target){
-      this.speed = Math.min(target, this.speed + d.accel * dt);
-    } else if(this.speed > target){
-      const noThrottle = Math.abs(effThrottle) < 0.08;
-      const brakeMul = (noThrottle && !this.drifting) ? 5.0 : 1.4;
-      this.speed = Math.max(target, this.speed - d.accel * dt * brakeMul);
-    }
-
-    if(this.drifting){
-      this.heading += inp.turn * d.turn * CONFIG.DRIFT_TURN_BOOST * dt;
-    } else if(hasTurn){
-      this.heading += inp.turn * d.turn * dt;
-    }
-
     if(this._physBody){
       const fwdX = Math.sin(this.heading);
       const fwdZ = Math.cos(this.heading);
-      const targetVx = fwdX * this.speed;
-      const targetVz = fwdZ * this.speed;
-      this._physBody.setLinvel({x: targetVx, y: 0, z: targetVz}, true);
-      var half = this.heading * 0.5;
-      var q = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
-      this._physBody.setRotation(q, true);
-
+      const speedDeficit = target - this.speed;
+      const engineForce = speedDeficit * d.accel * this.mass * 2.0;
+      this._physBody.addForce({x: fwdX * engineForce, y: 0, z: fwdZ * engineForce}, true);
+      const turnRate = this.drifting ? d.turn * CONFIG.DRIFT_TURN_BOOST : d.turn;
+      const targetAngVel = hasTurn ? inp.turn * turnRate * 3.0 : 0;
+      this._physBody.setAngvel({x: 0, y: targetAngVel, z: 0}, true);
       if(this.drifting){
         this._physCollider.setFriction(0.05);
       } else {
-        this._physCollider.setFriction(d.friction || 0.5);
+        this._physCollider.setFriction(d.friction || 0.8);
       }
     } else {
+      if(this.speed < target){
+        this.speed = Math.min(target, this.speed + d.accel * dt);
+      } else if(this.speed > target){
+        const noThrottle = Math.abs(effThrottle) < 0.08;
+        const brakeMul = (noThrottle && !this.drifting) ? 5.0 : 1.4;
+        this.speed = Math.max(target, this.speed - d.accel * dt * brakeMul);
+      }
+
+      if(this.drifting){
+        this.heading += inp.turn * d.turn * CONFIG.DRIFT_TURN_BOOST * dt;
+      } else if(hasTurn){
+        this.heading += inp.turn * d.turn * dt;
+      }
+
       const fx = Math.sin(this.heading) * this.speed;
       const fz = Math.cos(this.heading) * this.speed;
       const alignRate = this.drifting ? 2 : 40;
@@ -480,6 +485,7 @@ class Tank {
   _ramCheck(game){
     for(const o of game.tanks){
       if(o===this || !o.alive || o.dying) continue;
+      if(this._physBody && o._physBody) continue;
       const dx = o.x - this.x, dz = o.z - this.z;
       const overlapX = (this.colHalfW + o.colHalfW) - Math.abs(dx);
       const overlapZ = (this.colHalfL + o.colHalfL) - Math.abs(dz);
@@ -513,12 +519,36 @@ class Tank {
     }
   }
 
+  /** Scale sprites and outlines based on distance from camera */
+  updateDistanceScaling(cameraPos){
+    const dx = this.x - cameraPos.x;
+    const dz = this.z - cameraPos.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    const target = Math.min(1.8, Math.max(1.0, 0.4 + dist * 0.01));
+    this._uiScale += (target - this._uiScale) * 0.15;
+    const s = this._uiScale;
+    if(this.hpSprite) this.hpSprite.scale.set(3.4 * s, 0.53 * s, 1);
+    if(this.nameSprite) this.nameSprite.scale.set(3.2 * s, 0.8 * s, 1);
+    if(this._drownBar) this._drownBar.scale.set(3.4 * s, 0.21 * s, 1);
+    const outlineScale = 1 + (s - 1) * 0.2;
+    this._applyOutlineScale(outlineScale);
+  }
+  _applyOutlineScale(scale){
+    [this.bodyGroup, this.turretGroup].forEach(group => {
+      if(!group) return;
+      group.children.forEach(child => {
+        if(child.userData && child.userData.isOutline) child.scale.setScalar(scale);
+      });
+    });
+  }
   _syncTransform(){
     if(this._physBody){
       try {
         var p = this._physBody.translation();
         this.x = p.x;
         this.z = p.z;
+        var q = this._physBody.rotation();
+        this.heading = 2 * Math.atan2(q.y, q.w);
       } catch(e){}
     }
     this.root.position.set(this.x, 0, this.z);

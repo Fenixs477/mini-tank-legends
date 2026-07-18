@@ -43,7 +43,7 @@ class TouchJoystick {
 
     // Dynamic sizing: scale joystick to viewport, cap at desired size
     const shortSide = Math.min(window.innerWidth, window.innerHeight);
-    const joySize = Math.min(this.opts.size, Math.max(64, shortSide * 0.24));
+    const joySize = Math.min(this.opts.size, Math.max(64, shortSide * 0.3));
     this.container.style.width = joySize + 'px';
     this.container.style.height = joySize + 'px';
 
@@ -55,7 +55,7 @@ class TouchJoystick {
     // Inner knob — size relative to container
     this.knob = document.createElement('div');
     this.knob.className = 'joystick-knob';
-    const knobSize = Math.round(joySize * 0.37);
+    const knobSize = Math.round(joySize * 0.38);
     this.knob.style.width = knobSize + 'px';
     this.knob.style.height = knobSize + 'px';
     this.outer.appendChild(this.knob);
@@ -252,12 +252,12 @@ class Input {
       }
 
       this._moveJoystick = new TouchJoystick('joystick-move', {
-        size: 130,
+        size: 133,
         fireOnMax: false,
       });
 
       this._turretJoystick = new TouchJoystick('joystick-turret', {
-        size: 110,
+        size: 127,
         turretFireMode: 'armedPress',
         armedThreshold: 0.98,
       });
