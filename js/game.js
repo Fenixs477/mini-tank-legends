@@ -71,18 +71,142 @@ class Game {
     requestAnimationFrame(this._loop);
     this.applyGraphicsSettings();
 
-    /* ---- FPS Stats (hold Tab to show) ---- */
-    this.stats = new Stats();
-    this.stats.dom.style.display = 'none';
-    document.body.appendChild(this.stats.dom);
+    /* ---- Performance overlay (hold Tab) ---- */
+    this._buildPerfOverlay();
     this._onKeyDown = (e) => {
-      if (e.key === 'Tab') { e.preventDefault(); this.stats.dom.style.display = 'block'; }
+      if (e.key === 'Tab') { e.preventDefault(); this._perfOverlay.style.display = 'block'; }
     };
     this._onKeyUp = (e) => {
-      if (e.key === 'Tab') { this.stats.dom.style.display = 'none'; }
+      if (e.key === 'Tab') { this._perfOverlay.style.display = 'none'; }
     };
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
+  }
+
+  /** Build the custom full-screen performance overlay DOM */
+  _buildPerfOverlay(){
+    this._perfFpsHistory = [];
+    this._perfGpuLoadSamples = [];
+    this._perfLastThrottle = 0;
+    this._perfFrameStart = 0;
+    this._perfUpdateEnd = 0;
+
+    var gl = this.renderer.getContext();
+    var gpuName = 'Unknown GPU';
+    try {
+      var ext = gl.getExtension('WEBGL_debug_renderer_info');
+      if (ext) gpuName = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+    } catch(e){}
+
+    var d = document.createElement('div');
+    d.id = 'perf-overlay';
+    d.style.cssText = [
+      'position:fixed', 'top:0', 'right:0', 'z-index:99999',
+      'background:rgba(8,12,18,0.88)', 'border-left:1px solid rgba(0,255,170,0.12)',
+      'padding:14px 18px', 'font-family:"Consolas","Courier New",monospace',
+      'font-size:12px', 'line-height:1.7', 'color:#b0e0c0',
+      'min-width:280px', 'display:none', 'user-select:none', 'pointer-events:none',
+    ].join(';');
+
+    d.innerHTML =
+      '<div style="color:#0f6;font-size:13px;font-weight:700;letter-spacing:1px;border-bottom:1px solid rgba(0,255,170,0.15);padding-bottom:6px;margin-bottom:6px">PERFORMANCE MONITOR</div>' +
+      '<div id="perf-row-gpu" style="color:#8af"></div>' +
+      '<div id="perf-row-fps"></div>' +
+      '<div id="perf-row-frametime"></div>' +
+      '<div id="perf-row-ping"></div>' +
+      '<div id="perf-row-mem-used"></div>' +
+      '<div id="perf-row-mem-total"></div>' +
+      '<div id="perf-row-mem-pct"></div>' +
+      '<div id="perf-row-cpu"></div>' +
+      '<div id="perf-row-gpu-load"></div>' +
+      '<div style="border-top:1px solid rgba(0,255,170,0.15);padding-top:6px;margin-top:6px" id="perf-row-rating"></div>';
+
+    document.body.appendChild(d);
+    this._perfOverlay = d;
+    document.getElementById('perf-row-gpu').textContent = 'GPU  ' + gpuName;
+  }
+
+  /** Throttled overlay update — called every frame but only rewrites DOM ~3x/sec */
+  _updatePerfOverlay(now){
+    if (now - this._perfLastThrottle < 350) return;
+    this._perfLastThrottle = now;
+
+    // FPS: rolling average over last 30 frames
+    var fps = 0;
+    var hist = this._perfFpsHistory;
+    if (hist.length > 1){
+      var sum = 0;
+      for (var i = 1; i < hist.length; i++) sum += (1000 / (hist[i] - hist[i-1]));
+      fps = sum / (hist.length - 1);
+    }
+    var frt = hist.length > 1 ? (hist[hist.length-1] - hist[hist.length-2]) : 0;
+
+    // CPU Load %: fraction of frame spent in _update / total frame time
+    var cpuLoad = 0;
+    if (this._perfFrameStart > 0 && this._perfUpdateEnd > 0){
+      var frameElapsed = now - this._perfFrameStart;
+      var updateElapsed = this._perfUpdateEnd - this._perfFrameStart;
+      cpuLoad = frameElapsed > 0 ? Math.min(100, Math.round((updateElapsed / frameElapsed) * 100)) : 0;
+    }
+
+    // GPU Load %: rough estimate based on raf-to-draw timing
+    var gpuLoad = 0;
+    var samples = this._perfGpuLoadSamples;
+    if (samples.length > 0){
+      var gSum = 0;
+      for (var si = 0; si < samples.length; si++) gSum += samples[si];
+      gpuLoad = Math.min(100, Math.round(gSum / samples.length));
+      samples.length = 0;
+    }
+
+    // Memory
+    var memUsed = 0, memTotal = 0, memLimit = 0, memPct = 0;
+    if (self.performance && self.performance.memory){
+      memUsed = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+      memTotal = (performance.memory.totalJSHeapSize / 1048576).toFixed(1);
+      memLimit = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(1);
+      memPct = (performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit * 100).toFixed(1);
+    }
+
+    // Ping
+    var pingStr = 'N/A (offline)';
+    if (this.mode === 'host' || this.mode === 'client'){
+      try {
+        if (typeof Net !== 'undefined' && Net.peer && Net.peer._lastPing){
+          pingStr = Math.round(Net.peer._lastPing) + ' ms';
+        }
+      } catch(e){}
+    }
+
+    // Write DOM (3/sec — safe)
+    document.getElementById('perf-row-fps').textContent =
+      'FPS        ' + fps.toFixed(1) + (fps >= 55 ? '  ✓' : fps >= 30 ? '  ⚠' : '  ✗');
+    document.getElementById('perf-row-frametime').textContent =
+      'Frame time ' + frt.toFixed(1) + ' ms';
+    document.getElementById('perf-row-ping').textContent =
+      'Ping       ' + pingStr;
+    document.getElementById('perf-row-mem-used').textContent =
+      'Heap used  ' + memUsed + ' MB';
+    document.getElementById('perf-row-mem-total').textContent =
+      'Heap total ' + memTotal + ' MB';
+    document.getElementById('perf-row-mem-pct').textContent =
+      'Heap load  ' + memPct + ' %  (limit ' + memLimit + ' MB)';
+    document.getElementById('perf-row-cpu').textContent =
+      'CPU load   ' + cpuLoad + ' %';
+    document.getElementById('perf-row-gpu-load').textContent =
+      'GPU load   ' + gpuLoad + ' %  (est.)';
+
+    // Performance rating
+    var ratingEl = document.getElementById('perf-row-rating');
+    if (fps > 55 && frt < 18){
+      ratingEl.innerHTML = '<span style="color:#0f0">PERFORMANCE: EXCELLENT  (Smooth gameplay)</span>';
+    } else if (fps >= 30){
+      ratingEl.innerHTML = '<span style="color:#ff0">PERFORMANCE: GOOD  (Stable but limited)</span>';
+    } else if (fps > 0){
+      ratingEl.innerHTML = '<span style="color:#f44">PERFORMANCE: POOR  (Bottleneck detected! Check instancing/grass density)</span>';
+    } else {
+      ratingEl.innerHTML = '<span style="color:#888">PERFORMANCE: —  (gathering data)</span>';
+    }
   }
 
   _initPhysics(){
@@ -699,6 +823,7 @@ class Game {
     // Hide all overlays
     document.getElementById('esc-menu').classList.add('hidden');
     document.getElementById('bigmap').classList.add('hidden');
+    if (this._perfOverlay) this._perfOverlay.style.display = 'none';
     if(Menu.escOpen) Menu.escOpen = false;
     Menu.show('menu-main');
     // Hide touch joysticks when returning to menu
@@ -721,6 +846,12 @@ class Game {
     requestAnimationFrame(this._loop);
     const dt = Math.min(0.05, (now - this._last)/1000 || 0);
     this._last = now;
+    this._perfFrameStart = performance.now();
+
+    // Push FPS sample (keep last 60)
+    this._perfFpsHistory.push(now);
+    if (this._perfFpsHistory.length > 60) this._perfFpsHistory.shift();
+
     if(this.running){
       this.dt = dt; this.time += dt;
       try {
@@ -733,7 +864,12 @@ class Game {
       } catch(e){ console.warn('Physics step:', e); }
       this._update(dt);
     }
-    if (this.stats) this.stats.update();
+    this._perfUpdateEnd = performance.now();
+
+    // GPU load estimate: sample the delta between rAF start and render completion
+    this._perfGpuLoadSamples.push(Math.round((performance.now() - this._perfFrameStart) / 1.66));
+
+    this._updatePerfOverlay(now);
     this.renderer.render(this.scene, this.camera);
   }
 
