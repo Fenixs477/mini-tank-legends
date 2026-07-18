@@ -977,7 +977,7 @@ var Editor123 = {
                 '<label style="color:#888;font-size:10px">Width <input id="e-insp-gw" type="number" step="1" min="1" value="' + ((obj.planeW || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-gh" type="number" step="1" min="1" value="' + ((obj.planeH || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
                 '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>' +
-                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🌿 Copy color to Grass Painter</span>';
+                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🌿 Copy grass color to ground</span>';
         } else if (kind === 'primitive' || kind === 'shape2d') {
             html += '<div style="color:#666;font-size:10px;margin-bottom:4px">' + (kind === 'primitive' ? '3D ' : '2D ') + (obj.subType || '').charAt(0).toUpperCase() + (obj.subType || '').slice(1) + '</div>';
         }
@@ -1051,14 +1051,12 @@ var Editor123 = {
             if (ghEl) ghEl.onchange = function () { obj.planeH = parseFloat(this.value) || 40; self._rebuildScene(); };
             var copyGrassColorEl = document.getElementById('e-insp-copy-grass-color');
             if (copyGrassColorEl) copyGrassColorEl.addEventListener('click', function () {
-                var c = '#' + (obj.color != null ? obj.color : 0x5a7a5a).toString(16).padStart(6, '0');
-                self._grass3dColorBottom = c;
-                self._grass3dColorTop = c;
-                var bottomEl = document.getElementById('e-grass-color-bottom');
-                if (bottomEl) bottomEl.value = c;
-                var topEl = document.getElementById('e-grass-color-top');
-                if (topEl) topEl.value = c;
-                self.toast('Grass painter colors set to ground color ' + c);
+                var c = self._grass3dColorBottom || '#4f7c13';
+                obj.color = parseInt(c.slice(1), 16);
+                var colorEl = document.getElementById('e-insp-color');
+                if (colorEl) colorEl.value = c;
+                self._rebuildScene();
+                self.toast('Ground color set to grass base ' + c);
             });
             // Common
             var colorEl = document.getElementById('e-insp-color');
