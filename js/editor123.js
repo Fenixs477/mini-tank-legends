@@ -1052,10 +1052,29 @@ var Editor123 = {
             var copyGrassColorEl = document.getElementById('e-insp-copy-grass-color');
             if (copyGrassColorEl) copyGrassColorEl.addEventListener('click', function () {
                 var c = self._grass3dColorBottom || '#4f7c13';
+                // 1. Persist color in data model
                 obj.color = parseInt(c.slice(1), 16);
+                // 2. Update UI color swatch
                 var colorEl = document.getElementById('e-insp-color');
                 if (colorEl) colorEl.value = c;
-                self._rebuildScene();
+                // 3. Directly update the live 3D mesh material in the scene
+                var linearColor = new THREE.Color(c);
+                linearColor.convertSRGBToLinear();
+                for (var mi = 0; mi < self._mapModels.length; mi++) {
+                    var mo = self._mapObjs[mi];
+                    if (mo && mo === obj && self._mapModels[mi]) {
+                        var groundMesh = self._mapModels[mi];
+                        if (groundMesh.material) {
+                            if (groundMesh.material.isShaderMaterial && groundMesh.material.uniforms && groundMesh.material.uniforms.uColor) {
+                                groundMesh.material.uniforms.uColor.value.copy(linearColor);
+                            } else if (groundMesh.material.color) {
+                                groundMesh.material.color.copy(linearColor);
+                                groundMesh.material.needsUpdate = true;
+                            }
+                        }
+                        break;
+                    }
+                }
                 self.toast('Ground color set to grass base ' + c);
             });
             // Common
@@ -1659,14 +1678,16 @@ var Editor123 = {
                     mesh.renderOrder = 1;
                 }
             } else if (kind === 'ground') {
+                var groundLinear = new THREE.Color(baseColor);
+                groundLinear.convertSRGBToLinear();
                 if (o.subType === 'painted') {
-                    var pMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.6 });
+                    var pMat = new THREE.MeshStandardMaterial({ color: groundLinear, roughness: 0.9, metalness: 0.0, transparent: true, opacity: 0.6 });
                     var pGeo = new THREE.CircleGeometry((o.planeW || 2) / 2, 16);
                     pGeo.rotateX(-Math.PI / 2);
                     mesh = new THREE.Mesh(pGeo, pMat);
                 } else {
                     var gw = o.planeW || 40, gh = o.planeH || 40;
-                    var gMat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.9, metalness: 0.05 });
+                    var gMat = new THREE.MeshStandardMaterial({ color: groundLinear, roughness: 0.9, metalness: 0.05 });
                     var groundGeo = new THREE.PlaneGeometry(gw, gh);
                     groundGeo.rotateX(-Math.PI / 2);
                     mesh = new THREE.Mesh(groundGeo, gMat);
