@@ -26,6 +26,7 @@ var Editor123 = {
     _paintMode: false, _paintColor: 0x4a7a4a, _paintBrushSize: 2,
     _grassMode: false, _grassTexUrl: null, _grassBrushSize: 3, _grassDensity: 20, _grassScale: 0.5, _grassColor: 0x6aaa4a,
     _grass3dWidth: 0.08, _grass3dHeight: 0.3, _grass3dColorBottom: '#4f7c13', _grass3dColorTop: '#79a01c',
+    _grassMesh: null, _grassCount: 0, _grassMaxBlades: 50000, _grassBladeData: [],
     _grassBrushCircle: null, _grassMouseDown: false, _grassLastSpawnTime: 0, _grassSpawnMs: 150, _mapMouseNDC: null,
 
     MENU_NAMES: {
@@ -351,6 +352,28 @@ var Editor123 = {
         this._mode = 'map';
         this._mapLib = this._loadLib();
         this._mapObjs = this._loadMap();
+        // Extract grass blade data from saved map into global single-mesh buffer
+        this._grassBladeData = [];
+        this._grassCount = 0;
+        for (var oi = 0; oi < this._mapObjs.length; oi++) {
+            var go = this._mapObjs[oi];
+            if (go && go.kind === 'grass3d' && go.bladeData && go.bladeData.length > 0) {
+                Array.prototype.push.apply(this._grassBladeData, go.bladeData);
+            }
+        }
+        this._grassCount = this._grassBladeData.length;
+        // Keep only ONE grass3d entry and point it at the live array
+        var keptGrass = false;
+        for (var oi2 = this._mapObjs.length - 1; oi2 >= 0; oi2--) {
+            if (this._mapObjs[oi2] && this._mapObjs[oi2].kind === 'grass3d') {
+                if (!keptGrass) {
+                    this._mapObjs[oi2].bladeData = this._grassBladeData;
+                    keptGrass = true;
+                } else {
+                    this._mapObjs.splice(oi2, 1);
+                }
+            }
+        }
         this._mapSelObj = null; this._mapSelObjs = [];
         this._mapPlacing = false; this._mapPlacingMulti = [];
         this._physSimulating = false;
@@ -628,7 +651,7 @@ var Editor123 = {
     _spawnGrass: function (pos) {
         var count = this._grassDensity || 20;
         var radius = this._grassBrushSize || 3;
-        var bladeData = [];
+        var newBlades = [];
         for (var gi = 0; gi < count; gi++) {
             var angle = Math.random() * Math.PI * 2;
             var dist = Math.sqrt(Math.random()) * radius;
@@ -637,31 +660,114 @@ var Editor123 = {
             var sy = this._grass3dHeight || 0.3;
             sx *= 0.7 + Math.random() * 0.6;
             sy *= 0.7 + Math.random() * 0.6;
-            bladeData.push({
-                x: Math.cos(angle) * dist,
-                z: Math.sin(angle) * dist,
-                y: 0,
-                rotY: rotY,
-                sx: sx,
-                sy: sy,
+            newBlades.push({
+                x: pos.x + Math.cos(angle) * dist,
+                z: pos.z + Math.sin(angle) * dist,
+                y: 0, rotY: rotY, sx: sx, sy: sy,
             });
         }
-        var obj = {
-            kind: 'grass3d', subType: 'painter', name: 'Grass 3D',
-            x: pos.x, z: pos.z, y: 0,
-            bladeData: bladeData,
-            width: this._grass3dWidth || 0.08,
-            height: this._grass3dHeight || 0.3,
-            colorBottom: this._grass3dColorBottom || '#4f7c13',
-            colorTop: this._grass3dColorTop || '#79a01c',
-        };
-        this._mapObjs.push(obj);
-        var idx = this._mapObjs.length - 1;
-        this._selectObject(idx, false);
-        this._updCnt();
-        this._rebuildScene();
-        this._renderHierarchy();
-        this.toast('Placed ' + count + ' 3D grass blades');
+
+        // Persist blade data
+        Array.prototype.push.apply(this._grassBladeData, newBlades);
+
+        // Ensure ONE map entry for the whole grass layer
+        var grassEntry = null;
+        for (var oi = 0; oi < this._mapObjs.length; oi++) {
+            if (this._mapObjs[oi] && this._mapObjs[oi].kind === 'grass3d') {
+                grassEntry = this._mapObjs[oi];
+                break;
+            }
+        }
+        if (!grassEntry) {
+            grassEntry = {
+                kind: 'grass3d', subType: 'painter', name: 'Grass Instanced',
+                x: 0, z: 0, y: 0,
+                bladeData: this._grassBladeData,
+                width: this._grass3dWidth || 0.08,
+                height: this._grass3dHeight || 0.3,
+                colorBottom: this._grass3dColorBottom || '#4f7c13',
+                colorTop: this._grass3dColorTop || '#79a01c',
+            };
+            this._mapObjs.push(grassEntry);
+            this._updCnt();
+            this._renderHierarchy();
+        } else {
+            grassEntry.bladeData = this._grassBladeData;
+        }
+
+        // Update or create the single InstancedMesh
+        var startIdx = this._grassCount;
+        this._grassCount += newBlades.length;
+        this._ensureGrassMesh();
+
+        var dummy = new THREE.Object3D();
+        for (var vi = 0; vi < newBlades.length; vi++) {
+            var bd = newBlades[vi];
+            var idx = startIdx + vi;
+            dummy.position.set(bd.x, bd.y, bd.z);
+            dummy.rotation.set(0, bd.rotY || 0, 0);
+            dummy.scale.set(bd.sx || 0.08, bd.sy || 0.3, 1);
+            dummy.updateMatrix();
+            this._grassMesh.setMatrixAt(idx, dummy.matrix);
+        }
+        this._grassMesh.instanceMatrix.needsUpdate = true;
+        this._grassMesh.count = this._grassCount;
+
+        this.toast('Placed ' + count + ' 3D grass blades (total ' + this._grassCount + ')');
+    },
+
+    /** Create or recreate the single global grass InstancedMesh for all blades */
+    _ensureGrassMesh: function () {
+        var g3dDef = (typeof SHADERS !== 'undefined' && SHADERS.grass3d) ? SHADERS.grass3d : null;
+        if (!g3dDef || this._grassBladeData.length === 0) return;
+
+        // If mesh exists and params match, reuse it
+        if (this._grassMesh && this._grassMesh.geometry && this._grassMesh.material) {
+            // Update uniforms in case colors changed
+            this._grassMesh.material.uniforms.uColorBottom.value.set(this._grass3dColorBottom);
+            this._grassMesh.material.uniforms.uColorTop.value.set(this._grass3dColorTop);
+            return;
+        }
+
+        // Dispose old mesh
+        if (this._grassMesh) {
+            this._mapScene.remove(this._grassMesh);
+            this._grassMesh.geometry.dispose();
+            this._grassMesh.material.dispose();
+        }
+
+        var g3dMat = new THREE.ShaderMaterial({
+            uniforms: THREE.UniformsUtils.clone(g3dDef.uniforms),
+            vertexShader: g3dDef.vertexShader,
+            fragmentShader: g3dDef.fragmentShader,
+            side: THREE.DoubleSide,
+        });
+        g3dMat.uniforms.uColorBottom.value.set(this._grass3dColorBottom);
+        g3dMat.uniforms.uColorTop.value.set(this._grass3dColorTop);
+
+        var bladeGeo = this._makeBladeGeometry(3);
+        var im = new THREE.InstancedMesh(bladeGeo, g3dMat, this._grassMaxBlades);
+        im.castShadow = false;
+        im.receiveShadow = true;
+        im.frustumCulled = false;
+        im.count = this._grassCount;
+
+        // Write all existing blades
+        if (this._grassCount > 0) {
+            var dummy2 = new THREE.Object3D();
+            for (var bi = 0; bi < this._grassCount; bi++) {
+                var bd2 = this._grassBladeData[bi];
+                dummy2.position.set(bd2.x, bd2.y, bd2.z);
+                dummy2.rotation.set(0, bd2.rotY || 0, 0);
+                dummy2.scale.set(bd2.sx || 0.08, bd2.sy || 0.3, 1);
+                dummy2.updateMatrix();
+                im.setMatrixAt(bi, dummy2.matrix);
+            }
+            im.instanceMatrix.needsUpdate = true;
+        }
+
+        this._mapScene.add(im);
+        this._grassMesh = im;
     },
 
     _importImage: function (replaceIdx) {
@@ -1746,43 +1852,9 @@ var Editor123 = {
                     if (!self._mapGround) self._mapGround = mesh;
                 }
             } else if (kind === 'grass3d') {
-                // 3D instanced grass with custom shader (wind, gradient)
-                var bladeData = o.bladeData || [];
-                if (bladeData.length > 0) {
-                    var g3dDef = (typeof SHADERS !== 'undefined' && SHADERS.grass3d) ? SHADERS.grass3d : null;
-                    if (g3dDef) {
-                        var g3dMat = new THREE.ShaderMaterial({
-                            uniforms: THREE.UniformsUtils.clone(g3dDef.uniforms),
-                            vertexShader: g3dDef.vertexShader,
-                            fragmentShader: g3dDef.fragmentShader,
-                            side: THREE.DoubleSide,
-                        });
-                        if (o.colorBottom) g3dMat.uniforms.uColorBottom.value.set(o.colorBottom);
-                        if (o.colorTop) g3dMat.uniforms.uColorTop.value.set(o.colorTop);
-                        var bladeGeo = self._makeBladeGeometry(3);
-                        var im = new THREE.InstancedMesh(bladeGeo, g3dMat, bladeData.length);
-                        im.castShadow = false;
-                        im.receiveShadow = true;
-                        im.frustumCulled = false;
-                        var dummy = new THREE.Object3D();
-                        for (var bi = 0; bi < bladeData.length; bi++) {
-                            var bd = bladeData[bi];
-                            dummy.position.set(bd.x || 0, bd.y || 0, bd.z || 0);
-                            dummy.rotation.set(0, bd.rotY || 0, 0);
-                            dummy.scale.set(bd.sx || 0.08, bd.sy || 0.3, 1);
-                            dummy.updateMatrix();
-                            im.setMatrixAt(bi, dummy.matrix);
-                        }
-                        im.instanceMatrix.needsUpdate = true;
-                        mesh = im;
-                    } else {
-                        // Fallback: simple placeholder
-                        var fallbackMat = new THREE.MeshStandardMaterial({ color: 0x4f7c13, roughness: 0.8 });
-                        mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.2), fallbackMat);
-                    }
-                } else {
-                    mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ visible: false }));
-                }
+                // Single global InstancedMesh — managed by _ensureGrassMesh / _spawnGrass,
+                // not per-entry.  Skip individual mesh creation entirely.
+                return;
             } else if (kind === 'grass') {
                 // Legacy 2D grass (Points-based) — kept for old saves
                 var grassTex = null;
@@ -1938,6 +2010,16 @@ var Editor123 = {
                 self._mapScene.add(wireSphere);
             }
         });
+
+        // Rebuild global grass mesh from stored blade data
+        if (this._grassMesh) {
+            this._mapScene.remove(this._grassMesh);
+            if (this._grassMesh.geometry) this._grassMesh.geometry.dispose();
+            if (this._grassMesh.material) this._grassMesh.material.dispose();
+            this._grassMesh = null;
+        }
+        this._grassCount = this._grassBladeData.length;
+        this._ensureGrassMesh();
 
         this._highlightSelected();
         this._updCnt();
@@ -2300,6 +2382,8 @@ var Editor123 = {
         if (this._mapResizeHandler) { window.removeEventListener('resize', this._mapResizeHandler); this._mapResizeHandler = null; }
         if (this._transformControls) { this._transformControls.dispose(); this._transformControls = null; }
         if (this._grassBrushCircle) { if (this._mapScene) this._mapScene.remove(this._grassBrushCircle); this._grassBrushCircle = null; }
+        if (this._grassMesh) { if (this._mapScene) this._mapScene.remove(this._grassMesh); if (this._grassMesh.geometry) this._grassMesh.geometry.dispose(); if (this._grassMesh.material) this._grassMesh.material.dispose(); this._grassMesh = null; }
+        this._grassCount = 0; this._grassBladeData = [];
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
         this._paintMode = false;
         this._grassMode = false;
