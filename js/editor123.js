@@ -1314,6 +1314,7 @@ var Editor123 = {
         renderer.setSize(W, H);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
         host.appendChild(renderer.domElement);
         this._mapRenderer = renderer;
 
@@ -1639,9 +1640,12 @@ var Editor123 = {
                         side: THREE.DoubleSide,
                         transparent: true,
                     });
-                    // Setup noise texture
+                    // Setup noise texture (data texture, LinearEncoding to avoid gamma double-correction)
                     if (!self._noiseTex) self._noiseTex = (typeof generateNoiseTexture !== 'undefined') ? generateNoiseTexture(256) : null;
-                    if (self._noiseTex) wMat.uniforms.uNoiseTex.value = self._noiseTex;
+                    if (self._noiseTex) {
+                        self._noiseTex.encoding = THREE.LinearEncoding;
+                        wMat.uniforms.uNoiseTex.value = self._noiseTex;
+                    }
                     var waterGeo = new THREE.PlaneGeometry(ww, wh, 64, 64);
                     waterGeo.rotateX(-Math.PI / 2);
                     mesh = new THREE.Mesh(waterGeo, wMat);
