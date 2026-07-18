@@ -582,9 +582,9 @@ var Editor123 = {
             '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🌿 3D Grass Painter</div>' +
             '<div style="color:#888;font-size:10px;margin-bottom:8px">Instanced 3D blades with wind sway &amp; gradient</div>' +
             '<label style="color:#aaa;display:block;margin:4px 0">Brush radius:</label>' +
-            '<input type="range" id="e-grass-radius" min="1" max="15" step="0.5" value="3" style="width:100%">' +
+            '<input type="range" id="e-grass-radius" min="0.3" max="15" step="0.1" value="3" style="width:100%">' +
             '<label style="color:#aaa;display:block;margin:4px 0">Blades per click:</label>' +
-            '<input type="range" id="e-grass-density" min="5" max="100" step="5" value="20" style="width:100%">' +
+            '<input type="range" id="e-grass-density" min="1" max="300" step="1" value="20" style="width:100%">' +
             '<label style="color:#aaa;display:block;margin:4px 0">Blade width:</label>' +
             '<input type="range" id="e-grass-w" min="0.02" max="0.2" step="0.01" value="0.08" style="width:100%">' +
             '<label style="color:#aaa;display:block;margin:4px 0">Blade height:</label>' +
@@ -976,7 +976,8 @@ var Editor123 = {
             html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Width <input id="e-insp-gw" type="number" step="1" min="1" value="' + ((obj.planeW || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-gh" type="number" step="1" min="1" value="' + ((obj.planeH || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
-                '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>';
+                '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>' +
+                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🌿 Copy color to Grass Painter</span>';
         } else if (kind === 'primitive' || kind === 'shape2d') {
             html += '<div style="color:#666;font-size:10px;margin-bottom:4px">' + (kind === 'primitive' ? '3D ' : '2D ') + (obj.subType || '').charAt(0).toUpperCase() + (obj.subType || '').slice(1) + '</div>';
         }
@@ -1048,6 +1049,17 @@ var Editor123 = {
             if (gwEl) gwEl.onchange = function () { obj.planeW = parseFloat(this.value) || 40; self._rebuildScene(); };
             var ghEl = document.getElementById('e-insp-gh');
             if (ghEl) ghEl.onchange = function () { obj.planeH = parseFloat(this.value) || 40; self._rebuildScene(); };
+            var copyGrassColorEl = document.getElementById('e-insp-copy-grass-color');
+            if (copyGrassColorEl) copyGrassColorEl.onclick = function () {
+                var c = '#' + (obj.color != null ? obj.color : 0x5a7a5a).toString(16).padStart(6, '0');
+                self._grass3dColorBottom = c;
+                self._grass3dColorTop = c;
+                var bottomEl = document.getElementById('e-grass-color-bottom');
+                if (bottomEl) bottomEl.value = c;
+                var topEl = document.getElementById('e-grass-color-top');
+                if (topEl) topEl.value = c;
+                self.toast('Grass painter colors set to ground color ' + c);
+            };
             // Common
             var colorEl = document.getElementById('e-insp-color');
             if (colorEl) colorEl.onchange = function () { obj.color = parseInt(this.value.slice(1), 16); self._rebuildScene(); };
