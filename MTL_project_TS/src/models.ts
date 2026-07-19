@@ -165,16 +165,50 @@ export const NatureAssets = {
       rocks: [0x8a8a7a, 0x7a7a6a, 0x9a9a8a, 0x6a7a5a, 0x7a8a6a],
       bushes: [0x4a7a28, 0x5a8a30, 0x3a6a1a],
     };
+    /* Dynamic Cartoon Material Router — reads node names and assigns
+       solid flat-shaded materials. Fixes white/hollow shell issue by
+       forcing procedural colors + recomputing normals + double-sided shading. */
     const addColors = (group: THREE.Group, colList: number[]) => {
+      const leafColor  = 0x557a46;  // Stylized forest green
+      const trunkColor = 0x7c5c43;  // Rich bark wood brown
+
       group.traverse(c => {
-        if ((c as THREE.Mesh).isMesh) {
-          (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({
-            color: colList[Math.floor(Math.random() * colList.length)],
-            roughness: 0.9, flatShading: true,
+        if (!(c as THREE.Mesh).isMesh) return;
+
+        const mesh = c as THREE.Mesh;
+
+        // 1. Recalculate shading normals (fixes broken lighting vectors)
+        mesh.geometry.computeVertexNormals();
+
+        // 2. Dynamic material router based on Quaternius node naming
+        const name = mesh.name.toLowerCase();
+
+        if (name.includes("leave") || name.includes("foliage") || name.includes("branch")) {
+          mesh.material = new THREE.MeshStandardMaterial({
+            color: leafColor,
+            roughness: 1.0,
+            metalness: 0.0,
+            flatShading: true,
+            side: THREE.DoubleSide  // Force solid look, no transparency holes!
           });
-          (c as THREE.Mesh).castShadow = true;
-          (c as THREE.Mesh).receiveShadow = true;
+        } else {
+          // Trunk, bark, wood, rock, or any other part
+          mesh.material = new THREE.MeshStandardMaterial({
+            color: trunkColor,
+            roughness: 1.0,
+            metalness: 0.0,
+            flatShading: true,
+            side: THREE.DoubleSide
+          });
         }
+
+        // 3. Refresh bounds for BoxHelper / collision outlines
+        mesh.geometry.computeBoundingBox();
+        mesh.geometry.computeBoundingSphere();
+
+        // 4. Shadow map
+        mesh.castShadow    = true;
+        mesh.receiveShadow = true;
       });
     };
     const loadOne = (name: string, colorList: number[]): Promise<THREE.Group | null> =>

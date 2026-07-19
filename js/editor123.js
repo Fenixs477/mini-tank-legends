@@ -24,10 +24,11 @@ var Editor123 = {
     _snapEnabled: false, _snapSize: 1,
     _sceneBgColor: 0x14181e, _sceneFogDensity: 0.008, _sceneAmbient: 0x404060,
     _paintMode: false, _paintColor: 0x4a7a4a, _paintBrushSize: 2,
-    _grassMode: false, _grassTexUrl: null, _grassBrushSize: 3, _grassDensity: 20, _grassScale: 0.5, _grassColor: 0x6aaa4a,
+    _currentTool: 'select', _grassMode: false, _grassEraseMode: false, _grassTexUrl: null, _grassBrushSize: 3, _grassDensity: 20, _grassScale: 0.5, _grassColor: 0x6aaa4a,
     _grass3dWidth: 0.08, _grass3dHeight: 0.3, _grass3dColorBottom: '#4f7c13', _grass3dColorTop: '#79a01c',
+    _grassWindSpeed: 1.2, _grassWindStrength: 0.3,
     _grassMesh: null, _grassCount: 0, _grassMaxBlades: 50000, _grassBladeData: [],
-    _grassBrushCircle: null, _grassMouseDown: false, _grassLastSpawnTime: 0, _grassSpawnMs: 150, _mapMouseNDC: null,
+    _grassBrushCircle: null, _mapMouseNDC: null,
 
     MENU_NAMES: {
         'menu-main': 'Main Menu', 'menu-play-select': 'Play Select',
@@ -351,6 +352,9 @@ var Editor123 = {
     _render3DEditor: function () {
         this._mode = 'map';
         this._mapLib = this._loadLib();
+        // Global asset register shared with _mapLib for batch import + click-to-spawn
+        window.editorAssets = window.editorAssets || {};
+        window.editorAssets.models = this._mapLib;
         this._mapObjs = this._loadMap();
         // Extract grass blade data from saved map into global single-mesh buffer
         this._grassBladeData = [];
@@ -386,7 +390,7 @@ var Editor123 = {
             '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
             '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📦 LIBRARY</h3>' +
             '<div style="font-size:10px;color:#666;margin-top:2px"><span id="e-lib-count">' + this._mapLib.length + '</span> models <span id="e-lib-sel-count" style="color:#ffb12b;display:none"></span></div></div>' +
-            '<div id="e-lib-list" style="flex:1;overflow-y:auto;padding:6px">' +
+            '<div id="e-lib-list" data-lib-container style="flex:1;overflow-y:auto;padding:6px">' +
             (this._mapLib.length === 0 ? '<div style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>' : '') + '</div>' +
             '<div style="padding:6px;border-top:1px solid #252a32">' +
             '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">📥 Import GLB / FBX</span>' +
@@ -460,6 +464,8 @@ var Editor123 = {
         if (!hasGround) {
             this._mapObjs.push({ kind: 'ground', subType: 'ground', name: 'Ground', x: 0, z: 0, y: 0, rot: 0, scale: 1, color: 0x5a7a5a, planeW: 80, planeH: 80, type: 'wall' });
         }
+        // Build 3D scene from loaded objects (safe wrap)
+        try { this._rebuildScene(); } catch (e) { console.error('Editor startup rebuild failed', e); }
     },
 
     /* ---------- Add menu (primitives, 2D, image, light, sound, water) ---------- */
@@ -598,7 +604,7 @@ var Editor123 = {
     _showGrassPainter: function () {
         var self = this;
         var existing = document.getElementById('e-grass-panel');
-        if (existing) { existing.remove(); self._grassMode = false; self.toast('Grass painter closed'); return; }
+        if (existing) { existing.remove(); self._currentTool = 'select'; self._grassMode = false; if (self._grassBrushCircle) self._grassBrushCircle.visible = false; self.toast('Grass painter closed'); return; }
         var div = document.createElement('div');
         div.id = 'e-grass-panel';
         div.style.cssText = 'position:absolute;top:28px;left:230px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:10px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:200px';
@@ -617,10 +623,19 @@ var Editor123 = {
             '<input type="color" id="e-grass-color-bottom" value="#4f7c13" style="width:100%;height:24px;border:none;background:transparent;cursor:pointer">' +
             '<label style="color:#aaa;display:block;margin:4px 0">Color tip:</label>' +
             '<input type="color" id="e-grass-color-top" value="#79a01c" style="width:100%;height:24px;border:none;background:transparent;cursor:pointer">' +
-            '<div style="margin-top:8px;display:flex;gap:4px">' +
-            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">Paint</span>' +
+            '<details style="margin-top:8px;background:#1e232a;border-radius:6px;padding:4px">' +
+            '<summary style="cursor:pointer;color:#ffb12b;font-weight:600;font-size:11px;padding:4px">🌬️ Wind &amp; Shader</summary>' +
+            '<div style="padding:6px 4px">' +
+            '<label style="color:#aaa;display:block;margin:2px 0;font-size:10px">Wind Speed (' + this._grassWindSpeed.toFixed(1) + ')</label>' +
+            '<input type="range" id="e-grass-wind-speed" min="0.1" max="5.0" step="0.1" value="' + this._grassWindSpeed + '" style="width:100%">' +
+            '<label style="color:#aaa;display:block;margin:2px 0;font-size:10px">Wind Strength (' + this._grassWindStrength.toFixed(1) + ')</label>' +
+            '<input type="range" id="e-grass-wind-strength" min="0.0" max="2.0" step="0.05" value="' + this._grassWindStrength + '" style="width:100%">' +
+            '</div></details>' +
+            '<div style="margin-top:6px;display:flex;gap:4px">' +
+            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">🌱 Paint</span>' +
+            '<span class="e123-tbtn" id="e-grass-erase" style="flex:1;text-align:center;color:#f88">🧹 Erase</span>' +
             '<span class="e123-tbtn" id="e-grass-close" style="flex:1;text-align:center">Close</span></div>' +
-            '<div style="color:#666;font-size:10px;margin-top:6px">Click ground to stamp 3D grass with GPU wind animation</div>';
+            '<div style="color:#666;font-size:10px;margin-top:6px">Click/hold to paint or erase 3D grass</div>';
         var btn = document.getElementById('e-add-btn');
         if (btn) btn.parentNode.appendChild(div);
 
@@ -635,17 +650,46 @@ var Editor123 = {
             self._grass3dColorTop = this.value;
         };
 
+        document.getElementById('e-grass-wind-speed').oninput = function () {
+            self._grassWindSpeed = parseFloat(this.value);
+            var lbl = this.previousElementSibling;
+            if (lbl) lbl.textContent = 'Wind Speed (' + self._grassWindSpeed.toFixed(1) + ')';
+            if (self._grassMesh && self._grassMesh.material && self._grassMesh.material.uniforms) {
+                self._grassMesh.material.uniforms.uWindSpeed.value = self._grassWindSpeed;
+            }
+        };
+        document.getElementById('e-grass-wind-strength').oninput = function () {
+            self._grassWindStrength = parseFloat(this.value);
+            var lbl = this.previousElementSibling;
+            if (lbl) lbl.textContent = 'Wind Strength (' + self._grassWindStrength.toFixed(1) + ')';
+            if (self._grassMesh && self._grassMesh.material && self._grassMesh.material.uniforms) {
+                self._grassMesh.material.uniforms.uWindStrength.value = self._grassWindStrength;
+            }
+        };
+
         document.getElementById('e-grass-paint').onclick = function () {
+            self._currentTool = 'grass_painter';
             self._grassMode = true;
+            self._grassEraseMode = false;
             self.toast('3D grass paint active — click ground to stamp blades');
         };
+        document.getElementById('e-grass-erase').onclick = function () {
+            self._currentTool = 'grass_painter';
+            self._grassMode = true;
+            self._grassEraseMode = true;
+            if (self._grassBrushCircle) self._grassBrushCircle.scale.setScalar(self._grassBrushSize);
+            self.toast('Grass erase active — click/hold to remove blades');
+        };
         document.getElementById('e-grass-close').onclick = function () {
+            self._currentTool = 'select';
             self._grassMode = false;
+            self._grassEraseMode = false;
+            if (self._grassBrushCircle) self._grassBrushCircle.visible = false;
             div.remove();
             self.toast('Grass painter closed');
         };
-        self._grassMode = true;
-        self.toast('3D grass paint active — click ground to stamp blades');
+        // NOTE: _currentTool stays 'select' until user clicks Paint or Erase
+        self.toast('Grass painter panel open — configure settings, then click 🌱 Paint');
     },
 
     _spawnGrass: function (pos) {
@@ -699,6 +743,7 @@ var Editor123 = {
         var startIdx = this._grassCount;
         this._grassCount += newBlades.length;
         this._ensureGrassMesh();
+        if (!this._grassMesh) return;  // shaders not available
 
         var dummy = new THREE.Object3D();
         for (var vi = 0; vi < newBlades.length; vi++) {
@@ -714,20 +759,71 @@ var Editor123 = {
         }
         this._grassMesh.instanceMatrix.needsUpdate = true;
         this._grassMesh.count = this._grassCount;
+        this._grassMesh.computeBoundingSphere();
+        this._grassMesh.computeBoundingBox();
+        this._grassMesh.frustumCulled = false;
 
         this.toast('Placed ' + count + ' 3D grass blades (total ' + this._grassCount + ')');
+    },
+
+    _eraseGrass: function (pos) {
+        if (!this._grassMesh) return;
+        var radius = this._grassBrushSize || 3;
+        var radiusSq = radius * radius;
+        var keep = [];
+        for (var ei = 0; ei < this._grassBladeData.length; ei++) {
+            var bd = this._grassBladeData[ei];
+            var dx = bd.x - pos.x;
+            var dz = bd.z - pos.z;
+            if (dx * dx + dz * dz > radiusSq) {
+                keep.push(bd);
+            }
+        }
+        var removed = this._grassBladeData.length - keep.length;
+        if (removed === 0) return;
+
+        this._grassBladeData = keep;
+        this._grassCount = keep.length;
+
+        // Rebuild instance matrix from kept blades
+        var dummy = new THREE.Object3D();
+        for (var ei = 0; ei < this._grassCount; ei++) {
+            var bd = this._grassBladeData[ei];
+            var sw = bd.sx || 0.08;
+            var sh = bd.sy || 0.3;
+            dummy.position.set(bd.x, bd.y, bd.z);
+            dummy.rotation.set(0, bd.rotY || 0, 0);
+            dummy.scale.set(sw, sh, sw);
+            dummy.updateMatrix();
+            this._grassMesh.setMatrixAt(ei, dummy.matrix);
+        }
+        this._grassMesh.instanceMatrix.needsUpdate = true;
+        this._grassMesh.count = this._grassCount;
+
+        // Sync to the map entry so JSON save reflects it
+        for (var oi = 0; oi < this._mapObjs.length; oi++) {
+            if (this._mapObjs[oi] && this._mapObjs[oi].kind === 'grass3d') {
+                this._mapObjs[oi].bladeData = this._grassBladeData;
+                break;
+            }
+        }
+
+        this.toast('Erased ' + removed + ' blade(s) — ' + this._grassCount + ' remaining');
     },
 
     /** Create or recreate the single global grass InstancedMesh for all blades */
     _ensureGrassMesh: function () {
         var g3dDef = (typeof SHADERS !== 'undefined' && SHADERS.grass3d) ? SHADERS.grass3d : null;
-        if (!g3dDef || this._grassBladeData.length === 0) return;
+        if (!g3dDef) return;
 
         // If mesh exists and params match, reuse it
         if (this._grassMesh && this._grassMesh.geometry && this._grassMesh.material) {
-            // Update uniforms in case colors changed
-            this._grassMesh.material.uniforms.uColorBottom.value.set(this._grass3dColorBottom);
-            this._grassMesh.material.uniforms.uColorTop.value.set(this._grass3dColorTop);
+            // Sync all live uniforms to the material
+            var mu = this._grassMesh.material.uniforms;
+            mu.uColorBottom.value.set(this._grass3dColorBottom);
+            mu.uColorTop.value.set(this._grass3dColorTop);
+            mu.uWindSpeed.value = this._grassWindSpeed;
+            mu.uWindStrength.value = this._grassWindStrength;
             return;
         }
 
@@ -746,6 +842,8 @@ var Editor123 = {
         });
         g3dMat.uniforms.uColorBottom.value.set(this._grass3dColorBottom);
         g3dMat.uniforms.uColorTop.value.set(this._grass3dColorTop);
+        g3dMat.uniforms.uWindSpeed.value = this._grassWindSpeed;
+        g3dMat.uniforms.uWindStrength.value = this._grassWindStrength;
         g3dMat.uniforms.uTime.value = performance.now() / 1000;
 
         var bladeGeo = this._makeBladeGeometry(3);
@@ -753,6 +851,8 @@ var Editor123 = {
         im.castShadow = false;
         im.receiveShadow = true;
         im.frustumCulled = false;
+        bladeGeo.computeBoundingBox();
+        bladeGeo.computeBoundingSphere();
         im.count = this._grassCount;
 
         // Write all existing blades
@@ -842,11 +942,13 @@ var Editor123 = {
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geo.setIndex(indices);
         geo.computeVertexNormals();
+        geo.computeBoundingBox();
+        geo.computeBoundingSphere();
         return geo;
     },
 
     _renderLibList: function () {
-        var list = document.getElementById('e-lib-list');
+        var list = document.getElementById('e-lib-list') || document.getElementById('library-container') || document.querySelector('[data-lib-container]');
         if (!list) return;
         list.innerHTML = '';
         var cnt = document.getElementById('e-lib-count');
@@ -854,7 +956,7 @@ var Editor123 = {
         var selCnt = document.getElementById('e-lib-sel-count');
         if (selCnt) { selCnt.style.display = this._mapPlacingMulti.length > 0 ? '' : 'none'; selCnt.textContent = '(' + this._mapPlacingMulti.length + ' sel)'; }
         if (this._mapLib.length === 0) {
-            list.innerHTML = '<div style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>';
+            list.innerHTML = '<div data-placeholder style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>';
             return;
         }
         var self = this;
@@ -1191,14 +1293,43 @@ var Editor123 = {
             });
             // Common
             var colorEl = document.getElementById('e-insp-color');
-            if (colorEl) colorEl.onchange = function () { obj.color = parseInt(this.value.slice(1), 16); self._rebuildScene(); };
+            if (colorEl) colorEl.onchange = function () {
+                obj.color = parseInt(this.value.slice(1), 16);
+                // Update material color directly — do NOT rebuild scene (preserves position/rot/scale)
+                var cm = self._mapModels[self._mapSelObj];
+                if (cm) {
+                    var hex = new THREE.Color(obj.color);
+                    cm.traverse(function (c) {
+                        if (c.isMesh && c.material) {
+                            var mats = Array.isArray(c.material) ? c.material : [c.material];
+                            mats.forEach(function (mat) {
+                                // Custom shader material with uColor uniform
+                                if (mat.uniforms && mat.uniforms.uColor) {
+                                    mat.uniforms.uColor.value.copy(hex);
+                                // NodeMaterial / TSL — colorNode or standard color.set
+                                } else if (mat.colorNode && typeof mat.colorNode.assign === 'function') {
+                                    mat.colorNode.assign(new THREE.Color(obj.color));
+                                } else if (mat.color && typeof mat.color.set === 'function') {
+                                    mat.color.set(hex);
+                                }
+                                mat.transparent = false;
+                                mat.opacity = 1.0;
+                                mat.depthWrite = true;
+                                mat.depthTest = true;
+                                mat.side = THREE.FrontSide;
+                                mat.needsUpdate = true;
+                            });
+                        }
+                    });
+                }
+            };
             var ambientEl = document.getElementById('e-insp-ambient');
             if (ambientEl) ambientEl.onchange = function () {
                 obj.ambient = parseInt(this.value.slice(1), 16);
                 var modelMesh = self._mapModels[self._mapSelObj];
                 if (modelMesh) {
                     var ambientCol = new THREE.Color(obj.ambient);
-                    modelMesh.traverse(function (c) { if (c.isMesh && c.material) {
+                    modelMesh.traverse(function (c) { if (c.isMesh) { c.visible = true; if (c.material) {
                         var mats = Array.isArray(c.material) ? c.material : [c.material];
                         mats.forEach(function (mat) {
                             if (mat.isMeshPhongMaterial && mat.ambient) mat.ambient.copy(ambientCol);
@@ -1208,21 +1339,15 @@ var Editor123 = {
                                 mat.emissiveIntensity = intensity;
                                 mat.userData._ambientHex = obj.ambient;
                                 mat.userData._ambientIntensity = intensity;
-                                mat.roughness = 1.0;
-                                mat.metalness = 0;
-                                mat.roughnessMap = null;
-                                mat.metalnessMap = null;
                             } else if (mat.isMeshPhongMaterial) {
                                 var intensity = obj.ambient === 0xffffff ? 0.12 : 0;
                                 mat.emissive.copy(ambientCol).multiplyScalar(intensity > 0 ? 1 : 0);
                                 mat.emissiveIntensity = intensity;
                                 mat.userData._ambientHex = obj.ambient;
                                 mat.userData._ambientIntensity = intensity;
-                                mat.specular.setHex(0x000000);
-                                mat.shininess = 0;
                             }
                         });
-                    }});
+                    } }});
                 }
             };
             var typeEl = document.getElementById('e-insp-type');
@@ -1234,18 +1359,39 @@ var Editor123 = {
         var self = this;
         var gameObjects = [];
         this._mapObjs.forEach(function (o) {
-            // Skip editor-only kinds (light, sound, water, image don't translate to game map)
             var kind = o.kind || 'model';
-            if (kind === 'light' || kind === 'sound') return;
-            var libItem = self._mapLib[o.libIdx];
+            // Skip editor-only types that can't render in the game
+            if (kind === 'light' || kind === 'sound' || kind === 'image' || kind === 'shape2d' ||
+                kind === 'grass3d' || kind === 'grass' || kind === 'ground') return;
+            // Map editor primitive sub-types to game kinds
+            var gKind = 'cube';
+            if (kind === 'primitive') {
+                switch (o.subType) {
+                    case 'cylinder': gKind = 'cylinder'; break;
+                    case 'cone':     gKind = 'cone';     break;
+                    case 'torus':    gKind = 'torus';    break;
+                    case 'plane':    gKind = 'cube';     break;
+                    default:         gKind = 'cube';     break;
+                }
+            } else if (kind === 'water') {
+                gKind = 'cube';
+            } else if (kind === 'model') {
+                gKind = 'cube';
+            }
             var obj = {
                 x: o.x, y: o.y || 0.5, z: o.z,
                 sx: o.scale || 1, sy: o.scale || 1, sz: o.scale || 1,
                 ry: o.rot || 0,
-                kind: 'cube',
-                color: o.color || 0x5a7acc,
-                type: o.type || 'wall',
+                kind: gKind,
+                color: o.color != null ? o.color : 0x5a7acc,
+                type: o.type || (kind === 'water' ? 'water' : 'wall'),
             };
+            // Flatten planes
+            if (kind === 'primitive' && o.subType === 'plane') {
+                obj.sy = 0.15;
+            }
+            // Model library reference (imported GLB/OBJ)
+            var libItem = self._mapLib[o.libIdx];
             if (libItem && (libItem.data || libItem.base64)) {
                 obj.isModel = true;
                 obj.modelName = libItem.name;
@@ -1256,7 +1402,6 @@ var Editor123 = {
         });
         var mapData = { objects: gameObjects };
         try {
-            localStorage.setItem('tankparty_custommap', JSON.stringify(mapData));
             saveMainMap(mapData);
             self.toast('Saved ' + gameObjects.length + ' objects as your main map!');
         } catch (e) {
@@ -1459,6 +1604,17 @@ var Editor123 = {
         controls.update();
         this._mapControls = controls;
 
+        // WASD + Ctrl keyboard state (defined before gizmo so handlers can use it)
+        var keys = {};
+        document.addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
+        document.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
+
+        // Rotation angle badge (hidden until gizmo drag)
+        var rotBadge = document.createElement('div');
+        rotBadge.id = 'e-rot-badge';
+        rotBadge.style.cssText = 'position:fixed;pointer-events:none;z-index:999;background:rgba(0,0,0,0.75);color:#ffb12b;font:bold 13px monospace;padding:4px 10px;border-radius:6px;border:1px solid #ffb12b44;display:none;transform:translate(-50%,-100%);white-space:nowrap';
+        document.body.appendChild(rotBadge);
+
         // Transform gizmo
         var gizmo = new THREE.TransformControls(cam, renderer.domElement);
         gizmo.setSize(0.8);
@@ -1468,6 +1624,48 @@ var Editor123 = {
 
         gizmo.addEventListener('dragging-changed', function (ev) {
             controls.enabled = !ev.value;
+            if (ev.value) {
+                // Drag started — show badge near gizmo screen position
+                rotBadge.style.display = 'block';
+            } else {
+                // Drag ended — hide badge
+                rotBadge.style.display = 'none';
+                // Persist snapped rotation back to data model
+                if (self._mapSelObj != null && self._mapObjs[self._mapSelObj]) {
+                    var attached = gizmo.object;
+                    if (attached) {
+                        self._mapObjs[self._mapSelObj].rot = attached.rotation.y;
+                    }
+                }
+            }
+        });
+
+        gizmo.addEventListener('objectChange', function () {
+            var attached = gizmo.object;
+            if (!attached) return;
+
+            // Ctrl-held: snap rotation.y to 5-degree increments
+            if (keys['control']) {
+                var deg = THREE.MathUtils.radToDeg(attached.rotation.y);
+                var snapped = Math.round(deg / 5) * 5;
+                attached.rotation.y = THREE.MathUtils.degToRad(snapped);
+            }
+
+            // Update rotation badge position
+            if (rotBadge.style.display !== 'none') {
+                var pos = new THREE.Vector3();
+                attached.getWorldPosition(pos);
+                pos.y += 2;
+                pos.project(cam);
+                var w2 = renderer.domElement.clientWidth / 2;
+                var h2 = renderer.domElement.clientHeight / 2;
+                var sx = pos.x * w2 + w2;
+                var sy = -(pos.y * h2) + h2;
+                var deg2 = THREE.MathUtils.radToDeg(attached.rotation.y);
+                rotBadge.textContent = 'Y: ' + Math.round(deg2) + '\u00B0';
+                rotBadge.style.left = sx + 'px';
+                rotBadge.style.top = (sy - 16) + 'px';
+            }
         });
 
         // Loaders for model parsing
@@ -1475,11 +1673,6 @@ var Editor123 = {
         if (typeof THREE.FBXLoader !== 'undefined') {
             this._fbxLoader = new THREE.FBXLoader();
         }
-
-        // WASD keyboard state
-        var keys = {};
-        document.addEventListener('keydown', function (e) { keys[e.key.toLowerCase()] = true; });
-        document.addEventListener('keyup', function (e) { keys[e.key.toLowerCase()] = false; });
 
         // Lights
         scene.add(new THREE.HemisphereLight(0x87ceeb, 0x5a3a2a, 0.9));
@@ -1500,13 +1693,14 @@ var Editor123 = {
         for (var ci = 0; ci <= 64; ci++) { var th2 = (ci / 64) * Math.PI * 2; circlePts.push(Math.cos(th2) * 1, 0, Math.sin(th2) * 1); }
         var circleGeo = new THREE.BufferGeometry();
         circleGeo.setAttribute('position', new THREE.Float32BufferAttribute(circlePts, 3));
-        var circleMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
+        var circleMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false });
         var brushCircle = new THREE.Line(new THREE.LineLoop(circleGeo, circleMat));
         brushCircle.position.y = 0.015;
         brushCircle.visible = false;
         brushCircle.scale.setScalar(self._grassBrushSize || 3);
         scene.add(brushCircle);
         self._grassBrushCircle = brushCircle;
+        brushCircle.raycast = function () {};
 
         // Resize handler
         var ro = function () {
@@ -1518,13 +1712,9 @@ var Editor123 = {
         window.addEventListener('resize', ro);
         this._mapResizeHandler = ro;
 
-        // Click-to-select raycaster
+        // Input router — tool state is managed by _currentTool ('select' | 'grass_painter')
         var raycaster = new THREE.Raycaster();
         var mouse = new THREE.Vector2();
-        renderer.domElement.addEventListener('pointerdown', function (ev) {
-            self._mapMouseDown = { x: ev.clientX, y: ev.clientY };
-            self._grassMouseDown = true;
-        });
         renderer.domElement.addEventListener('pointermove', function (ev) {
             var rect2 = renderer.domElement.getBoundingClientRect();
             self._mapMouseNDC = {
@@ -1532,20 +1722,12 @@ var Editor123 = {
                 y: -((ev.clientY - rect2.top) / rect2.height) * 2 + 1,
             };
         });
-        renderer.domElement.addEventListener('pointerup', function () {
-            self._grassMouseDown = false;
-        });
         renderer.domElement.addEventListener('pointerleave', function () {
-            self._grassMouseDown = false;
             if (self._grassBrushCircle) self._grassBrushCircle.visible = false;
         });
         renderer.domElement.addEventListener('click', function (ev) {
-            console.log('[Editor123] click fired, _grassMode=' + self._grassMode + ' _mapPlacing=' + self._mapPlacing + ' gizmo.dragging=' + gizmo.dragging + ' _mapMouseDown=' + JSON.stringify(self._mapMouseDown));
             if (gizmo.dragging) return;
-            if (self._mapMouseDown && (Math.abs(ev.clientX - self._mapMouseDown.x) > 4 || Math.abs(ev.clientY - self._mapMouseDown.y) > 4)) {
-                console.log('[Editor123] click ignored (drag threshold), moved:', Math.abs(ev.clientX - self._mapMouseDown.x), Math.abs(ev.clientY - self._mapMouseDown.y));
-                return;
-            }
+            if (self._mapMouseDown && (Math.abs(ev.clientX - self._mapMouseDown.x) > 4 || Math.abs(ev.clientY - self._mapMouseDown.y) > 4)) return;
             var rect = renderer.domElement.getBoundingClientRect();
             mouse.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
@@ -1577,20 +1759,21 @@ var Editor123 = {
                 return;
             }
 
-            // Grass paint mode: click on ground to stamp 3D blades
-            if (self._grassMode) {
-                console.log('[Editor123] grassMode click, raycaster.ray:', raycaster.ray);
+            // Grass paint / erase mode (single-click stamp)
+            if (self._currentTool === 'grass_painter') {
                 var grassPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
                 var grassPt = new THREE.Vector3();
-                var hit = raycaster.ray.intersectPlane(grassPlane, grassPt);
-                console.log('[Editor123] intersectPlane hit:', hit, 'grassPt:', grassPt);
-                if (hit) {
-                    self._spawnGrass(grassPt);
+                if (raycaster.ray.intersectPlane(grassPlane, grassPt)) {
+                    if (self._grassEraseMode) {
+                        self._eraseGrass(grassPt);
+                    } else {
+                        self._spawnGrass(grassPt);
+                    }
                 }
                 return;
             }
 
-            // Paint terrain mode: click on ground to stamp terrain color circles
+            // Paint terrain mode
             if (self._paintMode) {
                 var paintPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
                 var paintPt = new THREE.Vector3();
@@ -1608,6 +1791,7 @@ var Editor123 = {
                 return;
             }
 
+            // Select / transform mode
             var meshes = [];
             self._mapModels.forEach(function (m) {
                 if (!m) return;
@@ -1620,7 +1804,6 @@ var Editor123 = {
                 while (hitObj && hitObj.userData.editorObjIdx == null) hitObj = hitObj.parent;
                 if (hitObj && hitObj.userData.editorObjIdx != null) {
                     var hitIdx = hitObj.userData.editorObjIdx;
-                    // Click on already-selected object -> deselect (single select, no ctrl)
                     if (self._mapSelObj === hitIdx && !ev.ctrlKey && !ev.metaKey && self._mapSelObjs.length <= 1) {
                         if (self._transformControls) self._transformControls.detach();
                         self._mapSelObj = null; self._mapSelObjs = [];
@@ -1685,9 +1868,9 @@ var Editor123 = {
                     }
                 }
 
-                // Brush circle + continuous grass painting
+                // Brush circle visual (no painting — painting is handled by click handler)
                 if (self._grassBrushCircle) {
-                    if (self._grassMode && self._mapMouseNDC) {
+                    if (self._currentTool === 'grass_painter' && self._mapMouseNDC) {
                         var bcRay = new THREE.Raycaster();
                         bcRay.setFromCamera(new THREE.Vector2(self._mapMouseNDC.x, self._mapMouseNDC.y), cam);
                         var bcPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -1696,10 +1879,6 @@ var Editor123 = {
                             self._grassBrushCircle.position.x = bcPt.x;
                             self._grassBrushCircle.position.z = bcPt.z;
                             self._grassBrushCircle.visible = true;
-                            if (self._grassMouseDown && time - self._grassLastSpawnTime > self._grassSpawnMs / 1000) {
-                                self._spawnGrass(bcPt);
-                                self._grassLastSpawnTime = time;
-                            }
                         } else {
                             self._grassBrushCircle.visible = false;
                         }
@@ -1724,7 +1903,8 @@ var Editor123 = {
         this._mapModels = [];
         if (this._physics) {
             for (var bi = this._physBodies.length - 1; bi >= 0; bi--) {
-                if (this._physBodies[bi] !== this._physGround) this._physics.removeRigidBody(this._physBodies[bi]);
+                var pb = this._physBodies[bi];
+                if (pb && pb !== this._physGround) this._physics.removeRigidBody(pb);
             }
         }
         this._physBodies = [this._physGround];
@@ -1862,8 +2042,10 @@ var Editor123 = {
                     if (!self._mapGround) self._mapGround = mesh;
                 }
             } else if (kind === 'grass3d') {
-                // Single global InstancedMesh — managed by _ensureGrassMesh / _spawnGrass,
-                // not per-entry.  Skip individual mesh creation entirely.
+                // Single global InstancedMesh — managed by _ensureGrassMesh / _spawnGrass.
+                // Push null placeholder to keep _mapModels & _physBodies parallel to _mapObjs.
+                self._mapModels.push(null);
+                self._physBodies.push(null);
                 return;
             } else if (kind === 'grass') {
                 // Legacy 2D grass (Points-based) — kept for old saves
@@ -1942,11 +2124,8 @@ var Editor123 = {
                     (function (boxIdx) {
                         self._loadModelData(libItem, function (srcGroup) {
                             if (!srcGroup) return;
-                            // Clone so each instance has independent geometry/materials
+                            // Clone group structure (geometries shared, materials replaced below)
                             var group = srcGroup.clone();
-                            group.traverse(function (c) { if (c.isMesh && c.material) {
-                                c.material = Array.isArray(c.material) ? c.material.map(function (m) { return m.clone(); }) : c.material.clone();
-                            }});
                             var currentBox = null;
                             var replaceIdx = -1;
                             for (var mi = 0; mi < self._mapModels.length; mi++) {
@@ -1963,36 +2142,42 @@ var Editor123 = {
                             group.position.copy(currentBox.position);
                             group.rotation.y = currentBox.rotation.y;
                             group.scale.copy(currentBox.scale);
-                            var applyAmbient = function (mat, ambientHex) {
-                                var ac = new THREE.Color(ambientHex);
-                                if (mat.isMeshPhongMaterial && mat.ambient) {
-                                    mat.ambient.copy(ac);
+                            var objData = self._mapObjs[boxIdx];
+                            var rockColor = objData && objData.color != null ? objData.color : 0x7a7f95;
+                            var ambientVal = objData && objData.ambient != null ? objData.ambient : 0xffffff;
+                            var ambientCol = new THREE.Color(ambientVal);
+                            var ambientIntensity = ambientVal === 0xffffff ? 0.12 : 0;
+                            group.traverse(function (c) {
+                                if (c.isMesh) {
+                                    c.visible = true;
+                                    c.castShadow = true;
+                                    c.receiveShadow = true;
+                                    if (!c.geometry.attributes.normal) {
+                                        c.geometry.computeVertexNormals();
+                                    }
+                                    c.material = new THREE.MeshStandardMaterial({
+                                        color: rockColor,
+                                        roughness: 1.0,
+                                        metalness: 0.0,
+                                        flatShading: true,
+                                    });
+                                    c.material.transparent = false;
+                                    c.material.opacity = 1.0;
+                                    c.material.depthWrite = true;
+                                    c.material.depthTest = true;
+                                    c.material.side = THREE.FrontSide;
+                                    c.material.emissive.copy(ambientCol).multiplyScalar(ambientIntensity > 0 ? 1 : 0);
+                                    c.material.emissiveIntensity = ambientIntensity;
+                                    c.material.userData._ambientHex = ambientVal;
+                                    c.material.userData._ambientIntensity = ambientIntensity;
+                                    c.material.userData._origEmissive = new THREE.Color(0);
+                                    c.material.userData._origEmissiveIntensity = 0;
+                                    c.material.needsUpdate = true;
                                 }
-                                if (mat.isMeshStandardMaterial) {
-                                    var intensity = ambientHex === 0xffffff ? 0.12 : 0;
-                                    mat.emissive.copy(ac).multiplyScalar(intensity > 0 ? 1 : 0);
-                                    mat.emissiveIntensity = intensity;
-                                    mat.userData._ambientHex = ambientHex;
-                                    mat.userData._ambientIntensity = intensity;
-                                    mat.roughness = 1.0;
-                                    mat.metalness = 0;
-                                    mat.roughnessMap = null;
-                                    mat.metalnessMap = null;
-                                } else if (mat.isMeshPhongMaterial) {
-                                    var intensity = ambientHex === 0xffffff ? 0.12 : 0;
-                                    mat.emissive.copy(ac).multiplyScalar(intensity > 0 ? 1 : 0);
-                                    mat.emissiveIntensity = intensity;
-                                    mat.userData._ambientHex = ambientHex;
-                                    mat.userData._ambientIntensity = intensity;
-                                    mat.specular.setHex(0x000000);
-                                    mat.shininess = 0;
-                                }
-                            };
-                            group.traverse(function (c) { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; if (!c.geometry.attributes.normal) { c.geometry.computeVertexNormals(); } if (c.material) { var mats = Array.isArray(c.material) ? c.material : [c.material]; mats.forEach(function (mat) { mat.userData._origEmissive = (mat.emissive || new THREE.Color(0)).clone(); mat.userData._origEmissiveIntensity = mat.emissiveIntensity || 0; var ambientVal = objData && objData.ambient != null ? objData.ambient : 0xffffff; applyAmbient(mat, ambientVal); }); } } });
+                            });
                             self._mapScene.add(group);
                             var box3 = new THREE.Box3().setFromObject(group);
                             var sz = box3.max.clone().sub(box3.min);
-                            var objData = self._mapObjs[boxIdx];
                             if (objData && !objData._autoScaled && Math.max(sz.x, sz.y, sz.z) > 5) {
                                 var maxDim = Math.max(sz.x, sz.y, sz.z);
                                 var fitScale = 3 / maxDim;
@@ -2038,6 +2223,29 @@ var Editor123 = {
             this._transformControls.attach(this._mapModels[this._mapSelObj]);
             this._transformControls.setSpace('world');
         }
+        // Ground sanity check — force visible, correct position, valid material
+        for (var gi = 0; gi < this._mapObjs.length; gi++) {
+            if (this._mapObjs[gi] && this._mapObjs[gi].kind === 'ground') {
+                var gm = null;
+                for (var gmi = 0; gmi < this._mapModels.length; gmi++) {
+                    if (this._mapModels[gmi] && this._mapModels[gmi].userData && this._mapModels[gmi].userData.editorObjIdx === gi) {
+                        gm = this._mapModels[gmi];
+                        break;
+                    }
+                }
+                if (gm) {
+                    gm.visible = true;
+                    var gob = this._mapObjs[gi];
+                    gm.position.set(gob.x || 0, (gob.y != null ? gob.y : 0), gob.z || 0);
+                    if (gm.material) {
+                        gm.material.opacity = (gm.material.opacity != null && gm.material.opacity < 0.01) ? 1.0 : gm.material.opacity;
+                        gm.material.transparent = gm.material.opacity < 1;
+                        gm.material.needsUpdate = true;
+                    }
+                }
+            }
+        }
+
         this._physLock = false;
     },
 
@@ -2051,25 +2259,13 @@ var Editor123 = {
         this._mapSelObjs.forEach(function (i) { selSet[i] = true; });
 
         this._mapModels.forEach(function (m, idx) {
+            if (!m) return;
             var selected = !!selSet[idx];
-            // Add black edge outline for selected objects
             if (selected) {
-                m.traverse(function (c) {
-                    if (c.isMesh) {
-                        var edges = new THREE.EdgesGeometry(c.geometry);
-                        var lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
-                        var outline = new THREE.LineSegments(edges, lineMat);
-                        outline.position.copy(c.position);
-                        outline.rotation.copy(c.rotation);
-                        outline.scale.copy(c.scale);
-                        if (c.parent) {
-                            c.parent.add(outline);
-                        } else {
-                            self._mapScene.add(outline);
-                        }
-                        self._mapOutlines.push(outline);
-                    }
-                });
+                // Use BoxHelper on the top-level group to avoid per-mesh edge lines that clutter or interfere
+                var bh = new THREE.BoxHelper(m, 0x000000);
+                self._mapScene.add(bh);
+                self._mapOutlines.push(bh);
             }
         });
     },
@@ -2110,17 +2306,18 @@ var Editor123 = {
                                 type: isGLB ? 'glb' : 'fbx',
                             };
                             self._mapLib.push(libEntry);
+                            self._addAssetToLibraryUI(libEntry.name, libEntry);
                             self._parseModelData(libEntry, function (group) {
                                 libEntry._cachedGroup = group;
                             });
                             self._saveLib(self._mapLib);
-                            self._renderLibList();
                             self.toast('Imported: ' + model.name);
                         }).catch(function (e) {
                             // Fallback: store as URL
-                            self._mapLib.push({ name: model.name.replace(/\.(glb|gltf|fbx)$/i, ''), data: host + model.url, type: /\.glb/i.test(model.name) ? 'glb' : 'fbx' });
+                            var fbEntry = { name: model.name.replace(/\.(glb|gltf|fbx)$/i, ''), data: host + model.url, type: /\.glb/i.test(model.name) ? 'glb' : 'fbx' };
+                            self._mapLib.push(fbEntry);
+                            self._addAssetToLibraryUI(fbEntry.name, fbEntry);
                             self._saveLib(self._mapLib);
-                            self._renderLibList();
                             self.toast('Imported (URL fallback): ' + model.name);
                         });
                         document.body.removeChild(div);
@@ -2146,42 +2343,156 @@ var Editor123 = {
                 var files = Array.from(e.target.files || []);
                 inp.value = '';
                 if (files.length === 0) return;
+                // Filter supported formats (clean for loop)
                 var modelFiles = [];
-                files.forEach(function (f) {
+                for (var fi = 0; fi < files.length; fi++) {
+                    var f = files[fi];
                     var ext = f.name.split('.').pop().toLowerCase();
                     if (ext === 'fbx' || ext === 'glb' || ext === 'gltf') modelFiles.push(f);
-                });
-                if (modelFiles.length === 0) { self.toast('No model file (FBX/GLB) selected'); return; }
-                var done = 0;
-                modelFiles.forEach(function (mf) {
+                }
+                if (modelFiles.length === 0) { self.toast('No model files (FBX/GLB) selected'); return; }
+                self.toast('Processing ' + modelFiles.length + ' file(s)...');
+                // Sequential processing — one file at a time with setTimeout yield
+                // to keep the UI responsive during a batch of 150+ files.
+                var loadedCnt = 0;
+                var failCnt = 0;
+                var fileIdx = 0;
+                function processNext() {
+                    if (fileIdx >= modelFiles.length) {
+                        try { self._saveLib(self._mapLib); } catch (e) {
+                            console.warn('localStorage quota exceeded — models kept in memory only');
+                        }
+                        self._renderLibList();
+                        self.toast('Loaded ' + loadedCnt + ' model(s)' + (failCnt ? ', ' + failCnt + ' failed' : ''));
+                        // Ensure global register stays in sync
+                        window.editorAssets.models = self._mapLib;
+                        return;
+                    }
+                    var mf = modelFiles[fileIdx++];
                     var reader = new FileReader();
                     reader.onload = function (ev) {
                         try {
                             var arrayBuf = ev.target.result;
-                            var bytes = new Uint8Array(arrayBuf); var bin = ''; for (var bi = 0; bi < bytes.length; bi++) bin += String.fromCharCode(bytes[bi]); var base64 = btoa(bin);
+                            // Single-pass base64 conversion (correct byte grouping)
+                            var bytes = new Uint8Array(arrayBuf);
+                            var bin = '';
+                            for (var bi = 0; bi < bytes.length; bi++) bin += String.fromCharCode(bytes[bi]);
+                            var base64 = btoa(bin);
                             var ext = mf.name.split('.').pop().toLowerCase();
+                            var assetName = mf.name.replace(/\.(glb|gltf|fbx)$/i, '');
                             var entry = {
-                                name: mf.name.replace(/\.(glb|gltf|fbx)$/i, ''),
+                                name: assetName,
                                 type: (ext === 'glb' || ext === 'gltf') ? 'glb' : 'fbx',
                                 data: arrayBuf,
                                 base64: base64,
                             };
                             self._mapLib.push(entry);
-                            self._loadModelData(entry, function (group) { entry._cachedGroup = group; });
-                            done++;
-                            if (done === modelFiles.length) {
-                                self._saveLib(self._mapLib);
-                                self._renderLibList();
-                                self.toast('Imported ' + done + ' model(s)');
-                            }
-                        } catch (err) { console.error('Import error:', err); self.toast('Error: ' + mf.name); }
+                            loadedCnt++;
+                            // Real-time UI: immediately add a library slot for this file
+                            self._addAssetToLibraryUI(assetName, entry);
+                            // Kick off async parse (result cached for later scene building)
+                            self._loadModelData(entry, function (group) {
+                                entry._cachedGroup = group;
+                            });
+                        } catch (err) {
+                            console.error('Import error for', mf.name, err);
+                            failCnt++;
+                        }
+                        // Yield to browser before handling the next file
+                        setTimeout(processNext, 0);
                     };
-                    reader.onerror = function () { self.toast('Error reading ' + mf.name); };
+                    reader.onerror = function () {
+                        console.error('FileReader error for', mf.name);
+                        failCnt++;
+                        setTimeout(processNext, 0);
+                    };
                     reader.readAsArrayBuffer(mf);
-                });
+                }
+                processNext();
             };
         }
         inp.click();
+    },
+
+    /** Dynamically create a library UI slot for one asset and append it to the library
+     *  container (findable as #e-lib-list, #library-container, or [data-lib-container]).
+     *  Clicking the slot sets window.currentSelectedSpawnObject and activates the
+     *  3D placement raycaster. */
+    _addAssetToLibraryUI: function (assetName, entry) {
+        var list = document.getElementById('e-lib-list') || document.getElementById('library-container') || document.querySelector('[data-lib-container]');
+        if (!list) return;
+        // Remove the "no models" placeholder if this is the first real entry
+        var placeholder = list.querySelector('[data-placeholder]');
+        if (placeholder) placeholder.remove();
+        var idx = this._mapLib.length - 1;
+        var self = this;
+        var item = document.createElement('div');
+        item.className = 'e123-lib-item';
+        item.dataset.idx = idx;
+        item.style.cssText = 'padding:6px 8px;background:#22272e;border-radius:5px;margin-bottom:3px;cursor:pointer;border:1.5px solid transparent;display:flex;align-items:center;gap:6px';
+        item.innerHTML =
+            '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
+            '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+            (assetName || 'Model') + '</div>' +
+            '<div style="font-size:9px;color:#666">' + (entry.type || 'glb') + '</div></div>';
+        item.onclick = function () {
+            var clickIdx = parseInt(this.dataset.idx);
+            // Expose the asset name globally for the spawn placement raycaster
+            if (typeof window.currentSelectedSpawnObject !== 'undefined') {
+                window.currentSelectedSpawnObject = assetName;
+            }
+            // Activate the existing editor placement system
+            self._mapPlacing = clickIdx;
+            self._mapPlacingMulti = [clickIdx];
+            var ind = document.getElementById('e-placing-indicator');
+            if (ind) {
+                ind.style.display = '';
+                ind.textContent = '🔵 Placing: ' + assetName;
+            }
+            self._renderLibList();
+            self.toast('Selected: ' + assetName + ' — click ground to place');
+        };
+        list.appendChild(item);
+        // Keep the model count badge up to date
+        var cnt = document.getElementById('e-lib-count');
+        if (cnt) cnt.textContent = this._mapLib.length;
+    },
+
+    _parseModelData: function (libEntry, cb) {
+        if (libEntry._cachedGroup) { cb(libEntry._cachedGroup); return; }
+        try {
+            var loader = this._gltfLoader;
+            if (libEntry.type === 'glb') {
+                loader = this._gltfLoader;
+            } else {
+                loader = this._fbxLoader;
+                if (!loader) { console.warn('FBXLoader not available (fflate missing?)'); cb(null); return; }
+            }
+            if (!loader || !libEntry.data) { cb(null); return; }
+            var buf = libEntry.data instanceof ArrayBuffer ? libEntry.data : this._base64ToArrayBuf(libEntry.base64);
+            if (!buf) { cb(null); return; }
+            if (libEntry.type === 'glb') {
+                loader.parse(buf, '', function (result) {
+                    var group = result && result.scene ? result.scene : result;
+                    if (!group) { console.warn('GLTF parse produced no scene'); cb(null); return; }
+                    libEntry._cachedGroup = group;
+                    cb(group);
+                }, function (err) {
+                    console.warn('GLTF parse error:', err);
+                    cb(null);
+                });
+            } else {
+                // FBXLoader.parse returns the Group synchronously (no callbacks!)
+                try {
+                    var result = loader.parse(buf, '');
+                    libEntry._cachedGroup = result;
+                    cb(result);
+                } catch (e2) {
+                    console.warn('FBX parse error:', e2);
+                    cb(null);
+                }
+            }
+        } catch (e) { console.warn('Parse error:', e); cb(null); }
     },
 
     _parseModelData: function (libEntry, cb) {
@@ -2394,9 +2705,13 @@ var Editor123 = {
         if (this._grassBrushCircle) { if (this._mapScene) this._mapScene.remove(this._grassBrushCircle); this._grassBrushCircle = null; }
         if (this._grassMesh) { if (this._mapScene) this._mapScene.remove(this._grassMesh); if (this._grassMesh.geometry) this._grassMesh.geometry.dispose(); if (this._grassMesh.material) this._grassMesh.material.dispose(); this._grassMesh = null; }
         this._grassCount = 0; this._grassBladeData = [];
+        this._grassWindSpeed = 1.2; this._grassWindStrength = 0.3;
         this._mapScene = null; this._mapCamera = null; this._mapControls = null; this._mapModels = []; this._mapGround = null; this._physics = null; this._physBodies = [];
+        this._currentTool = 'select';
         this._paintMode = false;
         this._grassMode = false;
+        this._grassEraseMode = false;
+        if (this._grassBrushCircle) this._grassBrushCircle.visible = false;
         var pp = document.getElementById('e-paint-panel');
         if (pp) pp.remove();
         var gp = document.getElementById('e-grass-panel');
@@ -2404,6 +2719,8 @@ var Editor123 = {
         if (this._grassTexUrl) { URL.revokeObjectURL(this._grassTexUrl); this._grassTexUrl = null; }
         this._mapOutlines.forEach(function (o) { if (o.parent) o.parent.remove(o); });
         this._mapOutlines = [];
+        var rb = document.getElementById('e-rot-badge');
+        if (rb) rb.remove();
     },
 
     /* ═══════════════════════════
@@ -2443,8 +2760,11 @@ var Editor123 = {
 
     _loadLib: function () {
         try {
-            var arr = JSON.parse(localStorage.getItem('tankparty_editor123_library') || '[]');
-            // Reconstruct ArrayBuffer from base64
+            var raw = localStorage.getItem('tankparty_editor123_library');
+            if (!raw || raw === '[]') return [];
+            var arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return [];
+            // Reconstruct ArrayBuffer from base64 (chunked-aware join)
             arr.forEach(function (entry) {
                 if (entry.base64) {
                     try {
@@ -2453,25 +2773,35 @@ var Editor123 = {
                         var view = new Uint8Array(buf);
                         for (var i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
                         entry.data = buf;
-                    } catch (e) { entry.data = null; }
+                    } catch (e) { entry.data = null; console.warn('Failed to decode base64 for', entry.name); }
                 }
             });
             return arr;
-        } catch (e) { return []; }
+        } catch (e) { console.warn('Library load error (corrupt localStorage?):', e); return []; }
     },
     _saveLib: function (l) {
         // Strip non-serializable fields before saving
         var clean = l.map(function (entry) {
             var e = { name: entry.name, type: entry.type };
             if (entry.base64) e.base64 = entry.base64;
-            else if (typeof entry.data === 'string') e.data = entry.data; // server URL
+            else if (typeof entry.data === 'string') e.data = entry.data;
             else e.data = null;
             return e;
         });
-        localStorage.setItem('tankparty_editor123_library', JSON.stringify(clean));
+        var json = JSON.stringify(clean);
+        var sizeBytes = new Blob([json]).size;
+        if (sizeBytes > 4 * 1024 * 1024) {
+            console.warn('Library data ~' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB — may exceed localStorage quota');
+        }
+        try {
+            localStorage.setItem('tankparty_editor123_library', json);
+        } catch (e) {
+            console.error('Failed to save library (quota exceeded?):', e);
+            throw e;
+        }
     },
     _loadMap: function () { try { return JSON.parse(localStorage.getItem('tankparty_editor123_map') || '[]'); } catch (e) { return []; } },
-    _saveMap: function () { localStorage.setItem('tankparty_editor123_map', JSON.stringify(this._mapObjs)); },
+    _saveMap: function () { try { localStorage.setItem('tankparty_editor123_map', JSON.stringify(this._mapObjs)); } catch (e) { console.error('Save map failed:', e); this.toast('Error saving map: ' + e.message); } },
 
     _imgData: function (img) {
         var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
