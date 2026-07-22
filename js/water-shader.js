@@ -10,9 +10,9 @@ class WaterShader {
         vUv = uv;
         vec3 pos = position;
 
-        float wave = sin(pos.x * 0.3 + uTime * 2.0) * 0.08 +
-                     sin(pos.z * 0.25 + uTime * 1.4) * 0.06;
-        pos.y += wave;
+        float w1 = sin(pos.x * 0.30 + uTime * 1.6) * 0.08;
+        float w2 = sin(pos.z * 0.28 + uTime * 1.2) * 0.06;
+        pos.y += w1 + w2;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
         vWorldPos = worldPos.xyz;
@@ -32,6 +32,7 @@ class WaterShader {
       varying vec2  vUv;
       varying vec3  vWorldPos;
 
+      /* ---- noise helpers ---- */
       float hash(vec2 p){
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
@@ -62,29 +63,37 @@ class WaterShader {
       void main(){
         vec2 wp = vWorldPos.xz;
 
-        /* base water color */
+        /* base colour — deep blue */
         vec3 waterColor = uBaseColor;
 
-        /* animated caustic lines on the surface */
-        float causticNoise = fbm(wp * 0.22 + uTime * 0.04);
-        float caustic = step(0.52, causticNoise);
-        vec3 finalColor = mix(waterColor, uFoamColor, caustic * 0.40);
+        /* ---- beautiful animated surface foam (2 layers) ---- */
+        /* layer A — large slow swirls */
+        vec2 uvA = wp * 0.12 + uTime * 0.025;
+        float foamA = fbm(uvA);
 
-        /* sharp toon shoreline foam — at circle UV edge (dist ~0.5) */
+        /* layer B — finer, counter-rotating, warped by layer A */
+        vec2 uvB = wp * 0.20 - uTime * 0.035;
+        uvB += foamA * 0.35;
+        float foamB = fbm(uvB);
+
+        float foamMix = (foamA + foamB) * 0.5;
+        float surfaceFoam = smoothstep(0.42, 0.58, foamMix);
+        vec3 finalColor = mix(waterColor, uFoamColor, surfaceFoam * 0.50);
+
+        /* ---- clean shoreline contact foam ---- */
         float shoreDist = distance(vUv, vec2(0.5));
-        float shoreFoam = step(0.42, shoreDist);
-        float shoreNoise = fbm(wp * 0.18 + uTime * 0.035);
-        shoreFoam *= step(0.30, shoreNoise);
-        finalColor = mix(finalColor, uFoamColor, shoreFoam * 0.85);
+        float shoreWobble = fbm(wp * 0.25 + uTime * 0.03) * 0.035;
+        float shore = smoothstep(0.44 + shoreWobble, 0.48 + shoreWobble, shoreDist);
+        finalColor = mix(finalColor, uFoamColor, shore * 0.85);
 
-        /* tank contact foam ring */
+        /* ---- tank contact foam ---- */
         float distToTank = distance(wp, uTankPosition.xz);
-        float tankFoam = step(distToTank, 2.0) * step(0.8, distToTank);
+        float tankRing = step(distToTank, 2.0) * step(0.8, distToTank);
         float tankNoise = fbm(wp * 0.35 + uTime * 0.06);
-        tankFoam *= step(0.40, tankNoise);
-        finalColor = mix(finalColor, uFoamColor, tankFoam * 0.80);
+        tankRing *= step(0.35, tankNoise);
+        finalColor = mix(finalColor, uFoamColor, tankRing * 0.80);
 
-        gl_FragColor = vec4(finalColor, 0.75);
+        gl_FragColor = vec4(finalColor, 0.88);
       }
     `;
   }
@@ -95,7 +104,7 @@ class WaterShader {
       fragmentShader: WaterShader.fragment(),
       uniforms: {
         uTime:         { value: 0 },
-        uBaseColor:    { value: new THREE.Color('#3ccfde') },
+        uBaseColor:    { value: new THREE.Color('#005fa3') },
         uFoamColor:    { value: new THREE.Color('#ffffff') },
         uTankPosition: { value: new THREE.Vector3(0, 0, 0) },
       },
