@@ -11,9 +11,8 @@ class WaterShader {
         vUv = uv;
         vec3 pos = position;
 
-        float w1 = sin(pos.x * 0.5 + uTime * 2.0) * 0.3;
-        float w2 = sin(pos.z * 0.4 + uTime * 1.5) * 0.2;
-        pos.y += w1 + w2;
+        /* subtle wave displacement — 0.15 max */
+        pos.y += sin(pos.x * 0.2 + uTime * 1.5) * cos(pos.z * 0.2 + uTime * 1.0) * 0.15;
         vElevation = pos.y;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
@@ -64,37 +63,33 @@ class WaterShader {
       }
 
       void main(){
-        /* ---- edge fade ---- */
-        float distFromCenter = length(vUv - vec2(0.5));
-        float edgeFade = 1.0 - smoothstep(0.30, 0.55, distFromCenter);
-
         vec2 wp = vWorldPos.xz;
 
-        /* ---- water color (shallow / deep blend) ---- */
+        /* water color — shallow / deep blend */
         float waveMix = 0.5 + 0.5 * sin(wp.x * 0.02 + wp.y * 0.03 + uTime * 0.05);
         vec3 waterColor = mix(uShallowColor, uDeepColor, waveMix);
 
-        /* ---- 1. Lake shore / edge foam ---- */
-        float shoreFoam = step(0.42, distFromCenter) * step(distFromCenter, 0.48);
+        /* 1. SOLID SHARP SHORE FOAM — no alpha fade */
+        float shoreDist = length(vUv - vec2(0.5));
+        float shoreFoam = step(0.44, shoreDist);
         float shoreNoise = fbm(wp * 0.20 + uTime * 0.04);
         shoreFoam *= step(0.35, shoreNoise);
 
-        /* ---- 2. Tank contact foam ---- */
+        /* 2. TANK CONTACT FOAM */
         float distToTank = distance(wp, uTankPosition.xz);
         float tankFoam = step(distToTank, 2.8) * step(1.2, distToTank);
         float tankNoise = fbm(wp * 0.35 + uTime * 0.06);
         tankFoam *= step(0.40, tankNoise);
 
-        /* ---- 3. Surface wave-crest foam ---- */
+        /* 3. WAVE-CREST FOAM */
         float crestNoise = fbm(wp * 0.25 + uTime * 0.05);
-        float surfaceWaveFoam = step(0.06, vElevation) * step(0.48, crestNoise);
+        float surfaceWaveFoam = step(0.03, vElevation) * step(0.48, crestNoise);
 
-        /* ---- combine all foam ---- */
         float totalFoam = clamp(shoreFoam + tankFoam + surfaceWaveFoam, 0.0, 1.0);
         vec3 finalColor = mix(waterColor, uFoamColor, totalFoam);
 
-        float alpha = 0.75 * edgeFade;
-        gl_FragColor = vec4(finalColor, alpha);
+        /* fully opaque — solid toon look */
+        gl_FragColor = vec4(finalColor, 1.0);
       }
     `;
   }
