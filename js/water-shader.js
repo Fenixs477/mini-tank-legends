@@ -3,19 +3,17 @@ class WaterShader {
   static vertex(){
     return `
       uniform float uTime;
-      varying vec2  vUv;
       varying vec3  vWorldPos;
 
       void main(){
-        vUv = uv;
         vec3 pos = position;
-
-        float w1 = sin(pos.x * 0.30 + uTime * 1.6) * 0.08;
-        float w2 = sin(pos.z * 0.28 + uTime * 1.2) * 0.06;
-        pos.y += w1 + w2;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
         vWorldPos = worldPos.xyz;
+
+        /* subtle wave displacement in world space */
+        pos.y += sin(worldPos.x * 0.20 + uTime * 2.0) *
+                 cos(worldPos.z * 0.20 + uTime * 1.5) * 0.10;
 
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
@@ -29,7 +27,6 @@ class WaterShader {
       uniform vec3  uFoamColor;
       uniform vec3  uTankPosition;
 
-      varying vec2  vUv;
       varying vec3  vWorldPos;
 
       /* ---- noise helpers ---- */
@@ -61,39 +58,26 @@ class WaterShader {
       }
 
       void main(){
+        /* all noise sampled in world space — seamless across chunks */
         vec2 wp = vWorldPos.xz;
 
-        /* base colour — deep blue */
-        vec3 waterColor = uBaseColor;
+        /* deep vibrant toon blue base */
+        vec3 waterColor = vec3(0.0, 0.45, 0.85);
 
-        /* ---- beautiful animated surface foam (2 layers) ---- */
-        /* layer A — large slow swirls */
-        vec2 uvA = wp * 0.12 + uTime * 0.025;
-        float foamA = fbm(uvA);
+        /* surface wave foam — world-space noise, step for sharp toon */
+        float noiseVal = fbm(wp * 0.18 + uTime * 0.03);
+        float surfaceFoam = step(0.65, noiseVal);
 
-        /* layer B — finer, counter-rotating, warped by layer A */
-        vec2 uvB = wp * 0.20 - uTime * 0.035;
-        uvB += foamA * 0.35;
-        float foamB = fbm(uvB);
-
-        float foamMix = (foamA + foamB) * 0.5;
-        float surfaceFoam = smoothstep(0.42, 0.58, foamMix);
-        vec3 finalColor = mix(waterColor, uFoamColor, surfaceFoam * 0.50);
-
-        /* ---- clean shoreline contact foam ---- */
-        float shoreDist = distance(vUv, vec2(0.5));
-        float shoreWobble = fbm(wp * 0.25 + uTime * 0.03) * 0.035;
-        float shore = smoothstep(0.44 + shoreWobble, 0.48 + shoreWobble, shoreDist);
-        finalColor = mix(finalColor, uFoamColor, shore * 0.85);
-
-        /* ---- tank contact foam ---- */
+        /* tank contact foam — world-space distance */
         float distToTank = distance(wp, uTankPosition.xz);
-        float tankRing = step(distToTank, 2.0) * step(0.8, distToTank);
-        float tankNoise = fbm(wp * 0.35 + uTime * 0.06);
-        tankRing *= step(0.35, tankNoise);
-        finalColor = mix(finalColor, uFoamColor, tankRing * 0.80);
+        float tankFoam = step(distToTank, 2.5) * step(1.0, distToTank);
+        float tankNoise = fbm(wp * 0.30 + uTime * 0.05);
+        tankFoam *= step(0.40, tankNoise);
 
-        gl_FragColor = vec4(finalColor, 0.88);
+        float totalFoam = clamp(surfaceFoam + tankFoam, 0.0, 1.0);
+        vec3 finalColor = mix(waterColor, uFoamColor, totalFoam);
+
+        gl_FragColor = vec4(finalColor, 0.95);
       }
     `;
   }
@@ -104,7 +88,7 @@ class WaterShader {
       fragmentShader: WaterShader.fragment(),
       uniforms: {
         uTime:         { value: 0 },
-        uBaseColor:    { value: new THREE.Color('#005fa3') },
+        uBaseColor:    { value: new THREE.Color('#0073d9') },
         uFoamColor:    { value: new THREE.Color('#ffffff') },
         uTankPosition: { value: new THREE.Vector3(0, 0, 0) },
       },
