@@ -10,8 +10,8 @@ class WaterShader {
         vUv = uv;
         vec3 pos = position;
 
-        /* waves always positive — never dip below base plane */
-        float wave = max(0.0, sin(pos.x * 0.3 + uTime * 2.0) * 0.15);
+        float wave = sin(pos.x * 0.3 + uTime * 2.0) * 0.08 +
+                     sin(pos.z * 0.25 + uTime * 1.4) * 0.06;
         pos.y += wave;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
@@ -62,29 +62,29 @@ class WaterShader {
       void main(){
         vec2 wp = vWorldPos.xz;
 
-        /* uniform base color — no deep/shallow mixing */
+        /* base water color */
         vec3 waterColor = uBaseColor;
 
-        /* 1. surface foam / caustic lines */
-        float foamNoise = fbm(wp * 0.20 + uTime * 0.04);
-        float surfaceFoam = step(0.52, foamNoise);
-        vec3 finalColor = mix(waterColor, uFoamColor, surfaceFoam * 0.55);
+        /* animated caustic lines on the surface */
+        float causticNoise = fbm(wp * 0.22 + uTime * 0.04);
+        float caustic = step(0.52, causticNoise);
+        vec3 finalColor = mix(waterColor, uFoamColor, caustic * 0.40);
 
-        /* 2. shore foam ring — sharp white edge */
-        float shoreDist = length(vUv - vec2(0.5));
-        float shoreFoam = step(0.44, shoreDist);
-        float shoreNoise = fbm(wp * 0.18 + uTime * 0.03);
-        shoreFoam *= step(0.35, shoreNoise);
-        finalColor = mix(finalColor, uFoamColor, shoreFoam * 0.80);
+        /* sharp toon shoreline foam — at circle UV edge (dist ~0.5) */
+        float shoreDist = distance(vUv, vec2(0.5));
+        float shoreFoam = step(0.42, shoreDist);
+        float shoreNoise = fbm(wp * 0.18 + uTime * 0.035);
+        shoreFoam *= step(0.30, shoreNoise);
+        finalColor = mix(finalColor, uFoamColor, shoreFoam * 0.85);
 
-        /* 3. tank contact foam */
+        /* tank contact foam ring */
         float distToTank = distance(wp, uTankPosition.xz);
-        float tankFoam = step(distToTank, 2.8) * step(1.2, distToTank);
+        float tankFoam = step(distToTank, 2.0) * step(0.8, distToTank);
         float tankNoise = fbm(wp * 0.35 + uTime * 0.06);
         tankFoam *= step(0.40, tankNoise);
         finalColor = mix(finalColor, uFoamColor, tankFoam * 0.80);
 
-        gl_FragColor = vec4(finalColor, 1.0);
+        gl_FragColor = vec4(finalColor, 0.75);
       }
     `;
   }
@@ -95,11 +95,12 @@ class WaterShader {
       fragmentShader: WaterShader.fragment(),
       uniforms: {
         uTime:         { value: 0 },
-        uBaseColor:    { value: new THREE.Color('#38b6ff') },
+        uBaseColor:    { value: new THREE.Color('#3ccfde') },
         uFoamColor:    { value: new THREE.Color('#ffffff') },
         uTankPosition: { value: new THREE.Vector3(0, 0, 0) },
       },
-      transparent: false,
+      transparent: true,
+      depthWrite: false,
       side: THREE.DoubleSide,
     });
   }

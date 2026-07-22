@@ -114,13 +114,12 @@ class World {
     ];
     this._waterMaterials = [];
     for(const l of lakeData){
-      const geo = new THREE.PlaneGeometry(100, 100, 64, 64);
+      const geo = new THREE.CircleGeometry(l.r, 48);
       geo.rotateX(-Math.PI/2);
       const mat = WaterShader.createMaterial();
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(l.x, 0.15, l.z);
+      m.position.set(l.x, 0.05, l.z);
       m.frustumCulled = false;
-      m.renderOrder = 1;
       this.scene.add(m);
       this._waterMaterials.push(mat);
       this.lakes.push({x: l.x, z: l.z, r: l.r, seed: l.seed});
