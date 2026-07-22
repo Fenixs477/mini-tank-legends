@@ -881,7 +881,7 @@ class Game {
 
   _update(dt){
     try {
-    this.world.update(dt, this.time);
+    this.world.update(dt, this.time, this.localTank);
 
     // Camera zoom & orbit
     const zoom = this.input.consumeZoom();

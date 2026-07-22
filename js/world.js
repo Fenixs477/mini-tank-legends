@@ -142,9 +142,12 @@ class World {
          + Math.sin(x * 0.18 + z * 0.22 + time * 0.7) * 0.08;
   }
 
-  update(dt, time){
+  update(dt, time, tankPos){
     for(const mat of this._waterMaterials){
       mat.uniforms.uTime.value = time;
+      if(tankPos && mat.uniforms.uTankPosition){
+        mat.uniforms.uTankPosition.value.set(tankPos.x, 0, tankPos.z);
+      }
     }
   }
   _makeWalls(){

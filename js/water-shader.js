@@ -11,11 +11,9 @@ class WaterShader {
         vUv = uv;
         vec3 pos = position;
 
-        float w1 = sin(pos.x * 0.30 + uTime * 1.30) * 0.22;
-        float w2 = sin(pos.z * 0.35 + uTime * 0.85) * 0.18;
-        float w3 = sin((pos.x + pos.z) * 0.18 + uTime * 0.95) * 0.14;
-        float w4 = sin(pos.x * 0.20 - pos.z * 0.28 + uTime * 0.60) * 0.10;
-        pos.y += w1 + w2 + w3 + w4;
+        float w1 = sin(pos.x * 0.5 + uTime * 2.0) * 0.3;
+        float w2 = sin(pos.z * 0.4 + uTime * 1.5) * 0.2;
+        pos.y += w1 + w2;
         vElevation = pos.y;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
@@ -32,12 +30,12 @@ class WaterShader {
       uniform vec3  uShallowColor;
       uniform vec3  uDeepColor;
       uniform vec3  uFoamColor;
+      uniform vec3  uTankPosition;
 
       varying vec2  vUv;
       varying vec3  vWorldPos;
       varying float vElevation;
 
-      /* ---- hash / noise helpers ---- */
       float hash(vec2 p){
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
@@ -65,7 +63,6 @@ class WaterShader {
         return val;
       }
 
-      /* ---- 2D rotation helper ---- */
       vec2 rot(vec2 p, float a){
         float s = sin(a), c = cos(a);
         return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
@@ -73,37 +70,40 @@ class WaterShader {
 
       void main(){
         float dist = distance(vUv, vec2(0.5));
-        float edgeFade = 1.0 - smoothstep(0.30, 0.48, dist);
+        float edgeFade = 1.0 - smoothstep(0.30, 0.50, dist);
 
-        // Use world XZ for noise sampling (more natural than UV)
         vec2 wp = vWorldPos.xz;
 
-        // Layer A — slow swell for deep ↔ shallow blend
+        /* ---- depth blend ---- */
         vec2 uvA = wp * 0.04 + uTime * 0.008;
-        float nA = fbm(uvA);
-
-        // Layer B — finer, counter-rotating
         vec2 uvB = rot(wp * 0.06, 0.6) + uTime * -0.005;
-        float nB = fbm(uvB);
-
-        float depthMix = (nA + nB) * 0.5;
+        float depthMix = (fbm(uvA) + fbm(uvB)) * 0.5;
         vec3 waterColor = mix(uShallowColor, uDeepColor, depthMix);
 
-        // ---- Surface foam / caustics (high-frequency) ----
-        vec2 foamUV = rot(wp * 0.12, uTime * 0.015);
-        float foamFbm = fbm(foamUV + uTime * 0.04);
-        float foam = smoothstep(0.48, 0.62, foamFbm);
+        /* ---- crisp surface foam (step = toon) ---- */
+        vec2 foamUV = rot(wp * 0.15, uTime * 0.015);
+        float foamRaw = fbm(foamUV + uTime * 0.04);
+        float foam = step(0.50, foamRaw);
         vec3 finalColor = mix(waterColor, uFoamColor, foam * 0.55);
 
-        // ---- Shore contact foam (edge ring) ----
-        float shoreFoam = smoothstep(0.38, 0.46, dist);
-        float shoreNoise = fbm(wp * 0.15 + uTime * 0.03);
-        shoreFoam *= smoothstep(0.35, 0.55, shoreNoise);
-        finalColor = mix(finalColor, uFoamColor, shoreFoam * 0.65);
+        /* ---- wave-crest foam (crisp white lines on peaks) ---- */
+        float crestNoise = fbm(wp * 0.3 + uTime * 0.06);
+        float crestFoam = step(0.08, vElevation) * step(0.45, crestNoise);
+        finalColor = mix(finalColor, uFoamColor, crestFoam * 0.70);
 
-        // Alpha: base 0.75 with smooth edge fade
+        /* ---- shore foam ring (at lake edge) ---- */
+        float shoreFbm = fbm(wp * 0.15 + uTime * 0.03);
+        float shore = step(0.38, dist) * step(0.40, shoreFbm);
+        finalColor = mix(finalColor, uFoamColor, shore * 0.70);
+
+        /* ---- tank contact foam ---- */
+        float distToTank = distance(wp, uTankPosition.xz);
+        float tankRing = step(distToTank, 2.5) * step(1.5, distToTank);
+        float tankNoise = fbm(wp * 0.3 + uTime * 0.05);
+        tankRing *= step(0.40, tankNoise);
+        finalColor = mix(finalColor, uFoamColor, tankRing * 0.80);
+
         float alpha = 0.75 * edgeFade;
-
         gl_FragColor = vec4(finalColor, alpha);
       }
     `;
@@ -115,6 +115,7 @@ class WaterShader {
       fragmentShader: WaterShader.fragment(),
       uniforms: {
         uTime:         { value: 0 },
+        uTankPosition: { value: new THREE.Vector3(0, 0, 0) },
         uShallowColor: { value: new THREE.Color('#4deeea') },
         uDeepColor:    { value: new THREE.Color('#004e92') },
         uFoamColor:    { value: new THREE.Color('#ffffff') },
