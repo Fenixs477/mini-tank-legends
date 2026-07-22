@@ -114,8 +114,7 @@ class World {
     ];
     this._waterMaterials = [];
     for(const l of lakeData){
-      const size = l.r * 2;
-      const geo = new THREE.PlaneGeometry(size, size, 64, 64);
+      const geo = new THREE.PlaneGeometry(30, 30, 32, 32);
       geo.rotateX(-Math.PI/2);
       const mat = WaterShader.createMaterial();
       const m = new THREE.Mesh(geo, mat);
