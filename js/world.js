@@ -118,7 +118,7 @@ class World {
       geo.rotateX(-Math.PI/2);
       const mat = WaterShader.createMaterial();
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(l.x, 0.25, l.z);
+      m.position.set(l.x, 0.15, l.z);
       m.frustumCulled = false;
       m.renderOrder = 1;
       this.scene.add(m);
