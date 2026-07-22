@@ -63,45 +63,35 @@ class WaterShader {
         return val;
       }
 
-      vec2 rot(vec2 p, float a){
-        float s = sin(a), c = cos(a);
-        return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
-      }
-
       void main(){
-        float dist = distance(vUv, vec2(0.5));
-        float edgeFade = 1.0 - smoothstep(0.30, 0.50, dist);
+        /* ---- edge fade ---- */
+        float distFromCenter = length(vUv - vec2(0.5));
+        float edgeFade = 1.0 - smoothstep(0.30, 0.55, distFromCenter);
 
         vec2 wp = vWorldPos.xz;
 
-        /* ---- depth blend ---- */
-        vec2 uvA = wp * 0.04 + uTime * 0.008;
-        vec2 uvB = rot(wp * 0.06, 0.6) + uTime * -0.005;
-        float depthMix = (fbm(uvA) + fbm(uvB)) * 0.5;
-        vec3 waterColor = mix(uShallowColor, uDeepColor, depthMix);
+        /* ---- water color (shallow / deep blend) ---- */
+        float waveMix = 0.5 + 0.5 * sin(wp.x * 0.02 + wp.y * 0.03 + uTime * 0.05);
+        vec3 waterColor = mix(uShallowColor, uDeepColor, waveMix);
 
-        /* ---- crisp surface foam (step = toon) ---- */
-        vec2 foamUV = rot(wp * 0.15, uTime * 0.015);
-        float foamRaw = fbm(foamUV + uTime * 0.04);
-        float foam = step(0.50, foamRaw);
-        vec3 finalColor = mix(waterColor, uFoamColor, foam * 0.55);
+        /* ---- 1. Lake shore / edge foam ---- */
+        float shoreFoam = step(0.42, distFromCenter) * step(distFromCenter, 0.48);
+        float shoreNoise = fbm(wp * 0.20 + uTime * 0.04);
+        shoreFoam *= step(0.35, shoreNoise);
 
-        /* ---- wave-crest foam (crisp white lines on peaks) ---- */
-        float crestNoise = fbm(wp * 0.3 + uTime * 0.06);
-        float crestFoam = step(0.08, vElevation) * step(0.45, crestNoise);
-        finalColor = mix(finalColor, uFoamColor, crestFoam * 0.70);
-
-        /* ---- shore foam ring (at lake edge) ---- */
-        float shoreFbm = fbm(wp * 0.15 + uTime * 0.03);
-        float shore = step(0.38, dist) * step(0.40, shoreFbm);
-        finalColor = mix(finalColor, uFoamColor, shore * 0.70);
-
-        /* ---- tank contact foam ---- */
+        /* ---- 2. Tank contact foam ---- */
         float distToTank = distance(wp, uTankPosition.xz);
-        float tankRing = step(distToTank, 2.5) * step(1.5, distToTank);
-        float tankNoise = fbm(wp * 0.3 + uTime * 0.05);
-        tankRing *= step(0.40, tankNoise);
-        finalColor = mix(finalColor, uFoamColor, tankRing * 0.80);
+        float tankFoam = step(distToTank, 2.8) * step(1.2, distToTank);
+        float tankNoise = fbm(wp * 0.35 + uTime * 0.06);
+        tankFoam *= step(0.40, tankNoise);
+
+        /* ---- 3. Surface wave-crest foam ---- */
+        float crestNoise = fbm(wp * 0.25 + uTime * 0.05);
+        float surfaceWaveFoam = step(0.06, vElevation) * step(0.48, crestNoise);
+
+        /* ---- combine all foam ---- */
+        float totalFoam = clamp(shoreFoam + tankFoam + surfaceWaveFoam, 0.0, 1.0);
+        vec3 finalColor = mix(waterColor, uFoamColor, totalFoam);
 
         float alpha = 0.75 * edgeFade;
         gl_FragColor = vec4(finalColor, alpha);
