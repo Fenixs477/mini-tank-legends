@@ -219,13 +219,8 @@ class Tank {
   _addOverlays(turretH){
     this.hpSprite = this._makeHpSprite();
     this.hpSprite.userData.isOverlay = true;
-    this.hpSprite.position.y = turretH + 2.0;
+    this.hpSprite.position.y = turretH + 2.4;
     this.root.add(this.hpSprite);
-
-    this.nameSprite = this._makeNameTag(this.name);
-    this.nameSprite.userData.isOverlay = true;
-    this.nameSprite.position.y = turretH + 2.8;
-    this.root.add(this.nameSprite);
 
     this._drownBar = this._makeDrownBar();
     this._drownBar.position.y = turretH + 1.5;
@@ -233,22 +228,29 @@ class Tank {
   }
 
   _makeHpSprite(){
-    const c = document.createElement('canvas'); c.width=256; c.height=40;
+    const c = document.createElement('canvas'); c.width=256; c.height=80;
     this._hpCanvas = c; this._hpCtx = c.getContext('2d');
     const tex = new THREE.CanvasTexture(c);
     this._hpTex = tex;
     const spr = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
-    spr.scale.set(3.4, 0.53, 1);
+    spr.scale.set(3.4, 0.8, 1);
     this._drawHp();
     return spr;
   }
   _drawHp(){
     const c=this._hpCanvas, g=this._hpCtx;
-    g.clearRect(0,0,256,40);
+    g.clearRect(0,0,256,80);
+    // Name text (white with black outline, no background bar)
+    g.font='bold 33px Segoe UI'; g.textAlign='center'; g.textBaseline='middle';
+    g.strokeStyle='#000'; g.lineWidth=5; g.lineJoin='round';
+    g.strokeText(this.name, 128, 26);
+    g.fillStyle='#fff'; g.fillText(this.name, 128, 26);
+    // HP bar background
+    g.fillStyle='rgba(0,0,0,0.6)'; g.fillRect(8,44,240,20);
+    // HP bar fill
     const pct = Math.max(0, this.hp/this.maxHp);
-    g.fillStyle='rgba(0,0,0,0.6)'; g.fillRect(8,10,240,20);
     const col = pct>0.6?'#3ad17a':(pct>0.3?'#ffb12b':'#ff3b3b');
-    g.fillStyle=col; g.fillRect(11,13,234*pct,14);
+    g.fillStyle=col; g.fillRect(11,47,234*pct,14);
     if(this._hpTex) this._hpTex.needsUpdate=true;
   }
 
@@ -479,7 +481,7 @@ class Tank {
   _applyCamoVisual(){
     const op = this.camoFactor;
     if(this.hpSprite) this.hpSprite.material.opacity = op;
-    if(this.nameSprite) this.nameSprite.material.opacity = op;
+
   }
 
   _ramCheck(game){
@@ -520,18 +522,21 @@ class Tank {
   }
 
   /** Scale sprites and outlines based on distance from camera */
-  updateDistanceScaling(cameraPos){
+  updateDistanceScaling(cameraPos, camDist){
     const dx = this.x - cameraPos.x;
     const dz = this.z - cameraPos.z;
     const dist = Math.sqrt(dx*dx + dz*dz);
-    const target = Math.min(1.8, Math.max(1.0, 0.4 + dist * 0.01));
+    const target = Math.min(4.0, Math.max(0.6, 0.15 + dist * 0.035));
     this._uiScale += (target - this._uiScale) * 0.15;
     const s = this._uiScale;
-    if(this.hpSprite) this.hpSprite.scale.set(3.4 * s, 0.53 * s, 1);
-    if(this.nameSprite) this.nameSprite.scale.set(3.2 * s, 0.8 * s, 1);
+    if(this.hpSprite) this.hpSprite.scale.set(3.4 * s, 1.1 * s, 1);
     if(this._drownBar) this._drownBar.scale.set(3.4 * s, 0.21 * s, 1);
-    const outlineScale = 1 + (s - 1) * 0.2;
-    this._applyOutlineScale(outlineScale);
+    // Outline scales with zoom level only (camDist), not per-tank distance
+    if(camDist){
+      const outlineS = Math.min(1.8, Math.max(1.0, 0.4 + camDist * 0.01));
+      const outlineScale = 1 + (outlineS - 1) * 0.2;
+      this._applyOutlineScale(outlineScale);
+    }
   }
   _applyOutlineScale(scale){
     [this.bodyGroup, this.turretGroup].forEach(group => {
@@ -646,7 +651,6 @@ class Tank {
     }
 
     if(this.hpSprite) this.hpSprite.visible = false;
-    if(this.nameSprite) this.nameSprite.visible = false;
     if(this.viewCircle) this.viewCircle.visible = false;
 
     this._turretVel = new THREE.Vector3(
@@ -774,7 +778,6 @@ class Tank {
     this.root.visible = true;
     this.root.position.y = 0;
     if(this.hpSprite) this.hpSprite.visible = true;
-    if(this.nameSprite) this.nameSprite.visible = true;
     if(this.viewCircle) this.viewCircle.visible = true;
     if(this._drownBar) this._drownBar.visible = false;
     this._drowning = false;
@@ -794,10 +797,21 @@ class Tank {
   _updateHpBar(){ this._drawHp(); }
 
   muzzle(){
+    this.root.updateMatrixWorld(true);
     const p = new THREE.Vector3();
     this.barrelEnd.getWorldPosition(p);
     const dir = new THREE.Vector3(Math.sin(this.turretAngle), 0, Math.cos(this.turretAngle));
     return {pos:p, dir};
+  }
+
+  getWorldVelocity(){
+    if(this._physBody){
+      try {
+        const v = this._physBody.linvel();
+        return {x: v.x, z: v.z};
+      } catch(e){}
+    }
+    return {x: this.vx, z: this.vz};
   }
 
   snapshot(){

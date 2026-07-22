@@ -201,6 +201,11 @@ class Input {
     this._moveJoystick = null;
     this._turretJoystick = null;
 
+    // Pinch-to-zoom state
+    this._pinchTouchIds = [];
+    this._pinchDist = 0;
+    this._pinchAccum = 0;
+
     window.addEventListener('keydown', e=>{
       this.keys[e.code]=true;
       if(e.code==='Space') e.preventDefault();
@@ -231,6 +236,39 @@ class Input {
     document.addEventListener('touchstart', (e) => {
       if(e.target.closest('.joystick-container, .cam-rotate-btns, #game-root')) e.preventDefault();
     }, {passive: false});
+
+    // Pinch-to-zoom gesture
+    const getTouchById = (touches, id) => {
+      for(let t of touches){ if(t.identifier === id) return t; }
+      return null;
+    };
+    document.addEventListener('touchstart', (e) => {
+      if(e.touches.length === 2){
+        this._pinchTouchIds = [e.touches[0].identifier, e.touches[1].identifier];
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        this._pinchDist = Math.hypot(dx, dy);
+      }
+    }, {passive: true});
+    document.addEventListener('touchmove', (e) => {
+      if(this._pinchTouchIds.length === 2){
+        const t1 = getTouchById(e.touches, this._pinchTouchIds[0]);
+        const t2 = getTouchById(e.touches, this._pinchTouchIds[1]);
+        if(t1 && t2){
+          const dx = t1.clientX - t2.clientX;
+          const dy = t1.clientY - t2.clientY;
+          const dist = Math.hypot(dx, dy);
+          this._pinchAccum += (dist - this._pinchDist) * 0.03;
+          this._pinchDist = dist;
+        }
+      }
+    }, {passive: true});
+    document.addEventListener('touchend', (e) => {
+      if(e.touches.length < 2){
+        this._pinchTouchIds = [];
+        this._pinchDist = 0;
+      }
+    }, {passive: true});
 
     // Initialize touch joysticks if on mobile
     if(this.isTouchDevice){
@@ -344,6 +382,10 @@ class Input {
     let z = this.consumeWheel();
     if(this.keys[this.binds.zoomIn] ) z += 1;
     if(this.keys[this.binds.zoomOut]) z -= 1;
+    if(this._pinchAccum){
+      z += this._pinchAccum;
+      this._pinchAccum = 0;
+    }
     return z;
   }
 
@@ -356,8 +398,9 @@ class Input {
     const move = this._moveJoystick ? this._moveJoystick.getValue() : {x:0, y:0, firing:false};
     const turret = this._turretJoystick ? this._turretJoystick.getValue() : {x:0, y:0, firing:false};
 
-    // Movement: up/down = throttle, left/right = turn (reversed)
-    const throttle = -move.y;  // up = positive
+    // Movement: joystick up (negative y) = backward, joystick down (positive y) = forward
+    // joystick left (negative x) = turn left, joystick right (positive x) = turn right
+    const throttle = move.y;
     const turn = move.x;
 
     // Turret:

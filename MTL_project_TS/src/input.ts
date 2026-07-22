@@ -124,6 +124,11 @@ export class Input {
   _turretJoystick: TouchJoystick | null = null;
   _camRotateTouch = 0;
 
+  // Pinch-to-zoom state
+  _pinchTouchIds: number[] = [];
+  _pinchDist = 0;
+  _pinchAccum = 0;
+
   constructor(settings: any) {
     this.settings = settings;
     this.binds = settings.binds;
@@ -141,6 +146,38 @@ export class Input {
     window.addEventListener('wheel', e => { this.wheel += (e.deltaY < 0 ? 1 : -1); }, { passive: true });
     window.addEventListener('blur', () => { this.keys = {}; this.mouse.down = false; this._camRotateTouch = 0; });
     document.addEventListener('touchstart', (e) => { if ((e.target as HTMLElement).closest('.joystick-container, .cam-rotate-btns, #game-root')) e.preventDefault(); }, { passive: false });
+    // Pinch-to-zoom gesture
+    const getTouchById = (touches: TouchList, id: number) => {
+      for (const t of touches) { if (t.identifier === id) return t; }
+      return null;
+    };
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        this._pinchTouchIds = [e.touches[0].identifier, e.touches[1].identifier];
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        this._pinchDist = Math.hypot(dx, dy);
+      }
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (this._pinchTouchIds.length === 2) {
+        const t1 = getTouchById(e.touches, this._pinchTouchIds[0]);
+        const t2 = getTouchById(e.touches, this._pinchTouchIds[1]);
+        if (t1 && t2) {
+          const dx = t1.clientX - t2.clientX;
+          const dy = t1.clientY - t2.clientY;
+          const dist = Math.hypot(dx, dy);
+          this._pinchAccum += (dist - this._pinchDist) * 0.03;
+          this._pinchDist = dist;
+        }
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        this._pinchTouchIds = [];
+        this._pinchDist = 0;
+      }
+    }, { passive: true });
     if (this.isTouchDevice) this._initTouch();
   }
 
@@ -229,6 +266,10 @@ export class Input {
     let z = this.consumeWheel();
     if (this.keys[this.binds.zoomIn]) z += 1;
     if (this.keys[this.binds.zoomOut]) z -= 1;
+    if (this._pinchAccum) {
+      z += this._pinchAccum;
+      this._pinchAccum = 0;
+    }
     return z;
   }
 
@@ -237,7 +278,7 @@ export class Input {
     const move = this._moveJoystick ? this._moveJoystick.getValue() : { x: 0, y: 0 };
     const turret = this._turretJoystick ? this._turretJoystick.getValue() : { x: 0, y: 0 };
     return {
-      throttle: -move.y,
+      throttle: move.y,
       turn: move.x,
       turretRelAngle: turret.relAngle || 0,
       armed: !!turret.armed,

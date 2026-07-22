@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Mini Tank Legends Cline</title>
-<link rel="stylesheet" href="css/style.css?v=1784317672">
+<link rel="stylesheet" href="css/style.css?v=1784317815">
 </head>
 <body>
   <!-- 3D canvas mount -->
@@ -187,8 +187,8 @@
     <div class="menu hidden" id="menu-collections">
       <div class="collections-fullscreen">
         <div class="collections-image-wrap" id="collections-image-wrap">
-          <div style="position:relative;display:inline-block">
-            <img src="collections.png?v=6" alt="Collections" id="collections-img">
+          <div style="position:relative">
+            <img src="collections.png?v=7" alt="Collections" id="collections-img">
             <canvas id="collections-overlay"></canvas>
           </div>
         </div>
@@ -196,28 +196,38 @@
           <div class="btn btn-sm btn-ghost" id="ce-toggle">Edit Layout</div>
           <div class="btn btn-back" id="collections-back" data-back="menu-main">← Back</div>
           <div id="ce-controls" class="hidden">
-            <div class="ce-row">
-              <span class="ce-lbl">X</span><input type="number" id="ce-x" class="ce-num">
-              <span class="ce-lbl">Y</span><input type="number" id="ce-y" class="ce-num">
-              <span class="ce-lbl">W</span><input type="number" id="ce-w" class="ce-num">
-              <span class="ce-lbl">H</span><input type="number" id="ce-h" class="ce-num">
+            <div class="ce-row ce-frame-props hidden" id="ce-frame-props">
+              <span class="ce-lbl">Display:</span>
+              <select id="ce-display-type">
+                <option value="nothing">Nothing</option>
+                <option value="tank">Tank</option>
+                <option value="coming-soon">Coming Soon</option>
+              </select>
+              <select id="ce-tank-id" class="hidden"></select>
+              <span class="ce-lbl muted" id="ce-sel-count"></span>
             </div>
-            <div class="ce-row">
-              <span class="ce-lbl">Scale</span>
-              <input type="range" id="ce-scale" class="ce-range" min="0.3" max="2.5" step="0.05">
-              <span id="ce-scale-val" class="ce-range-val">1.00</span>
+            <div class="ce-row ce-pivot-props hidden" id="ce-pivot-props">
+              <span class="ce-lbl">Pivot:</span>
+              <select id="ce-pivot-action">
+                <option value="select-tank">Select Tank</option>
+                <option value="coming-soon">Coming Soon</option>
+                <option value="info">Info</option>
+                <option value="nothing">Nothing</option>
+              </select>
+              <div class="btn btn-sm btn-ghost" id="ce-pivot-del" style="color:#f66">✕</div>
             </div>
-            <div class="ce-row">
-              <span class="ce-lbl">Icon</span>
-              <select id="ce-tank-id" class="ce-select"></select>
+            <div class="ce-row hidden" id="ce-layout-export">
+              <textarea id="ce-layout-json" rows="4" style="width:100%;font-size:10px;background:#111;color:#0f0;border:1px solid #333;border-radius:6px;padding:4px;font-family:monospace" readonly></textarea>
+              <div class="btn btn-sm btn-primary" id="ce-deploy-layout" style="margin-top:4px">Deploy Layout for Everyone →</div>
             </div>
             <div class="ce-row ce-actions">
+              <div class="btn btn-sm btn-ghost" id="ce-dup">Duplicate</div>
+              <div class="btn btn-sm btn-ghost" id="ce-up">▲</div>
+              <div class="btn btn-sm btn-ghost" id="ce-down">▼</div>
+              <div class="btn btn-sm btn-ghost" id="ce-del" style="color:#f66">Delete</div>
+              <div class="btn btn-sm btn-ghost" id="ce-pivot">Pivot</div>
+              <div class="btn btn-sm btn-ghost" id="ce-snap">Snap</div>
               <div class="btn btn-sm btn-primary" id="ce-save">Save Layout</div>
-              <div class="btn btn-sm" id="ce-export">Export</div>
-              <div class="btn btn-sm" id="ce-import">Import</div>
-              <div class="btn btn-sm btn-danger" id="ce-del">Delete</div>
-              <div class="btn btn-sm" id="ce-dup">+ Duplicate</div>
-              <div class="btn btn-sm" id="ce-done">Done</div>
             </div>
           </div>
         </div>
@@ -406,22 +416,25 @@
   <script src="https://unpkg.com/@heroiclabs/nakama-js@2.5.0/dist/nakama-js.umd.js?v=1784317672"></script>
 
   <!-- Game -->
-  <script src="js/config.js?v=1784317672"></script>
+  <script src="js/config.js?v=1784317705"></script>
   <script src="js/vfx.js?v=1784317672"></script>
   <script src="js/shaders.js?v=1784317673"></script>
   <script src="js/glb_data.js?v=1784317672"></script>
   <script src="js/obj_data.js?v=1784317672"></script>
   <script src="js/models.js?v=1784317672"></script>
-  <script src="js/world.js?v=1784317672"></script>
+  <script src="js/water-shader.js?v=1784320000"></script>
+  <script src="js/world.js?v=1784320000"></script>
   <script src="js/tank.js?v=1784317672"></script>
   <script src="js/projectile.js?v=1784317672"></script>
-  <script src="js/input.js?v=1784317672"></script>
+  <script src="js/bullet-trail.js?v=1784317672"></script>
+  <script src="js/input.js?v=1784317695"></script>
   <script src="js/bot.js?v=1784317672"></script>
   <script src="js/nakama-net.js?v=1784317672"></script>
   <script src="js/net.js?v=1784317672"></script>
-  <script src="js/menu.js?v=1784317672"></script>
+  <script src="js/menu.js?v=1784317835"></script>
   <script src="js/menu-editor.js?v=1784317672"></script>
   <script src="js/editor123.js?v=1784317675"></script>
-  <script src="js/game.js?v=1784317672"></script>
+  <script src="js/default-map.js?v=1784317672"></script>
+  <script src="js/game.js?v=1784320000"></script>
 </body>
 </html>

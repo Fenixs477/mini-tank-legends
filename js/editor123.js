@@ -420,6 +420,7 @@ var Editor123 = {
             '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">💾 Save</span>' +
             '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">✕ Deselect</span>' +
             '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">🎮 Save to Game</span>' +
+            '<span class="e123-tbtn" id="e-export-map" style="font-size:10px">📋 Export Map Code</span>' +
             '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">⌨️</span></div>' +
             '<div id="e-shortcuts-panel" style="display:none;position:absolute;top:32px;right:8px;background:#1a1e24;border:1px solid #2a2f36;border-radius:6px;padding:8px 12px;font-size:10px;color:#aaa;z-index:50;line-height:1.6;white-space:nowrap">' +
             '<b style="color:#ffb12b">Scene Shortcuts</b><br>' +
@@ -1464,6 +1465,51 @@ var Editor123 = {
         });
         // Save to Game
         document.getElementById('e-save-game').onclick = function () { self._saveToGame(); };
+        // Export Map Code
+        document.getElementById('e-export-map').onclick = function () {
+            var gameObjects = [];
+            self._mapObjs.forEach(function (o) {
+                var kind = o.kind || 'model';
+                if (kind === 'light' || kind === 'sound' || kind === 'image' || kind === 'shape2d' ||
+                    kind === 'grass3d' || kind === 'grass' || kind === 'ground') return;
+                var gKind = 'cube';
+                if (kind === 'primitive') {
+                    switch (o.subType) {
+                        case 'cylinder': gKind = 'cylinder'; break;
+                        case 'cone':     gKind = 'cone';     break;
+                        case 'torus':    gKind = 'torus';    break;
+                        default:         gKind = 'cube';     break;
+                    }
+                }
+                var obj = {
+                    x: o.x, y: o.y || 0.5, z: o.z,
+                    sx: o.scale || 1, sy: o.scale || 1, sz: o.scale || 1,
+                    ry: o.rot || 0, kind: gKind,
+                    color: o.color != null ? o.color : 0x5a7acc,
+                    type: o.type || (kind === 'water' ? 'water' : 'wall'),
+                };
+                if (kind === 'primitive' && o.subType === 'plane') obj.sy = 0.15;
+                var libItem = self._mapLib[o.libIdx];
+                if (libItem && (libItem.data || libItem.base64)) {
+                    obj.isModel = true; obj.modelName = libItem.name;
+                    obj.modelFormat = libItem.type || 'glb';
+                    if (libItem.base64) obj.modelData = libItem.base64;
+                }
+                gameObjects.push(obj);
+            });
+            var exportData = { objects: gameObjects };
+            try {
+                var json = JSON.stringify(exportData);
+                navigator.clipboard.writeText(json).then(function () {
+                    self.toast('Copied ' + gameObjects.length + ' objects! Send this code to the dev.');
+                }).catch(function () {
+                    // Fallback: show in prompt
+                    prompt('Copy this code manually:', json);
+                });
+            } catch (e) {
+                self.toast('Export failed: ' + e.message);
+            }
+        };
         // Deselect button
         document.getElementById('e-deselect-btn').onclick = function () {
             if (self._transformControls) self._transformControls.detach();

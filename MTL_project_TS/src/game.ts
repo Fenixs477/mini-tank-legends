@@ -767,7 +767,7 @@ export class Game {
         const angle = this.camAngle;
         const camTarget = new THREE.Vector3(
           t.x + Math.sin(angle) * this.camDist,
-          this.camDist * 0.78 + 3,
+          this.camDist * 1.43 + 1.2,
           t.z + Math.cos(angle) * this.camDist,
         );
         this.camera.position.lerp(camTarget, CONFIG.CAM_LERP);

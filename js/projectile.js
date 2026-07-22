@@ -7,14 +7,18 @@
 let _nextProjId = 1;
 
 class Shell {
-  constructor(owner, pos, dir, def, physicsWorld){
+  constructor(owner, pos, dir, def, physicsWorld, inheritVel){
     this.id = 'p' + (_nextProjId++);
     this.owner = owner;
     this.x = pos.x; this.y = pos.y; this.z = pos.z;
     this.dir = dir.clone().normalize();
+    const iv = inheritVel || {x:0, z:0};
     this.speed = def.shellSpeed;
+    this._baseSpeed = def.shellSpeed;
+    this._inheritX = iv.x;
+    this._inheritZ = iv.z;
     this.damage = def.damage;
-    this.life = def.shellRange / def.shellSpeed; // distance-based life
+    this.life = def.shellRange / def.shellSpeed;
     this.dead = false;
     this.type = 'shell';
     this.radius = 0.4;
@@ -36,8 +40,8 @@ class Shell {
       var col = RAPIER.ColliderDesc.ball(this.radius)
         .setUserData({type:'shell', shell:this});
       this._physWorld.createCollider(col, this._physBody);
-      var vx = this.dir.x * this.speed;
-      var vz = this.dir.z * this.speed;
+      var vx = this.dir.x * this.speed + this._inheritX;
+      var vz = this.dir.z * this.speed + this._inheritZ;
       this._physBody.setLinvel({x: vx, y: 0, z: vz}, true);
     } catch(e){ this._physBody = null; }
   }
@@ -46,12 +50,6 @@ class Shell {
     const mat = new THREE.MeshStandardMaterial({color:0xffd24a, emissive:0xff7a1a, emissiveIntensity:0.6, roughness:0.4});
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), mat);
     this.mesh.position.set(this.x, this.y, this.z);
-    // trail
-    const trail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.22, 2.0, 6),
-      new THREE.MeshBasicMaterial({color:0xffb12b, transparent:true, opacity:0.5}));
-    trail.rotation.x = Math.PI/2;
-    trail.position.z = -1.0;
-    this.mesh.add(trail);
   }
 
   /* Ricochet check when hitting a tank. Returns true if shell ricochets. */
@@ -149,8 +147,11 @@ class Shell {
         return;
       }
     } else {
-      const nx = this.x + this.dir.x * this.speed * dt;
-      const nz = this.z + this.dir.z * this.speed * dt;
+      const vx = this.dir.x * this.speed + this._inheritX;
+      const vz = this.dir.z * this.speed + this._inheritZ;
+      this._inheritX = 0; this._inheritZ = 0; // one-time boost
+      const nx = this.x + vx * dt;
+      const nz = this.z + vz * dt;
       if(world.collidesWallsOnly(nx, nz, this.radius)){
         this.dead = true;
         game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6);

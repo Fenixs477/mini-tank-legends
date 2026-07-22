@@ -51,14 +51,80 @@ const Menu = {
     // iPadOS 13+ reports as Mac but has touch support
     const isIOS = /iPhone|iPad|iPod/i.test(ua) || (/Mac/i.test(ua) && 'ontouchstart' in window && navigator.maxTouchPoints > 0);
     const isAndroid = /Android/i.test(ua);
-    if(isIOS) return 'ios';
+
+  _requestFullscreen(){
+=======
     if(isAndroid) return 'android';
     return 'desktop';
   },
 
   _isFullscreen(){
-    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+    // Check Fullscreen API (programmatic fullscreen via button)
+    if(document.fullscreenElement || document.webkitFullscreenElement) return true;
+    
+    // Detect F11 browser fullscreen by checking if window dimensions match screen dimensions
+    // Use a small tolerance (50px) to account for taskbar/bookmark bars
+    const tolerance = 50;
+    const wMatch = Math.abs(window.outerWidth - screen.width) <= tolerance;
+    const hMatch = Math.abs(window.outerHeight - screen.height) <= tolerance;
+    return wMatch && hMatch;
   },
+
+  _requestFullscreen(){
+
+=======
+=======
+
+  _requestFullscreen(){
+=======
+    if(isAndroid) return 'android';
+    return 'desktop';
+  },
+
+  _isFullscreen(){
+    // Check Fullscreen API (programmatic fullscreen via button)
+    if(document.fullscreenElement || document.webkitFullscreenElement) return true;
+    
+    // Detect F11 browser fullscreen by checking if window dimensions match screen dimensions
+    // Use a small tolerance (50px) to account for taskbar/bookmark bars
+    const tolerance = 50;
+    const wMatch = Math.abs(window.outerWidth - screen.width) <= tolerance;
+    const hMatch = Math.abs(window.outerHeight - screen.height) <= tolerance;
+    return wMatch && hMatch;
+  },
+
+  _requestFullscreen(){
+    const el = document.documentElement;
+    if(el.requestFullscreen){
+      el.requestFullscreen().catch(() => {});
+    } else if(el.webkitRequestFullscreen){
+      el.webkitRequestFullscreen();
+    }
+  },
+=======
+
+  _requestFullscreen(){
+=======
+    if(isAndroid) return 'android';
+    return 'desktop';
+  },
+
+  _isFullscreen(){
+    // Check Fullscreen API (programmatic fullscreen via button)
+    if(document.fullscreenElement || document.webkitFullscreenElement) return true;
+    
+    // Detect F11 browser fullscreen by checking if window dimensions match screen dimensions
+    // Use a small tolerance (50px) to account for taskbar/bookmark bars
+    const tolerance = 50;
+    const wMatch = Math.abs(window.outerWidth - screen.width) <= tolerance;
+    const hMatch = Math.abs(window.outerHeight - screen.height) <= tolerance;
+    return wMatch && hMatch;
+  },
+
+  _requestFullscreen(){
+
+=======
+=======
 
   _requestFullscreen(){
     const el = document.documentElement;
@@ -176,8 +242,6 @@ const Menu = {
     };
     document.addEventListener('fullscreenchange', fsChange);
     document.addEventListener('webkitfullscreenchange', fsChange);
-    document.addEventListener('mozfullscreenchange', fsChange);
-    document.addEventListener('MSFullscreenChange', fsChange);
 
     // Desktop buttons
     const enterBtn = document.getElementById('btn-enter-fullscreen');
@@ -247,10 +311,6 @@ const Menu = {
   show(id){
     this._stopMainPreview();
     document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
-    if(this._collectionsKeyHandler){
-      window.removeEventListener('keydown', this._collectionsKeyHandler);
-      this._collectionsKeyHandler = null;
-    }
     document.getElementById(id).classList.remove('hidden');
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('ui-layer').classList.remove('game-active');
@@ -268,7 +328,6 @@ const Menu = {
       this._collectionsFrames = null;
       this._collectionsEditMode = false;
       document.getElementById('ce-toggle').classList.remove('hidden');
-      document.getElementById('ce-toggle').textContent = 'Edit Layout';
       document.getElementById('ce-controls').classList.add('hidden');
       setTimeout(() => {
         this._renderCollections();
@@ -1169,82 +1228,61 @@ const Menu = {
   },
   _applyCollectionsLayout(){
     if(!this._savedLayout || !this._savedLayout.length) return;
+    const defs = [
+      { tankId:'coolbuddy' }, { tankId:'striker', scale:1.1 }, { tankId:'ghost' },
+      { tankId:null, label:'Coming Soon!', scale:0.8 }, { tankId:'sturmratte' },
+      { tankId:null, label:'Coming Soon!' }, { tankId:null, label:'Coming Soon!' },
+      { tankId:null, label:'Coming Soon!' }, { tankId:null, label:'Coming Soon!' },
+      { tankId:null, label:'Coming Soon!' }, { tankId:null, label:'Coming Soon!' },
+      { tankId:null, label:'Coming Soon!' }, { tankId:null, label:'Coming Soon!' },
+      { tankId:null, label:'Coming Soon!' }, { tankId:'helix' },
+    ];
     this._collectionsFrames = this._savedLayout.map((s, i) => ({
       x: s.x, y: s.y, w: s.w, h: s.h, scale: s.scale || 1,
-      tankId: s.tankId !== undefined ? s.tankId : null,
-      label: s.label !== undefined ? s.label : undefined,
-      displayType: s.displayType !== undefined ? s.displayType : (s.tankId ? 'tank' : 'coming-soon'),
-      pivots: s.pivots
+      tankId: s.tankId !== undefined ? s.tankId : (defs[i]?.tankId || null),
+      label: s.tankId !== undefined ? (s.tankId ? undefined : (s.label || 'Coming Soon!')) : (defs[i]?.label || 'Coming Soon!')
     }));
-    this._ensurePivots();
-  },
-
-  _ensurePivots(){
-    if(!this._collectionsFrames) return;
-    this._collectionsFrames.forEach(f => {
-      if(!f.pivots || !f.pivots.length){
-        f.pivots = [{ px: 0, py: 0, pw: f.w, ph: f.h, action: f.tankId ? 'select-tank' : 'coming-soon' }];
-      } else {
-        f.pivots.forEach(p => {
-          if(f.tankId && p.action === 'coming-soon' && f.displayType === 'tank'){
-            p.action = 'select-tank';
-          }
-        });
-      }
-    });
   },
 
   _renderCollections(){
     const canvas = document.getElementById('collections-overlay');
     if(!canvas) return;
-    const container = document.getElementById('collections-image-wrap');
-    if(!container) return;
-    const vw = container.clientWidth;
-    const vh = container.clientHeight;
-    if(!vw || !vh){ setTimeout(() => this._renderCollections(), 100); return; }
     const img = document.getElementById('collections-img');
     if(!img) return;
-    const imgW = 3782, imgH = 691;
-    const zoom = vh / imgH;
-    const displayW = imgW * zoom;
-
-    const wrapper = canvas.parentElement;
-    if(wrapper){
-      wrapper.style.width = displayW + 'px';
-      wrapper.style.height = vh + 'px';
-    }
-    img.style.width = displayW + 'px';
-    img.style.height = vh + 'px';
-
+    const W = img.offsetWidth || img.naturalWidth;
+    const H = img.offsetHeight || img.naturalHeight;
+    if (!W || !H) { setTimeout(() => this._renderCollections(), 100); return; }
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = displayW * dpr;
-    canvas.height = vh * dpr;
-    canvas.style.width = displayW + 'px';
-    canvas.style.height = vh + 'px';
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
+    const imgW = 3782, imgH = 691;
+    const scaleX = W / imgW;
+    const scaleY = H / imgH;
 
     if(!this._collectionsFrames){
       this._loadCollectionsLayout();
       this._collectionsFrames = [
-        { x:465.75612353567624, y:348.45367412140575, w:288.80830670926525, h:157.0926517571886, scale:0.8, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:344,ph:188,action:'coming-soon'}] },
-        { x:119.71671991480298, y:349.0181043663472, w:288.80830670926525, h:157.0926517571886, scale:0.8, tankId:'striker', displayType:'tank', pivots:[{px:0,py:0,pw:344,ph:188,action:'select-tank'}] },
-        { x:118.07348242811503, y:133.2310969116081, w:288.80830670926525, h:157.0926517571886, scale:0.8, tankId:'coolbuddy', displayType:'tank', pivots:[{px:0,py:0,pw:344,ph:188,action:'select-tank'}] },
-        { x:468.18530351437704, y:133.7955271565495, w:288.80830670926525, h:157.0926517571886, scale:0.8, tankId:'ghost', displayType:'tank', pivots:[{px:0,py:0,pw:344,ph:188,action:'select-tank'}] },
-        { x:814.6176783812568, y:133.62406815761446, w:288.80830670926525, h:157.0926517571886, scale:0.8, tankId:'sturmratte', displayType:'tank', pivots:[{px:0,py:0,pw:344,ph:188,action:'select-tank'}] },
-        { x:1460.8487752928647, y:131.05644302449414, w:286.30244941427054, h:154.88711395101174, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:1808.3205537806177, y:132.05644302449417, w:284.0947816826408, h:154.1512247071352, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:2155.320553780618, y:133.05644302449414, w:283.35889243876454, h:153.4153354632588, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:1813, y:349, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:2806, y:137, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:2806, y:351, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:3152, y:137, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:3151, y:351, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:3497, y:136, w:276, h:149, scale:1, tankId:null, displayType:'coming-soon', pivots:[{px:0,py:0,pw:276,ph:149,action:'coming-soon'}] },
-        { x:1461, y:348.171458998935, w:284.41533546325877, h:152.77209797657088, scale:1, tankId:'helix', displayType:'tank', pivots:[{px:0,py:0,pw:280,ph:180,action:'select-tank'}] },
+        { x:129, y:142, w:270, h:140, tankId:'coolbuddy', scale:1 },
+        { x:125, y:308, w:270, h:195, tankId:'striker', scale:1.1 },
+        { x:471, y:138, w:270, h:140, tankId:'ghost', scale:1 },
+        { x:440, y:333, w:344, h:188, tankId:null, label:'Coming Soon!', scale:0.8 },
+        { x:785, y:136, w:320, h:140, tankId:'sturmratte', scale:1 },
+        { x:1466, y:134, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:1812, y:135, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:2159, y:136, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:1813, y:349, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:2806, y:137, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:2806, y:351, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:3152, y:137, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:3151, y:351, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:3497, y:136, w:276, h:149, tankId:null, label:'Coming Soon!', scale:1 },
+        { x:1461, y:318, w:280, h:180, tankId:'helix', scale:1 },
       ];
       this._applyCollectionsLayout();
-      this._ensurePivots();
     }
 
     const isUnlocked = (id) => this.settings.allUnlocked || (this.settings.unlockedTanks||[]).includes(id);
@@ -1300,7 +1338,7 @@ const Menu = {
         ctx.lineTo(hw, hh-r);
         ctx.quadraticCurveTo(hw, hh, hw-r, hh);
         ctx.lineTo(-hw+r, hh);
-        ctx.quadraticCurveTo(-hw, hh, -hw+r, hh);
+        ctx.quadraticCurveTo(-hw, hh, -hw, hh-r);
         ctx.lineTo(-hw, -hh+r);
         ctx.quadraticCurveTo(-hw, -hh, -hw+r, -hh);
         ctx.closePath();
@@ -1368,38 +1406,34 @@ const Menu = {
       ctx.fillText(text, x+w/2, y+h/2);
     };
 
-    ctx.clearRect(0, 0, displayW, vh);
+    ctx.clearRect(0, 0, W, H);
     this._collectionsFrames.forEach(f => {
-      const dt = f.displayType || (f.tankId ? 'tank' : (f.label ? 'coming-soon' : 'nothing'));
-      const fx = f.x * zoom, fy = f.y * zoom;
-      const fw = f.w * zoom, fh = f.h * zoom;
+      const fx = f.x * scaleX, fy = f.y * scaleY;
+      const fw = f.w * scaleX, fh = f.h * scaleY;
       const sc = f.scale || 1;
-      if(dt === 'tank' && f.tankId){
-        if(isUnlocked(f.tankId)){
-          drawTankSvg(fx+fw*(1-sc)/2, fy+fh*(1-sc)/2, fw*sc, fh*sc, f.tankId);
-        } else {
-          drawMystery(fx+fw*(1-sc)/2, fy+fh*(1-sc)/2, fw*sc, fh*sc);
-        }
-      } else if(dt === 'coming-soon'){
+      const showTank = f.tankId && (this._collectionsEditMode || isUnlocked(f.tankId));
+      if (showTank) {
+        drawTankSvg(fx+fw*(1-sc)/2, fy+fh*(1-sc)/2, fw*sc, fh*sc, f.tankId);
+      } else if (f.tankId) {
+        drawMystery(fx+fw*(1-sc)/2, fy+fh*(1-sc)/2, fw*sc, fh*sc);
+      } else {
         drawText(fx+fw*(1-sc)/2, fy+fh*(1-sc)/2, fw*sc, fh*sc, f.label || 'Coming Soon!');
       }
     });
 
     // Editor overlay
     if(this._collectionsEditMode){
-      const isSel = (i) => this._selectedFrameIdxs && this._selectedFrameIdxs.includes(i);
-      const primary = (this._selectedFrameIdxs && this._selectedFrameIdxs.length) ? this._selectedFrameIdxs[this._selectedFrameIdxs.length-1] : -1;
       const hs = 7;
       this._collectionsFrames.forEach((f, i) => {
-        const fx = f.x * zoom, fy = f.y * zoom;
-        const fw = f.w * zoom, fh = f.h * zoom;
-        const sel = isSel(i);
-        ctx.strokeStyle = sel ? (i === primary ? '#ffcc00' : 'rgba(255,200,0,0.5)') : 'rgba(255,255,255,0.3)';
+        const fx = f.x * scaleX, fy = f.y * scaleY;
+        const fw = f.w * scaleX, fh = f.h * scaleY;
+        const sel = this._selectedFrameIdx === i;
+        ctx.strokeStyle = sel ? '#ffcc00' : 'rgba(255,255,255,0.3)';
         ctx.lineWidth = sel ? 2 : 1;
         ctx.setLineDash(sel ? [] : [4,4]);
         ctx.strokeRect(fx, fy, fw, fh);
         ctx.setLineDash([]);
-        if(i === primary){
+        if(sel){
           ctx.fillStyle = '#fff';
           ctx.strokeStyle = '#222';
           ctx.lineWidth = 1.5;
@@ -1409,52 +1443,16 @@ const Menu = {
           });
         }
       });
-      // Snap grid overlay
-      if(this._collectionsSnapGrid){
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.lineWidth = 0.5;
-        const gs = 50 * zoom;
-        for(let x = 0; x < displayW; x += gs){
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, vh); ctx.stroke();
-        }
-        for(let y = 0; y < vh; y += gs){
-          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(displayW, y); ctx.stroke();
-        }
-        ctx.restore();
-      }
-      // Pivot rect overlay
-      if(this._collectionsShowPivot){
-        const colors = { 'select-tank':'rgba(0,200,80,0.35)', 'coming-soon':'rgba(255,200,0,0.35)', 'info':'rgba(0,120,255,0.35)', 'nothing':'rgba(100,100,100,0.2)' };
-        this._collectionsFrames.forEach((f, fi) => {
-          (f.pivots||[]).forEach((p, pi) => {
-            const px = (f.x + p.px) * zoom, py = (f.y + p.py) * zoom;
-            const pw = p.pw * zoom, ph = p.ph * zoom;
-            const sel = this._selectedPivot && this._selectedPivot.fi === fi && this._selectedPivot.pi === pi;
-            ctx.fillStyle = colors[p.action] || 'rgba(255,255,255,0.2)';
-            ctx.fillRect(px, py, pw, ph);
-            ctx.strokeStyle = sel ? '#ffcc00' : 'rgba(255,255,255,0.5)';
-            ctx.lineWidth = sel ? 2 : 1;
-            ctx.setLineDash([]);
-            ctx.strokeRect(px, py, pw, ph);
-            if(sel){
-              ctx.fillStyle = '#ffcc00';
-              ctx.font = 'bold 10px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.fillText(p.action, px + pw/2, py + ph/2);
-            }
-          });
-        });
-      }
     }
 
-    // Event wiring
+    // One-time event wiring
     if(!this._collectionsEventsWired){
       this._collectionsEventsWired = true;
 
       const imgCoord = (e) => {
         const cr = canvas.getBoundingClientRect();
-        return { ix: (e.clientX - cr.left) / zoom, iy: (e.clientY - cr.top) / zoom };
+        const cx = e.clientX - cr.left, cy = e.clientY - cr.top;
+        return { ix: cx * imgW / (canvas.offsetWidth||cr.width), iy: cy * imgH / (canvas.offsetHeight||cr.height) };
       };
       const hitFrame = (ix, iy) => {
         for(let i=this._collectionsFrames.length-1; i>=0; i--){
@@ -1463,389 +1461,197 @@ const Menu = {
         }
         return -1;
       };
-      let _scrollDrag = null;
-
-      const setSel = (idxs) => { this._selectedFrameIdxs = idxs; this._updateEditorPanel(); this._renderCollections(); };
 
       canvas.onmousedown = (e) => {
         const {ix, iy} = imgCoord(e);
-        if(this._collectionsEditMode && this._selectedFrameIdxs && this._selectedFrameIdxs.length){
-          const primary = this._selectedFrameIdxs[this._selectedFrameIdxs.length-1];
-          const f = this._collectionsFrames[primary];
-          const hs = 8 / zoom;
+        if(this._collectionsEditMode && this._selectedFrameIdx >= 0){
+          const f = this._collectionsFrames[this._selectedFrameIdx];
+          const hs = 8 / scaleX;
           for(const c of [{id:'tl',x:f.x,y:f.y},{id:'tr',x:f.x+f.w,y:f.y},{id:'bl',x:f.x,y:f.y+f.h},{id:'br',x:f.x+f.w,y:f.y+f.h}]){
             if(Math.abs(ix-c.x) < hs && Math.abs(iy-c.y) < hs){
-              this._dragState = {type:'resize',corner:c.id,idx:primary,startX:ix,startY:iy,orig:{...f}};
+              this._dragState = {type:'resize',corner:c.id,idx:this._selectedFrameIdx,startX:ix,startY:iy,orig:{...f}};
               return;
             }
           }
         }
         if(this._collectionsEditMode){
-          if(this._collectionsShowPivot){
-            // Pivot placement mode
-            for(let fi=0; fi<this._collectionsFrames.length; fi++){
-              const f = this._collectionsFrames[fi];
-              const pivots = f.pivots || [];
-              for(let pi=pivots.length-1; pi>=0; pi--){
-                const p = pivots[pi];
-                if(ix >= f.x+p.px && ix < f.x+p.px+p.pw && iy >= f.y+p.py && iy < f.y+p.py+p.ph){
-                  this._selectedPivot = { fi, pi };
-                  setSel([fi]);
-                  return;
-                }
-              }
-            }
-            const idx = hitFrame(ix, iy);
-            if(idx >= 0){
-              const f = this._collectionsFrames[idx];
-              if(!f.pivots) f.pivots = [];
-              const pw = 60, ph = 40;
-              f.pivots.push({ px: ix-f.x-pw/2, py: iy-f.y-ph/2, pw, ph, action: f.tankId ? 'select-tank' : 'coming-soon' });
-              this._selectedPivot = { fi: idx, pi: f.pivots.length - 1 };
-              setSel([idx]);
-            } else {
-              this._selectedPivot = null;
-              setSel([]);
-            }
-            return;
-          }
-          // Normal edit mode
           const idx = hitFrame(ix, iy);
           if(idx >= 0){
-            if(e.ctrlKey || e.metaKey){
-              const cur = [...(this._selectedFrameIdxs||[])];
-              const pos = cur.indexOf(idx);
-              if(pos >= 0) cur.splice(pos, 1); else cur.push(idx);
-              setSel(cur.length ? cur : []);
-              if(cur.length) this._dragState = {type:'move',idxs:cur,startX:ix,startY:iy,orig:cur.map(i => ({...this._collectionsFrames[i]}))};
-            } else {
-              setSel([idx]);
-              this._dragState = {type:'move',idxs:[idx],startX:ix,startY:iy,orig:[{...this._collectionsFrames[idx]}]};
-            }
+            this._selectCollectionFrame(idx);
+            this._dragState = {type:'move',idx,startX:ix,startY:iy,orig:{...this._collectionsFrames[idx]}};
           } else {
-            this._selectedPivot = null;
-            setSel([]);
+            this._selectCollectionFrame(-1);
           }
           return;
         }
-        _scrollDrag = { startX: e.clientX, startY: e.clientY, scrollLeft: container.scrollLeft, moved: false, velocity: 0 };
-        canvas.style.cursor = 'grabbing';
+        // View mode
+        const idx = hitFrame(ix, iy);
+        if(idx >= 0){
+          const f = this._collectionsFrames[idx];
+          if(f.tankId && isUnlocked(f.tankId) && this.settings.selectedTank !== f.tankId){
+            this.settings.selectedTank = f.tankId;
+            saveSettings(this.settings);
+            this.toast(`Selected ${TANKS[f.tankId]?.name || f.tankId}`);
+          }
+        }
       };
 
       canvas.onmousemove = (e) => {
-        if(this._dragState){
-          const {ix, iy} = imgCoord(e);
-          const d = this._dragState;
-          const dx = ix - d.startX, dy = iy - d.startY;
-          const snap = (v) => this._collectionsSnapGrid ? Math.round(v / 50) * 50 : v;
-          if(d.type === 'move'){
-            d.idxs.forEach((fi, vi) => {
-              const f = this._collectionsFrames[fi];
-              f.x = snap(d.orig[vi].x + dx);
-              f.y = snap(d.orig[vi].y + dy);
-            });
-          } else {
-            const f = this._collectionsFrames[d.idx];
-            const o = d.orig;
-            if(d.corner === 'tl'){ f.x=snap(o.x+dx); f.y=snap(o.y+dy); f.w=snap(o.w-dx); f.h=snap(o.h-dy); }
-            else if(d.corner === 'tr'){ f.y=snap(o.y+dy); f.w=snap(o.w+dx); f.h=snap(o.h-dy); }
-            else if(d.corner === 'bl'){ f.x=snap(o.x+dx); f.w=snap(o.w-dx); f.h=snap(o.h+dy); }
-            else if(d.corner === 'br'){ f.w=snap(o.w+dx); f.h=snap(o.h+dy); }
-            if(f.w < 20) f.w = 20;
-            if(f.h < 20) f.h = 20;
-          }
-          this._updateEditorPanel();
-          this._renderCollections();
-          return;
+        if(!this._dragState) return;
+        const {ix, iy} = imgCoord(e);
+        const d = this._dragState;
+        const f = this._collectionsFrames[d.idx];
+        const dx = ix - d.startX, dy = iy - d.startY;
+        if(d.type === 'move'){ f.x = d.orig.x + dx; f.y = d.orig.y + dy; }
+        else {
+          const o = d.orig;
+          if(d.corner === 'tl'){ f.x=o.x+dx; f.y=o.y+dy; f.w=o.w-dx; f.h=o.h-dy; }
+          else if(d.corner === 'tr'){ f.y=o.y+dy; f.w=o.w+dx; f.h=o.h-dy; }
+          else if(d.corner === 'bl'){ f.x=o.x+dx; f.w=o.w-dx; f.h=o.h+dy; }
+          else if(d.corner === 'br'){ f.w=o.w+dx; f.h=o.h+dy; }
+          if(f.w < 20) f.w = 20;
+          if(f.h < 20) f.h = 20;
         }
-        if(_scrollDrag){
-          const dx = e.clientX - _scrollDrag.startX;
-          if(Math.abs(dx) > 5) _scrollDrag.moved = true;
-          if(_scrollDrag.moved){
-            const prev = container.scrollLeft;
-            container.scrollLeft = _scrollDrag.scrollLeft - dx;
-            _scrollDrag.velocity = container.scrollLeft - prev;
-          }
-        }
+        this._updateEditorPanel();
+        this._renderCollections();
       };
 
-      const startScrollInertia = (vel) => {
-        const decay = 0.93;
-        const step = () => {
-          if(Math.abs(vel) < 0.5) return;
-          container.scrollLeft += vel;
-          vel *= decay;
-          requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      };
-
-      canvas.onmouseup = () => {
-        if(this._dragState){ this._dragState = null; this._updateEditorPanel(); return; }
-        canvas.style.cursor = '';
-        if(_scrollDrag){
-          const wasDrag = _scrollDrag.moved;
-          const vel = _scrollDrag.velocity;
-          const {ix, iy} = imgCoord({ clientX: _scrollDrag.startX, clientY: _scrollDrag.startY });
-          _scrollDrag = null;
-          if(wasDrag && Math.abs(vel) > 0.5){ startScrollInertia(vel); return; }
-          // Was a click — check pivot actions first, then frame selection
-          let handled = false;
-          for(let fi=0; fi<this._collectionsFrames.length; fi++){
-            const f = this._collectionsFrames[fi];
-            const pivots = f.pivots || [];
-            for(let pi=pivots.length-1; pi>=0; pi--){
-              const p = pivots[pi];
-              if(ix >= f.x+p.px && ix < f.x+p.px+p.pw && iy >= f.y+p.py && iy < f.y+p.py+p.ph){
-                if(p.action === 'select-tank' && f.tankId){
-                  if(isUnlocked(f.tankId)){
-                    if(this.settings.selectedTank !== f.tankId){
-                      this.settings.selectedTank = f.tankId;
-                      saveSettings(this.settings);
-                    }
-                    this.show('menu-main');
-                  } else {
-                    this.toast('Tank locked! Play to unlock.');
-                  }
-                } else if(p.action === 'coming-soon'){
-                  this.toast('Coming Soon!');
-                } else if(p.action === 'info'){
-                  this.toast(TANKS[f.tankId]?.name || 'Frame Info');
-                }
-                handled = true;
-                break;
-              }
-            }
-            if(handled) break;
-          }
-          if(!handled){
-            const idx = hitFrame(ix, iy);
-            if(idx >= 0){
-              const f = this._collectionsFrames[idx];
-              if(f.tankId){
-                if(isUnlocked(f.tankId)){
-                  if(this.settings.selectedTank !== f.tankId){
-                    this.settings.selectedTank = f.tankId;
-                    saveSettings(this.settings);
-                  }
-                  this.show('menu-main');
-                } else {
-                  this.toast('Tank locked! Play to unlock.');
-                }
-              }
-            }
-          }
-        }
-      };
-      canvas.onmouseleave = () => {
+      canvas.onmouseup = canvas.onmouseleave = () => {
         if(this._dragState){ this._dragState = null; this._updateEditorPanel(); }
-        canvas.style.cursor = '';
-        _scrollDrag = null;
       };
-
-      // Arrow keys for scrolling + Ctrl+Shift+D duplicate
-      this._collectionsKeyHandler = (e) => {
-        if(e.key === 'ArrowLeft'){ container.scrollLeft -= vw * 0.55; e.preventDefault(); }
-        else if(e.key === 'ArrowRight'){ container.scrollLeft += vw * 0.55; e.preventDefault(); }
-        else if((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'd' || e.key === 'D')){
-          e.preventDefault();
-          this._duplicateFrames(this._selectedFrameIdxs);
-        }
-      };
-      window.addEventListener('keydown', this._collectionsKeyHandler);
     }
   },
 
-  _duplicateFrames(idxs){
-    if(!idxs || !idxs.length) return;
-    const sorted = [...idxs].sort((a,b) => a-b);
-    const news = [];
-    sorted.forEach((i, vi) => {
-      const orig = this._collectionsFrames[i + vi];
-      const copy = { ...orig, pivots: (orig.pivots||[]).map(p => ({...p})), x: orig.x + 30, y: orig.y + 30 };
-      this._collectionsFrames.splice(i + vi + 1, 0, copy);
-      news.push(i + vi + 1);
-    });
-    this._selectedPivot = null;
-    this._selectCollectionFrame(news);
-  },
-
-  _selectCollectionFrame(idxs){
-    this._selectedFrameIdxs = idxs;
+  _selectCollectionFrame(idx){
+    this._selectedFrameIdx = idx;
     this._updateEditorPanel();
     this._renderCollections();
   },
 
   _updateEditorPanel(){
-    const panel = document.getElementById('ce-frame-props');
-    const selCount = document.getElementById('ce-sel-count');
-    const dtSel = document.getElementById('ce-display-type');
-    const tankSel = document.getElementById('ce-tank-id');
-    if(!panel) return;
-    const s = this._selectedFrameIdxs;
-    if(!s || !s.length){ panel.classList.add('hidden'); return; }
-    panel.classList.remove('hidden');
-    if(s.length === 1){
-      const f = this._collectionsFrames[s[0]];
-      dtSel.value = f.displayType || (f.tankId ? 'tank' : 'coming-soon');
-      selCount.textContent = '';
-      // Populate tank dropdown
-      tankSel.innerHTML = '';
-      const tankIds = Object.keys(TANKS || {});
-      tankIds.forEach(id => {
-        const opt = document.createElement('option');
-        opt.value = id;
-        opt.textContent = TANKS[id].name || id;
-        if(id === f.tankId) opt.selected = true;
-        tankSel.appendChild(opt);
-      });
-      tankSel.classList.toggle('hidden', dtSel.value !== 'tank');
-    } else {
-      selCount.textContent = `(${s.length} selected)`;
-      dtSel.value = '';
-      tankSel.classList.add('hidden');
-    }
-    // Wire display type change
-    dtSel.onchange = () => {
-      this._selectedFrameIdxs.forEach(i => {
-        this._collectionsFrames[i].displayType = dtSel.value;
-        if(dtSel.value !== 'tank'){
-          this._collectionsFrames[i].tankId = null;
-          this._collectionsFrames[i].label = dtSel.value === 'coming-soon' ? 'Coming Soon!' : undefined;
-        } else if(s.length === 1 && !this._collectionsFrames[s[0]].tankId){
-          const firstTank = Object.keys(TANKS || {})[0];
-          this._collectionsFrames[s[0]].tankId = firstTank;
-        }
-      });
-      tankSel.classList.toggle('hidden', dtSel.value !== 'tank');
-      this._renderCollections();
-    };
-    // Wire tank change
-    tankSel.onchange = () => {
-      this._selectedFrameIdxs.forEach(i => { this._collectionsFrames[i].tankId = tankSel.value; });
-      this._renderCollections();
-    };
-    // Pivot props panel
-    const pPanel = document.getElementById('ce-pivot-props');
-    const pAction = document.getElementById('ce-pivot-action');
-    if(pPanel){
-      if(this._selectedPivot){
-        const f = this._collectionsFrames[this._selectedPivot.fi];
-        const p = f && (f.pivots||[])[this._selectedPivot.pi];
-        if(p){ pPanel.classList.remove('hidden'); pAction.value = p.action; }
-        else { pPanel.classList.add('hidden'); }
-      } else {
-        pPanel.classList.add('hidden');
-      }
+    const f = this._selectedFrameIdx >= 0 ? this._collectionsFrames[this._selectedFrameIdx] : null;
+    ['ce-x','ce-y','ce-w','ce-h'].forEach(id => {
+      const p = id.split('-')[1];
+      document.getElementById(id).value = f ? Math.round(f[p]) : '';
+    });
+    document.getElementById('ce-scale').value = f ? (f.scale||1) : 1;
+    document.getElementById('ce-scale-val').textContent = f ? (f.scale||1).toFixed(2) : '1.00';
+    const sel = document.getElementById('ce-tank-id');
+    if(f && sel.options.length){
+      const val = f.tankId || '';
+      if(sel.value !== val) sel.value = val;
     }
   },
 
   _toggleCollectionsEdit(){
     this._collectionsEditMode = !this._collectionsEditMode;
-    const btn = document.getElementById('ce-toggle');
-    if(btn) btn.textContent = this._collectionsEditMode ? 'Exit Edit' : 'Edit Layout';
     if(this._collectionsEditMode) this._enterCollectionsEdit();
     else this._exitCollectionsEdit();
   },
 
   _enterCollectionsEdit(){
+    document.getElementById('ce-toggle').classList.add('hidden');
     document.getElementById('ce-controls').classList.remove('hidden');
-    this._selectedFrameIdxs = [];
-    this._selectedPivot = null;
+    this._selectedFrameIdx = -1;
     this._dragState = null;
 
-    document.getElementById('ce-dup').onclick = () => { this._duplicateFrames(this._selectedFrameIdxs); };
-    document.getElementById('ce-up').onclick = () => {
-      const s = this._selectedFrameIdxs;
-      if(!s || !s.length) return;
-      const minIdx = Math.min(...s);
-      if(minIdx <= 0) return;
-      const sorted = [...s].sort((a,b) => a-b);
-      sorted.forEach(i => {
-        const tmp = this._collectionsFrames[i];
-        this._collectionsFrames[i] = this._collectionsFrames[i-1];
-        this._collectionsFrames[i-1] = tmp;
-      });
-      this._selectCollectionFrame(s.map(i => i-1));
+    ['ce-x','ce-y','ce-w','ce-h'].forEach(id => {
+      const el = document.getElementById(id);
+      const prop = id.split('-')[1];
+      el.onchange = el.oninput = () => {
+        if(this._selectedFrameIdx < 0) return;
+        const v = parseFloat(el.value);
+        if(!isNaN(v) && v >= 0){ this._collectionsFrames[this._selectedFrameIdx][prop] = Math.round(v); this._renderCollections(); }
+      };
+    });
+
+    const scaleEl = document.getElementById('ce-scale');
+    scaleEl.onchange = scaleEl.oninput = () => {
+      if(this._selectedFrameIdx < 0) return;
+      const v = parseFloat(scaleEl.value);
+      this._collectionsFrames[this._selectedFrameIdx].scale = v;
+      document.getElementById('ce-scale-val').textContent = v.toFixed(2);
+      this._renderCollections();
     };
-    document.getElementById('ce-down').onclick = () => {
-      const s = this._selectedFrameIdxs;
-      if(!s || !s.length) return;
-      const maxIdx = Math.max(...s);
-      if(maxIdx >= this._collectionsFrames.length - 1) return;
-      const sorted = [...s].sort((a,b) => b-a);
-      sorted.forEach(i => {
-        const tmp = this._collectionsFrames[i];
-        this._collectionsFrames[i] = this._collectionsFrames[i+1];
-        this._collectionsFrames[i+1] = tmp;
-      });
-      this._selectCollectionFrame(s.map(i => i+1));
+
+    // Populate tank dropdown
+    const tankSel = document.getElementById('ce-tank-id');
+    tankSel.innerHTML = '<option value="">Coming Soon</option>';
+    const allTanks = Object.keys(TANKS).filter(id => id !== 'tankdisplay' && id !== 'dummy');
+    allTanks.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = TANKS[id].name || id;
+      tankSel.appendChild(opt);
+    });
+    tankSel.onchange = () => {
+      if(this._selectedFrameIdx < 0) return;
+      const f = this._collectionsFrames[this._selectedFrameIdx];
+      const val = tankSel.value || null;
+      f.tankId = val;
+      if(!val) f.label = 'Coming Soon!';
+      else delete f.label;
+      this._renderCollections();
     };
+
+    // Duplicate
+    document.getElementById('ce-dup').onclick = () => {
+      if(this._selectedFrameIdx < 0) return;
+      const orig = this._collectionsFrames[this._selectedFrameIdx];
+      const copy = { ...orig, x: orig.x + 30, y: orig.y + 30 };
+      this._collectionsFrames.splice(this._selectedFrameIdx + 1, 0, copy);
+      this._selectCollectionFrame(this._selectedFrameIdx + 1);
+    };
+
+    // Delete
     document.getElementById('ce-del').onclick = () => {
-      const s = this._selectedFrameIdxs;
-      if(!s || !s.length) return;
-      this._selectedPivot = null;
-      [...s].sort((a,b) => b-a).forEach(i => this._collectionsFrames.splice(i, 1));
-      this._selectCollectionFrame([]);
+      if(this._selectedFrameIdx < 0 || this._collectionsFrames.length <= 1) return;
+      const idx = this._selectedFrameIdx;
+      this._collectionsFrames.splice(idx, 1);
+      this._selectCollectionFrame(Math.min(idx, this._collectionsFrames.length - 1));
     };
-    document.getElementById('ce-pivot-action').onchange = () => {
-      if(!this._selectedPivot) return;
-      const f = this._collectionsFrames[this._selectedPivot.fi];
-      if(!f) return;
-      const p = (f.pivots||[])[this._selectedPivot.pi];
-      if(p) p.action = document.getElementById('ce-pivot-action').value;
-      this._renderCollections();
-    };
-    document.getElementById('ce-pivot-del').onclick = () => {
-      if(!this._selectedPivot) return;
-      const f = this._collectionsFrames[this._selectedPivot.fi];
-      if(f && f.pivots) f.pivots.splice(this._selectedPivot.pi, 1);
-      this._selectedPivot = null;
-      this._updateEditorPanel();
-      this._renderCollections();
-    };
+
     document.getElementById('ce-save').onclick = () => {
-      const layout = { frames: this._collectionsFrames.map(f => ({x:f.x, y:f.y, w:f.w, h:f.h, scale:f.scale||1, tankId:f.tankId||null, displayType:f.displayType||null, pivots: (f.pivots||[]).map(p => ({...p}))})) };
+      const layout = { frames: this._collectionsFrames.map(f => ({x:f.x, y:f.y, w:f.w, h:f.h, scale:f.scale||1, tankId:f.tankId||null})) };
       localStorage.setItem('tankparty_collections_layout', JSON.stringify(layout));
       this._savedLayout = layout.frames;
-      document.getElementById('ce-layout-export').classList.remove('hidden');
-      document.getElementById('ce-layout-json').value = JSON.stringify(layout.frames, null, 2);
-      this.toast('Layout saved! Copy the JSON below and tell me to deploy.');
+      this.toast('Collections layout saved');
     };
-    document.getElementById('ce-deploy-layout').onclick = () => {
-      const json = document.getElementById('ce-layout-json').value;
-      navigator.clipboard.writeText(json).then(() => {
-        this.toast('Layout JSON copied! Paste it in the chat so I can deploy it.');
-      }).catch(() => {
-        this.toast('Select all the JSON below, copy, and paste in the chat.');
+    document.getElementById('ce-export').onclick = () => {
+      const json = JSON.stringify({ frames: this._collectionsFrames.map(f => ({x:f.x, y:f.y, w:f.w, h:f.h, scale:f.scale||1, tankId:f.tankId||null})) }, null, 2);
+      navigator.clipboard.writeText(json).then(() => this.toast('Layout JSON copied to clipboard')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = json;
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        this.toast('Layout JSON copied to clipboard');
       });
     };
-    const pivotBtn = document.getElementById('ce-pivot');
-    if(pivotBtn){
-      pivotBtn.onclick = () => {
-        this._collectionsShowPivot = !this._collectionsShowPivot;
-        pivotBtn.classList.toggle('active', this._collectionsShowPivot);
+    document.getElementById('ce-import').onclick = () => {
+      const json = prompt('Paste layout JSON:');
+      if(!json) return;
+      try {
+        const data = JSON.parse(json);
+        if(!data.frames || !Array.isArray(data.frames) || !data.frames.length) throw new Error('Invalid format');
+        const nf = data.frames.map(s => ({
+          x: s.x, y: s.y, w: s.w, h: s.h, scale: s.scale || 1,
+          tankId: s.tankId || null,
+          label: s.tankId ? undefined : 'Coming Soon!'
+        }));
+        this._collectionsFrames = nf;
+        this._selectedFrameIdx = -1;
+        this.toast(`Imported ${nf.length} frames`);
         this._renderCollections();
-      };
-      pivotBtn.classList.toggle('active', !!this._collectionsShowPivot);
-    }
-    const snapBtn = document.getElementById('ce-snap');
-    if(snapBtn){
-      snapBtn.onclick = () => {
-        this._collectionsSnapGrid = !this._collectionsSnapGrid;
-        snapBtn.classList.toggle('active', this._collectionsSnapGrid);
-        this._renderCollections();
-      };
-      snapBtn.classList.toggle('active', !!this._collectionsSnapGrid);
-    }
+      } catch(e) {
+        this.toast('Invalid JSON: ' + e.message);
+      }
+    };
+    document.getElementById('ce-done').onclick = () => this._toggleCollectionsEdit();
     this._renderCollections();
   },
 
   _exitCollectionsEdit(){
     document.getElementById('ce-toggle').classList.remove('hidden');
     document.getElementById('ce-controls').classList.add('hidden');
-    this._selectedFrameIdxs = [];
-    this._selectedPivot = null;
+    this._selectedFrameIdx = -1;
     this._dragState = null;
     this._renderCollections();
   },
@@ -1876,10 +1682,6 @@ const Menu = {
         this.settings.allUnlocked = true;
         saveSettings(this.settings);
         this.toast('All tanks unlocked!');
-      } else if(code === 'reset1'){
-        this.settings = resetSettings();
-        this.toast('Progress reset!');
-        this.show('menu-main');
       } else if(code === 'revertmap'){
         this._revertMap();
       } else {

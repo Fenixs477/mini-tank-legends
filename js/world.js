@@ -108,16 +108,13 @@ class World {
 
   /* ---------- Lakes (irregular shapes, animated wave foam) ---- */
   _makeLakes(){
-    this._noiseTex = this._noiseTex || generateNoiseTexture(256);
-    this._distTex = this._distTex || generateDistortionTexture(128);
-
     const lakeData = [
       {x: -40, z: -30, r: 14, seed: 0.7},
       {x:  50, z:  20, r: 18, seed: 2.3},
     ];
-    this._wavePlanes = [];
+    this._waterMeshes = [];
+    this._waterMaterials = [];
     for(const l of lakeData){
-      // Irregular circle shape (wavy edge)
       const segs = 48;
       const shape = new THREE.Shape();
       for(let i = 0; i <= segs; i++){
@@ -132,82 +129,32 @@ class World {
       }
       const geo = new THREE.ShapeGeometry(shape);
       geo.rotateX(-Math.PI/2);
-      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-        color: 0x61B2FF, transparent: true, opacity: 0.85, depthWrite: false,
-      }));
+      // temporary material; replaced by water shader in setupWater()
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0x000000, visible: false}));
       m.position.set(l.x, 0.25, l.z);
       m.frustumCulled = false;
-      m.renderOrder = 1;
-      m.receiveShadow = true;
+      m.userData.isWater = true;
       this.scene.add(m);
+      this._waterMeshes.push(m);
       this.lakes.push({x: l.x, z: l.z, r: l.r, seed: l.seed});
+    }
+  }
 
-      // Shore foam ring — 2D white band at water's edge
-      const foamShape = new THREE.Shape();
-      const inset = 0.7;
-      for(let i = 0; i <= segs; i++){
-        const a = (i / segs) * Math.PI * 2;
-        const w1 = Math.sin(a * 3 + l.seed) * 0.1;
-        const w2 = Math.cos(a * 5 + 1 + l.seed) * 0.06;
-        const rr = l.r * (1.0 + w1 + w2);
-        const x = Math.cos(a) * rr;
-        const y = Math.sin(a) * rr;
-        if(i === 0) foamShape.moveTo(x, y); else foamShape.lineTo(x, y);
-      }
-      const hole = new THREE.Path();
-      for(let i = 0; i <= segs; i++){
-        const a = (i / segs) * Math.PI * 2;
-        const w1 = Math.sin(a * 3 + l.seed) * 0.1;
-        const w2 = Math.cos(a * 5 + 1 + l.seed) * 0.06;
-        const rr = (l.r - inset) * (1.0 + w1 + w2);
-        const x = Math.cos(a) * rr;
-        const y = Math.sin(a) * rr;
-        if(i === 0) hole.moveTo(x, y); else hole.lineTo(x, y);
-      }
-      foamShape.holes.push(hole);
-      const fg = new THREE.ShapeGeometry(foamShape);
-      fg.rotateX(-Math.PI/2);
-      const fm = new THREE.Mesh(fg, new THREE.MeshBasicMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide,
-      }));
-      fm.position.set(l.x, 0.26, l.z);
-      fm.renderOrder = 2;
-      this.scene.add(fm);
-      if(!this._foamRings) this._foamRings = [];
-      this._foamRings.push({ mesh: fm, phase: Math.random() * Math.PI * 2 });
+  setupWater(depthTexture, camera){
+    for(const mesh of this._waterMeshes){
+      const mat = WaterShader.createMaterial(depthTexture, camera);
+      mesh.material = mat;
+      this._waterMaterials.push(mat);
+    }
+  }
 
-      // Wave emitters: planes spawn 10m from shore and travel inward
-      const emitterCount = 14;
-      for(let i = 0; i < emitterCount; i++){
-        const angle = (i / emitterCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.08;
-        const w = 3.0 + Math.random() * 2.0;
-        const d = 0.3 + Math.random() * 0.2;
-        const fg = new THREE.PlaneGeometry(w, d);
-        const fm = new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          side: THREE.DoubleSide,
-        });
-        const mesh = new THREE.Mesh(fg, fm);
-        // Orient tangent to lake edge (width = tangent, normal = up)
-        mesh.rotation.order = 'YXZ';
-        mesh.rotation.y = angle + Math.PI / 2;
-        mesh.rotation.x = -Math.PI / 2;
-        const shoreR = this._lakeRad(l, angle);
-        const startR = Math.max(2, shoreR - 10);
-        const px = l.x + Math.cos(angle) * startR;
-        const pz = l.z + Math.sin(angle) * startR;
-        mesh.position.set(px, 0.25, pz);
-        mesh.userData = {
-          angle, radius: startR, speed: 1.2 + Math.random() * 0.8,
-          spawnR: startR, lake: l, delay: Math.random() * 4,
-        };
-        this.scene.add(mesh);
-        this._wavePlanes.push(mesh);
-      }
+  updateWaterUniforms(time, depthTexture, camera){
+    for(const mat of this._waterMaterials){
+      mat.uniforms.uTime.value = time;
+      mat.uniforms.uDepthTexture.value = depthTexture;
+      mat.uniforms.uResolution.value.set(innerWidth, innerHeight);
+      mat.uniforms.uCameraNear.value = camera.near;
+      mat.uniforms.uCameraFar.value = camera.far;
     }
   }
 
@@ -228,38 +175,7 @@ class World {
   }
 
   update(dt, time){
-    // Animate wave emitters: travel from 10m offshore toward shore
-    for(const wp of this._wavePlanes){
-      const ud = wp.userData;
-      const lake = ud.lake;
-      const shoreR = this._lakeRad(lake, ud.angle);
-      const spawnR = Math.max(2, shoreR - 10);  // start here (inward)
-      const targetR = shoreR - 0.5;              // end here (at shore)
-      if(ud.delay > 0){
-        ud.delay -= dt;
-        if(ud.delay <= 0){
-          ud.delay = -1;
-          ud.radius = spawnR;
-        }
-        continue;
-      }
-      ud.radius += ud.speed * dt;
-      if(ud.radius > targetR){
-        ud.delay = 1.5 + Math.random() * 2.5;
-        ud.speed = 1.2 + Math.random() * 0.8;
-        continue;
-      }
-      const px = ud.lake.x + Math.cos(ud.angle) * ud.radius;
-      const pz = ud.lake.z + Math.sin(ud.angle) * ud.radius;
-      wp.rotation.y = ud.angle + Math.PI / 2;
-      const wh = this.waveHeight(px, pz, time);
-      wp.position.set(px, 0.25 + wh + 0.12, pz);
-      const total = targetR - spawnR;
-      const t = Math.max(0, Math.min(1, (ud.radius - spawnR) / total));
-      wp.material.opacity = Math.sin(t * Math.PI) * 0.55 + 0.05;
-      const s = 1.0 + t * 0.4;
-      wp.scale.set(s * (1.0 + 0.08 * Math.sin(time * 0.3 + ud.angle)), 1 + t * 0.2, 1);
-    }
+    // wave animation handled by water shader
   }
   _makeWalls(){
     const rockMat = new THREE.MeshStandardMaterial({color:0x6a6e72, roughness:0.9, metalness:0.05, flatShading:true});

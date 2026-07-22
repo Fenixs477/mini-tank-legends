@@ -37,6 +37,20 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
 });
 
 app.get("/api/models", (req, res) => {
+  const texturesDir = path.join(__dirname, "nature");
+  try {
+    const files = fs.readdirSync(UPLOAD_DIR).filter(f => /^(.*\.)?\w+\.glb$/.test(f));
+    const textureFiles = fs.readdirSync(texturesDir).filter(f => /\.jpg$/.test(f));
+    res.json(files.map(f => ({
+      name: f,
+      url: `/uploads/${f}`,
+      textures: textureFiles.map(t => ({
+        name: t,
+        url: `/nature/${t}`
+      }))
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+}
   try {
     const files = fs.readdirSync(UPLOAD_DIR).filter(f => /\.(glb|gltf|fbx)$/i.test(f));
     res.json(files.map(f => ({ name: f, url: `/uploads/${f}` })));

@@ -42,6 +42,8 @@ class Game {
     this.camera.lookAt(0, 1.2, 0);
 
     this.world = new World(this.scene);
+    this._initDepthPass();
+    this.world.setupWater(this._depthTarget.depthTexture, this.camera);
     this._initPhysics();
     this.input = new Input(this.settings);
 
@@ -301,6 +303,31 @@ class Game {
     shell.dead = true;
   }
 
+  /* Depth pre-pass setup: render target + override material */
+  _initDepthPass(){
+    this._depthTarget = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      depthTexture: new THREE.DepthTexture(innerWidth, innerHeight),
+    });
+    this._depthMaterial = new THREE.MeshDepthMaterial();
+  }
+
+  _depthPass(){
+    // Hide water, render scene depth to depth target, restore water
+    this.scene.traverse(child => {
+      if(child.isMesh && child.userData.isWater) child.visible = false;
+    });
+    this.scene.overrideMaterial = this._depthMaterial;
+    this.renderer.setRenderTarget(this._depthTarget);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(null);
+    this.scene.overrideMaterial = null;
+    this.scene.traverse(child => {
+      if(child.isMesh && child.userData.isWater) child.visible = true;
+    });
+  }
+
   /* Trajectory / aim line: main line + optional 10m markers (professional) */
   _initAimLine(){
     const mat = new THREE.LineBasicMaterial({
@@ -365,6 +392,9 @@ class Game {
     this.renderer.setSize(innerWidth, innerHeight);
     this.camera.aspect = innerWidth/innerHeight;
     this.camera.updateProjectionMatrix();
+    if(this._depthTarget){
+      this._depthTarget.setSize(innerWidth, innerHeight);
+    }
   }
 
   applySettings(s){
@@ -411,6 +441,7 @@ class Game {
     try {
       var m = this._useCustomMap ? loadCustomMap() : null;
       if(!m) m = loadMainMap();
+      if(!m && typeof DEFAULT_MAP !== 'undefined' && DEFAULT_MAP) m = DEFAULT_MAP;
       if(m) this.world.loadCustomMapData(m);
     } catch(e){ console.warn('Map load error:', e); }
     try {
@@ -520,6 +551,7 @@ class Game {
     try {
       var m = this._useCustomMap ? loadCustomMap() : null;
       if(!m) m = loadMainMap();
+      if(!m && typeof DEFAULT_MAP !== 'undefined' && DEFAULT_MAP) m = DEFAULT_MAP;
       if(m) this.world.loadCustomMapData(m);
     } catch(e){ console.warn('Map load error:', e); }
     this._spawnLocal();
@@ -732,10 +764,14 @@ class Game {
     this._physBodies.forEach(b=>{ try{ this.physicsWorld.removeRigidBody(b); }catch(e){} });
     this._physBodies = [];
     this._eventQueue = null;
+    this.trailManager = new BulletTrailManager(this.scene, {
+      maxTrails: 24, segments: 32, trailWidth: 0.45, tailFadeTime: 0.12,
+    });
     this._initPhysics();
   }
 
   _spawnLocal(){
+    this.camAngle = 0;
     const def = TANKS[this.settings.selectedTank] || TANKS.coolbuddy;
     const sp = this.world.randomSpawn();
     const localId = this.mode === 'host' ? 'host-player' : 'local';
@@ -870,6 +906,8 @@ class Game {
     this._perfGpuLoadSamples.push(Math.round((performance.now() - this._perfFrameStart) / 1.66));
 
     this._updatePerfOverlay(now);
+    this._depthPass();
+    this.world.updateWaterUniforms(this.time, this._depthTarget.depthTexture, this.camera);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -908,8 +946,10 @@ class Game {
             let diff = worldMoveHeading - this.localTank.heading;
             while(diff > Math.PI) diff -= Math.PI*2;
             while(diff < -Math.PI) diff += Math.PI*2;
+            // Clamp turn to prevent tank hull shaking from overshoot
+            // Use a moderate multiplier (2) to avoid oscillation
             throttle = moveMag;
-            turn = -diff * 2;
+            turn = Math.max(-1, Math.min(1, -diff * 2));
           } else {
             throttle = 0;
             turn = 0;
@@ -928,10 +968,8 @@ class Game {
         fire = !!touchInput.armed;
         handbrake = false;
       } else {
-        // Desktop: keyboard + mouse
+        // Desktop: tank-relative controls
         throttle = (this.input.pressed('forward')?1:0) - (this.input.pressed('backward')?1:0);
-
-        // Original: A = turn left, D = turn right
         turn = (this.input.pressed('right')?1:0) - (this.input.pressed('left')?1:0);
 
         turretAngle = this._mouseWorldAngle();
@@ -989,7 +1027,11 @@ class Game {
 
     // Projectiles
     this.projectiles.forEach(p=> p.update(dt, this.world, this));
-    this.projectiles = this.projectiles.filter(p=>{ if(p.dead){p.detach(); return false;} return true; });
+    this.projectiles = this.projectiles.filter(p=>{ if(p.dead){ if(p._trail) this.trailManager.endTrail(p._trail); p.detach(); return false;} return true; });
+    // Push shell positions to active trails
+    for(const p of this.projectiles){
+      if(p._trail && !p.dead) this.trailManager.pushPosition(p._trail, p.x, p.y, p.z);
+    }
     this.explosions.forEach(e=> e.update(dt));
     this.explosions = this.explosions.filter(e=>{ if(e.dead){e.detach(); return false;} return true; });
     // Ricochet labels
@@ -1003,13 +1045,16 @@ class Game {
     // Water foam around tanks in lakes
     this._updateWaterFoam(dt);
 
+    // Bullet trails
+    this.trailManager.update(dt, this.camera);
+
     // Camera (orbits around tank)
     if(this.localTank && this.localTank.alive && !this.localTank.dying){
       const t = this.localTank;
       const angle = this.camAngle;
       const camTarget = new THREE.Vector3(
         t.x + Math.sin(angle) * this.camDist,
-        this.camDist*0.78 + 3,
+        this.camDist * 1.43 + 1.2,
         t.z + Math.cos(angle) * this.camDist);
       this.camera.position.lerp(camTarget, CONFIG.CAM_LERP);
       this.camera.lookAt(t.x, 1.2, t.z);
@@ -1025,7 +1070,7 @@ class Game {
     }
 
     // Dynamic UI and outline scaling based on camera distance
-    for(const t of this.tanks) t.updateDistanceScaling(this.camera.position);
+    for(const t of this.tanks) t.updateDistanceScaling(this.camera.position, this.camDist);
 
     // Aim line
     this._updateAimLine();
@@ -1337,15 +1382,6 @@ class Game {
   /* White outline line around tank at water level — only edges in water visible */
   _updateWaterFoam(dt){
     if(!this.world) return;
-    // Animate shore foam rings — pulse scale for wave illusion
-    const rings = this.world._foamRings;
-    if(rings){
-      for(const r of rings){
-        const s = 1.0 + Math.sin(this.time * 2.0 + r.phase) * 0.015;
-        r.mesh.scale.set(s, 1, s);
-        r.mesh.material.opacity = 0.85;
-      }
-    }
     for(const t of this.tanks){
       if(!t.alive || t.dying){
         this._cleanupFoam(t);
@@ -1514,8 +1550,14 @@ class Game {
     if(this.mode !== 'client' && this.mode !== 'freeroam'){
       const p = tank.def.shellType==='flame'
         ? new FlameCone(tank, new THREE.Vector3(pos.x, y, pos.z), dir, tank.def)
-        : new Shell(tank, new THREE.Vector3(pos.x, y, pos.z), dir, tank.def, this.physicsWorld);
+        : new Shell(tank, new THREE.Vector3(pos.x, y, pos.z), dir, tank.def, this.physicsWorld, tank.getWorldVelocity());
       p.attach(this.scene); this.projectiles.push(p);
+      // Spawn bullet trail for shell projectiles
+      if(tank.def.shellType !== 'flame'){
+        p._trail = this.trailManager.spawn(
+          new THREE.Vector3(pos.x, y, pos.z)
+        );
+      }
     }
     if(tank===this.localTank) this._muzzleFlash(pos, dir);
   }

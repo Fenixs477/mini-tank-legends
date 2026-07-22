@@ -27,7 +27,7 @@ const CONFIG = {
   CAM_DIST_MIN:    12,
   CAM_DIST_MAX:    80,
   CAM_DIST:        22,    // default
-  CAM_HEIGHT:      16,
+  CAM_HEIGHT:      33,
   CAM_PITCH:       0.95,  // downward tilt factor
   CAM_LERP:        0.14,
   CAM_ZOOM_STEP:   2.5,
