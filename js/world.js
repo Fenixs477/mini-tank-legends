@@ -116,7 +116,7 @@ class World {
     for(const l of lakeData){
       const geo = new THREE.CircleGeometry(l.r, 48);
       geo.rotateX(-Math.PI/2);
-      const mat = WaterShader.createMaterial();
+      const mat = WaterShader.createMaterial(l.r);
       const m = new THREE.Mesh(geo, mat);
       m.position.set(l.x, 0.05, l.z);
       m.frustumCulled = false;
