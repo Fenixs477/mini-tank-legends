@@ -1,97 +1,99 @@
-/* ============================================================
-   water-shader.js — Stylized lake shader with depth-based
-   color blending and animated waves (Alexander Ameye style).
-   Requires a depth pre-pass to compute water depth.
-   ============================================================ */
-
 class WaterShader {
 
-  /* ---- GLSL vertex ---- */
   static vertex(){
     return `
-      varying vec2 vUv;
-      varying vec4 vScreenPos;
-      varying vec3 vViewPosition;
-
       uniform float uTime;
+      varying vec2  vUv;
+      varying float vElevation;
 
       void main(){
         vUv = uv;
-
         vec3 pos = position;
 
-        // Animated waves (modify height / Y axis)
-        pos.y += sin(pos.x * 2.0 + uTime * 1.5) * 0.12;
-        pos.y += cos(pos.z * 1.5 + uTime * 1.0) * 0.08;
+        float w1 = sin(pos.x * 0.30 + uTime * 1.2) * 0.35;
+        float w2 = sin(pos.z * 0.25 + uTime * 0.9) * 0.30;
+        float w3 = sin(pos.x * 0.18 + pos.z * 0.22 + uTime * 0.7) * 0.20;
+        pos.y += w1 + w2 + w3;
+        vElevation = pos.y;
 
-        vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
-        vViewPosition = mvPos.xyz;
-        vec4 proj = projectionMatrix * mvPos;
-        vScreenPos = proj;
-        gl_Position  = proj;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
     `;
   }
 
-  /* ---- GLSL fragment ---- */
   static fragment(){
     return `
-      uniform sampler2D   uDepthTexture;
-      uniform vec2        uResolution;
-      uniform float       uCameraNear;
-      uniform float       uCameraFar;
-      uniform float       uTime;
-
+      uniform float uTime;
       uniform vec3  uShallowColor;
       uniform vec3  uDeepColor;
       uniform vec3  uFoamColor;
 
       varying vec2  vUv;
-      varying vec4  vScreenPos;
-      varying vec3  vViewPosition;
+      varying float vElevation;
 
-      float readDepth(sampler2D depthTex, vec2 coord){
-        float z = texture2D(depthTex, coord).x;
-        return (uCameraNear * uCameraFar) / ((uCameraFar - uCameraNear) * z - uCameraFar);
+      // --- hash / noise helpers ---
+      float hash(vec2 p){
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+
+      float noise2d(vec2 p){
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p){
+        float val = 0.0;
+        float amp = 0.5;
+        float freq = 1.0;
+        for(int i = 0; i < 4; i++){
+          val += amp * noise2d(p * freq);
+          freq *= 2.0;
+          amp *= 0.5;
+        }
+        return val;
       }
 
       void main(){
-        vec2 screenUV = (vScreenPos.xy / vScreenPos.w) * 0.5 + 0.5;
+        vec2 uv = vUv * 6.0;
 
-        float sceneDepth = readDepth(uDepthTexture, screenUV);
-        float waterDepth = vViewPosition.z - sceneDepth;
+        // depth-like blend using UV-based noise (no scene depth needed)
+        float depthMix = fbm(uv * 0.4);
+        vec3 waterColor = mix(uShallowColor, uDeepColor, depthMix);
 
-        // Colour blend shallow → deep
-        float depthFactor = clamp(waterDepth / 3.0, 0.0, 1.0);
-        vec3 waterColor = mix(uShallowColor, uDeepColor, depthFactor);
+        // toon banding
+        float band = floor(depthMix * 4.0 + 0.5) / 4.0;
+        waterColor = mix(uShallowColor, uDeepColor, band);
 
-        // Foam at shore
-        float foamNoise = sin(vUv.x * 25.0 + uTime * 3.0) * 0.08 +
-                          cos(vUv.y * 20.0 + uTime * 2.5) * 0.06;
-        float foam = step(waterDepth, 0.35 + foamNoise);
+        // foam lines
+        float foamNoise = fbm(uv * 1.2 + uTime * 0.06);
+        float foam = smoothstep(0.48, 0.56, foamNoise);
         vec3 finalColor = mix(waterColor, uFoamColor, foam);
 
-        float alpha = clamp(waterDepth / 0.5, 0.35, 0.88);
+        // shore ring foam — distance from center
+        float dist = distance(vUv, vec2(0.5));
+        float edgeFoam = smoothstep(0.36, 0.50, dist);
+        finalColor = mix(finalColor, uFoamColor, edgeFoam * 0.55);
 
-        gl_FragColor = vec4(finalColor, alpha);
+        gl_FragColor = vec4(finalColor, 0.88);
       }
     `;
   }
 
-  /* ---- factory: create material for a lake mesh ---- */
-  static createMaterial(depthTexture, camera){
+  static createMaterial(){
     return new THREE.ShaderMaterial({
       vertexShader:   WaterShader.vertex(),
       fragmentShader: WaterShader.fragment(),
       uniforms: {
-        uTime:           { value: 0 },
-        uDepthTexture:   { value: depthTexture },
-        uResolution:     { value: new THREE.Vector2(innerWidth, innerHeight) },
-        uCameraNear:     { value: camera.near },
-        uCameraFar:      { value: camera.far },
-        uShallowColor:   { value: new THREE.Color('#4deeea') },
-        uDeepColor:      { value: new THREE.Color('#0a1a4a') },
-        uFoamColor:      { value: new THREE.Color('#ffffff') },
+        uTime:         { value: 0 },
+        uShallowColor: { value: new THREE.Color('#4deeea') },
+        uDeepColor:    { value: new THREE.Color('#0a3060') },
+        uFoamColor:    { value: new THREE.Color('#ffffff') },
       },
       transparent: true,
       depthWrite: false,

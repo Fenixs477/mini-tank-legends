@@ -112,49 +112,19 @@ class World {
       {x: -40, z: -30, r: 14, seed: 0.7},
       {x:  50, z:  20, r: 18, seed: 2.3},
     ];
-    this._waterMeshes = [];
     this._waterMaterials = [];
     for(const l of lakeData){
-      const segs = 48;
-      const shape = new THREE.Shape();
-      for(let i = 0; i <= segs; i++){
-        const a = (i / segs) * Math.PI * 2;
-        const wave1 = Math.sin(a * 3 + l.seed) * 0.1;
-        const wave2 = Math.cos(a * 5 + 1 + l.seed) * 0.06;
-        const rr = l.r * (1.0 + wave1 + wave2);
-        const x = Math.cos(a) * rr;
-        const y = Math.sin(a) * rr;
-        if(i === 0) shape.moveTo(x, y);
-        else shape.lineTo(x, y);
-      }
-      const geo = new THREE.ShapeGeometry(shape);
+      const size = l.r * 2;
+      const geo = new THREE.PlaneGeometry(size, size, 64, 64);
       geo.rotateX(-Math.PI/2);
-      // temporary material; replaced by water shader in setupWater()
-      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color: 0x000000, visible: false}));
+      const mat = WaterShader.createMaterial();
+      const m = new THREE.Mesh(geo, mat);
       m.position.set(l.x, 0.25, l.z);
       m.frustumCulled = false;
-      m.userData.isWater = true;
+      m.renderOrder = 1;
       this.scene.add(m);
-      this._waterMeshes.push(m);
-      this.lakes.push({x: l.x, z: l.z, r: l.r, seed: l.seed});
-    }
-  }
-
-  setupWater(depthTexture, camera){
-    for(const mesh of this._waterMeshes){
-      const mat = WaterShader.createMaterial(depthTexture, camera);
-      mesh.material = mat;
       this._waterMaterials.push(mat);
-    }
-  }
-
-  updateWaterUniforms(time, depthTexture, camera){
-    for(const mat of this._waterMaterials){
-      mat.uniforms.uTime.value = time;
-      mat.uniforms.uDepthTexture.value = depthTexture;
-      mat.uniforms.uResolution.value.set(innerWidth, innerHeight);
-      mat.uniforms.uCameraNear.value = camera.near;
-      mat.uniforms.uCameraFar.value = camera.far;
+      this.lakes.push({x: l.x, z: l.z, r: l.r, seed: l.seed});
     }
   }
 
@@ -168,14 +138,15 @@ class World {
 
   /* Wave height at a world position for a given time (matches shader) */
   waveHeight(x, z, time){
-    return 0.06 * Math.sin(x*0.3 + z*0.4 + time*1.2)
-         + 0.05 * Math.sin(x*0.5 - z*0.3 + time*0.9)
-         + 0.04 * Math.sin(x*0.22 + time*1.5)
-         + 0.04 * Math.cos(z*0.35 + time*1.0);
+    return Math.sin(x * 0.30 + time * 1.2) * 0.12
+         + Math.sin(z * 0.25 + time * 0.9) * 0.10
+         + Math.sin(x * 0.18 + z * 0.22 + time * 0.7) * 0.08;
   }
 
   update(dt, time){
-    // wave animation handled by water shader
+    for(const mat of this._waterMaterials){
+      mat.uniforms.uTime.value = time;
+    }
   }
   _makeWalls(){
     const rockMat = new THREE.MeshStandardMaterial({color:0x6a6e72, roughness:0.9, metalness:0.05, flatShading:true});

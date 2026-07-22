@@ -42,8 +42,6 @@ class Game {
     this.camera.lookAt(0, 1.2, 0);
 
     this.world = new World(this.scene);
-    this._initDepthPass();
-    this.world.setupWater(this._depthTarget.depthTexture, this.camera);
     this._initPhysics();
     this.input = new Input(this.settings);
 
@@ -303,31 +301,6 @@ class Game {
     shell.dead = true;
   }
 
-  /* Depth pre-pass setup: render target + override material */
-  _initDepthPass(){
-    this._depthTarget = new THREE.WebGLRenderTarget(innerWidth, innerHeight, {
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-      depthTexture: new THREE.DepthTexture(innerWidth, innerHeight),
-    });
-    this._depthMaterial = new THREE.MeshDepthMaterial();
-  }
-
-  _depthPass(){
-    // Hide water, render scene depth to depth target, restore water
-    this.scene.traverse(child => {
-      if(child.isMesh && child.userData.isWater) child.visible = false;
-    });
-    this.scene.overrideMaterial = this._depthMaterial;
-    this.renderer.setRenderTarget(this._depthTarget);
-    this.renderer.render(this.scene, this.camera);
-    this.renderer.setRenderTarget(null);
-    this.scene.overrideMaterial = null;
-    this.scene.traverse(child => {
-      if(child.isMesh && child.userData.isWater) child.visible = true;
-    });
-  }
-
   /* Trajectory / aim line: main line + optional 10m markers (professional) */
   _initAimLine(){
     const mat = new THREE.LineBasicMaterial({
@@ -392,9 +365,6 @@ class Game {
     this.renderer.setSize(innerWidth, innerHeight);
     this.camera.aspect = innerWidth/innerHeight;
     this.camera.updateProjectionMatrix();
-    if(this._depthTarget){
-      this._depthTarget.setSize(innerWidth, innerHeight);
-    }
   }
 
   applySettings(s){
@@ -906,8 +876,6 @@ class Game {
     this._perfGpuLoadSamples.push(Math.round((performance.now() - this._perfFrameStart) / 1.66));
 
     this._updatePerfOverlay(now);
-    this._depthPass();
-    this.world.updateWaterUniforms(this.time, this._depthTarget.depthTexture, this.camera);
     this.renderer.render(this.scene, this.camera);
   }
 
