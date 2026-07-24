@@ -1,5 +1,5 @@
 /* ============================================================
-   config.js — game balance + world constants + tank roster
+   config.js â€” game balance + world constants + tank roster
    ============================================================ */
 
 const CONFIG = {
@@ -11,7 +11,7 @@ const CONFIG = {
     SERVER_KEY: 'defaultkey',  // your Nakama server key
   },
 
-  // PeerJS — STUN + free TURN relay so P2P works behind strict NAT
+  // PeerJS â€” STUN + free TURN relay so P2P works behind strict NAT
   PEER_ICE: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
@@ -226,8 +226,8 @@ function loadSettings(){
       selectedTank: s.selectedTank || 'coolbuddy',
       playerName: s.playerName || ('Player'+Math.floor(Math.random()*9000+1000)),
       playerClan: s.playerClan || '',
-      coins: s.coins || 0,
-      crystals: s.crystals || 0,
+      coins: typeof s.coins === 'number' ? s.coins : 0,
+      gems: typeof s.gems === 'number' ? s.gems : 0,
       aimLineOpacity: (s.aimLineOpacity!=null? s.aimLineOpacity : CONFIG.AIM_LINE_OPACITY),
       aimLineColor:   s.aimLineColor || CONFIG.AIM_LINE_COLOR,
       aimLineDesign:  s.aimLineDesign || 'professional',
@@ -241,7 +241,7 @@ function loadSettings(){
       allUnlocked:      s.allUnlocked || false,
     };
   }catch(e){
-    return {binds:defaults(), selectedTank:'coolbuddy', playerName:'Player'+Math.floor(Math.random()*9000+1000), playerClan:'', coins:0, crystals:0,
+    return {binds:defaults(), selectedTank:'coolbuddy', playerName:'Player'+Math.floor(Math.random()*9000+1000), playerClan:'', coins:0, gems:0,
             aimLineOpacity:CONFIG.AIM_LINE_OPACITY, aimLineColor:CONFIG.AIM_LINE_COLOR, aimLineDesign:'professional',
             viewRangeOpacity:CONFIG.VIEW_RANGE_OPACITY, viewRangeColor:CONFIG.VIEW_RANGE_COLOR,
             viewRangeWidth:CONFIG.VIEW_RANGE_WIDTH, graphicsQuality:'default', camRotation:0, ricochetIndicator:true,

@@ -1,5 +1,5 @@
 /* ============================================================
-   models.js — GLTF / GLB / Collada loader + cache. Tries to load
+   models.js â€” GLTF / GLB / Collada loader + cache. Tries to load
    the real tank model from mini_tank_legends_models/<name>.glb,
    .gltf, or .dae; if missing it falls back to the cube body+turret.
    Uses Three.js GLTFLoader or ColladaLoader.
@@ -95,7 +95,7 @@ const Models = {
     }
     const loader = this.loader();
     if(!loader) return this._loadCollada(name);
-    // Try .glb → .gltf → .dae
+    // Try .glb â†’ .gltf â†’ .dae
     return this._tryLoad(name, '.glb')
       .catch(()=> this._tryLoad(name, '.gltf'))
       .catch(()=> this._loadCollada(name))
@@ -177,7 +177,7 @@ const NatureAssets = {
       rocks:   [0x8a8a7a, 0x7a7a6a, 0x9a9a8a, 0x6a7a5a, 0x7a8a6a],
       bushes:  [0x4a7a28, 0x5a8a30, 0x3a6a1a],
     };
-    /* Dynamic Cartoon Material Router — reads node names and assigns
+    /* Dynamic Cartoon Material Router â€” reads node names and assigns
        solid flat-shaded materials. Fixes white/hollow shell issue by
        forcing procedural colors + recomputing normals + double-sided shading. */
     const addColors = (group, colList) => {

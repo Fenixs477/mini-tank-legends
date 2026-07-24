@@ -1,5 +1,5 @@
 /* ============================================================
-   projectile.js — Shells + Helix flamethrower particles
+   projectile.js â€” Shells + Helix flamethrower particles
    - Shell: travels, blocked by walls; flies OVER lakes (per spec)
    - Flame: short-lived particles, DPS at close range
    ============================================================ */
@@ -46,9 +46,13 @@ class Shell {
     } catch(e){ this._physBody = null; }
   }
 
+  static _initShared(){
+    if(!Shell._sharedGeo) Shell._sharedGeo = new THREE.SphereGeometry(0.32, 8, 8);
+    if(!Shell._sharedMat) Shell._sharedMat = new THREE.MeshStandardMaterial({color:0xffd24a, emissive:0xff7a1a, emissiveIntensity:0.6, roughness:0.4});
+  }
   _build(){
-    const mat = new THREE.MeshStandardMaterial({color:0xffd24a, emissive:0xff7a1a, emissiveIntensity:0.6, roughness:0.4});
-    this.mesh = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8), mat);
+    Shell._initShared();
+    this.mesh = new THREE.Mesh(Shell._sharedGeo, Shell._sharedMat);
     this.mesh.position.set(this.x, this.y, this.z);
   }
 
@@ -109,6 +113,12 @@ class Shell {
         this.mesh.lookAt(this.x + this.dir.x, this.y, this.z + this.dir.z);
         game.spawnExplosion(this.x, 1.0, this.z, 0xffeeaa, 4);
 
+        // Restart trail at ricochet point so it shows the bend
+        if(this._trail && game.trailManager){
+          game.trailManager.endTrail(this._trail);
+          this._trail = game.trailManager.spawn(new THREE.Vector3(this.x, this.y, this.z));
+        }
+
         return true;
       }
     return false;
@@ -118,6 +128,10 @@ class Shell {
   detach(){
     this._removePhysBody();
     if(this.scene){ this.scene.remove(this.mesh); this.scene=null; }
+    if(this.mesh && this.mesh.geometry !== Shell._sharedGeo){
+      this.mesh.geometry.dispose();
+      this.mesh.material.dispose();
+    }
   }
   _removePhysBody(){
     if(this._physBody && this._physWorld){
@@ -184,7 +198,7 @@ class Shell {
   }
 }
 
-/* Flamethrower cone (Helix) — particles stream from muzzle outward within a fixed cone triangle.
+/* Flamethrower cone (Helix) â€” particles stream from muzzle outward within a fixed cone triangle.
    Damage high up close, falls off with distance. Visual + damage cone share same angle. */
 class FlameCone {
   constructor(owner, pos, dir, def){
@@ -225,7 +239,7 @@ class FlameCone {
       const speed = targetDist / maxLife;
 
       const sz = (0.6 + targetDist / this.range * 1.4) * (0.8 + Math.random() * 0.6);
-      const mat = new THREE.SpriteMaterial({map:tex, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false});
+      const mat = new THREE.SpriteMaterial({map:tex, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false});
       const s = new THREE.Sprite(mat);
       s.scale.set(sz * 0.7, sz * 1.1, 1);
       s.userData.dir = dir;
@@ -240,7 +254,11 @@ class FlameCone {
   }
 
   attach(scene){ scene.add(this.group); this.scene=scene; }
-  detach(){ if(this.scene){ this.scene.remove(this.group); this.scene=null; } }
+  detach(){
+    if(this.scene){ this.scene.remove(this.group); this.scene=null; }
+    this.particles.forEach(p => { if(p.material) p.material.dispose(); });
+    this.particles = [];
+  }
 
   _damageAtDist(dist){
     if(dist < 10) return this.damage;
@@ -280,7 +298,7 @@ class FlameCone {
       const maxPerp = along * tanHalf + 0.6;
       if(perp > maxPerp) continue;
       if(coneBlocked) continue;
-      t.takeDamage(this._damageAtDist(dist) * dt * 10, this.owner, game);
+      t.takeDamage(this._damageAtDist(dist) * dt * 10, this.owner, game, true);
     }
 
     // Animate particles: stream from muzzle toward fixed cone position
@@ -328,7 +346,11 @@ class Explosion {
     }
   }
   attach(scene){ scene.add(this.group); this.scene=scene; }
-  detach(){ if(this.scene){ this.scene.remove(this.group); this.scene=null; } }
+  detach(){
+    if(this.scene){ this.scene.remove(this.group); this.scene=null; }
+    this.parts.forEach(p => { if(p.material) p.material.dispose(); });
+    this.parts = [];
+  }
   update(dt){
     this.life-=dt;
     this.parts.forEach((p,i)=>{

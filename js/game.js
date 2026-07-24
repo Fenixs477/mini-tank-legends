@@ -71,13 +71,13 @@ class Game {
     requestAnimationFrame(this._loop);
     this.applyGraphicsSettings();
 
-    /* ---- Performance overlay (hold Tab) ---- */
+    /* ---- Performance overlay (hold P) ---- */
     this._buildPerfOverlay();
     this._onKeyDown = (e) => {
-      if (e.key === 'Tab') { e.preventDefault(); this._perfOverlay.style.display = 'block'; }
+      if (e.code === 'KeyP') { this._perfOverlay.style.display = 'block'; }
     };
     this._onKeyUp = (e) => {
-      if (e.key === 'Tab') { this._perfOverlay.style.display = 'none'; }
+      if (e.code === 'KeyP') { this._perfOverlay.style.display = 'none'; }
     };
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
@@ -379,9 +379,9 @@ class Game {
 
   applyGraphicsSettings(){
     const q = this.settings.graphicsQuality;
-    const isFancy = q === 'fancy';
-    this.renderer.shadowMap.enabled = isFancy;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, isFancy ? 2 : 1.5));
+    this.isFancy = q === 'fancy';
+    this.renderer.shadowMap.enabled = this.isFancy;
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.isFancy ? 2 : 1.5));
     if(this.world) this.world.setQuality(q);
   }
 
@@ -735,7 +735,7 @@ class Game {
     this._physBodies = [];
     this._eventQueue = null;
     this.trailManager = new BulletTrailManager(this.scene, {
-      maxTrails: 24, segments: 32, trailWidth: 0.45, tailFadeTime: 0.12,
+      maxTrails: 48, fadeTime: 0.18, width: 0.12, color: 0xffffff,
     });
     this._initPhysics();
   }
@@ -1002,6 +1002,24 @@ class Game {
     }
     this.explosions.forEach(e=> e.update(dt));
     this.explosions = this.explosions.filter(e=>{ if(e.dead){e.detach(); return false;} return true; });
+    // Muzzle flash sprites
+    if(this._muzzleFlashes){
+      this._muzzleFlashes.forEach(p=>{
+        p.life -= dt;
+        if(p.vx != null){
+          p.sprite.position.x += p.vx * dt;
+          p.sprite.position.z += p.vz * dt;
+          p.sprite.position.y += p.vy * dt;
+          p.vy -= 1.5 * dt;
+        }
+        p.sprite.material.opacity = Math.max(0, p.life / p.maxLife);
+        p.sprite.scale.x = p.sprite.scale.y = (p.baseScale || 2.0) * (1 + (1 - p.life / p.maxLife) * 0.5);
+      });
+      this._muzzleFlashes = this._muzzleFlashes.filter(p=>{
+        if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
+        return true;
+      });
+    }
     // Ricochet labels
     if(this._ricoLabels){
       this._ricoLabels.forEach(l=>{ l.life -= dt; l.sprite.material.opacity = Math.max(0, l.life / l.maxLife); });
@@ -1009,6 +1027,93 @@ class Game {
         if(l.life <= 0){ this.scene.remove(l.sprite); l.sprite.material.map.dispose(); l.sprite.material.dispose(); return false; }
         return true;
       });
+    }
+    // Floating damage numbers
+    if(this._dmgLabels){
+      this._dmgLabels.forEach(l=>{
+        l.life -= dt;
+        l.sprite.position.y += l.vy * dt;
+        l.sprite.material.opacity = Math.max(0, l.life / l.maxLife);
+      });
+      this._dmgLabels = this._dmgLabels.filter(l=>{
+        if(l.life <= 0){ this.scene.remove(l.sprite); l.sprite.material.dispose(); if(l.canvas) this._putDmgCanvas(l.canvas); return false; }
+        return true;
+      });
+    }
+    // Muzzle smoke
+    if(this._muzzleSmokes){
+      this._muzzleSmokes.forEach(p=>{
+        p.life -= dt;
+        p.sprite.position.x += p.vx * dt;
+        p.sprite.position.z += p.vz * dt;
+        p.sprite.position.y += p.vy * dt;
+        p.vy -= 0.3 * dt;
+        const grow = 1 + (1 - p.life / p.maxLife) * 1.2;
+        p.sprite.scale.x = p.sprite.scale.y = p.baseScale * grow;
+        p.sprite.material.opacity = Math.max(0, (p.life / p.maxLife) * 0.65);
+      });
+      this._muzzleSmokes = this._muzzleSmokes.filter(p=>{
+        if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
+        return true;
+      });
+    }
+    // Exhaust / drift smoke particles
+    if(this._exhaustParts){
+      this._exhaustParts.forEach(p=>{
+        p.life -= dt;
+        p.sprite.position.x += p.vx * dt;
+        p.sprite.position.z += p.vz * dt;
+        p.sprite.position.y += p.vy * dt;
+        p.vy -= 0.2 * dt;
+        const grow = 1 + (1 - p.life / p.maxLife) * 1.5;
+        p.sprite.scale.x = p.sprite.scale.y = p.baseScale * grow;
+        p.sprite.material.opacity = Math.max(0, (p.life / p.maxLife) * 0.4);
+      });
+      this._exhaustParts = this._exhaustParts.filter(p=>{
+        if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
+        return true;
+      });
+    }
+    // Flamethrower damage accumulators — live stacking counter
+    if(this._flameAccums){
+      for(const [id, entry] of this._flameAccums){
+        const tank = this.tanks.find(t => t.id === id);
+        if(!tank || (!tank.alive && entry.damage === 0)){
+          if(entry.sprite){ this.scene.remove(entry.sprite); entry.sprite.material.dispose(); }
+          this._flameAccums.delete(id);
+          continue;
+        }
+        entry.timer -= dt;
+        if(entry.timer <= 0 || !tank.alive){
+          // Stop accumulating — let the sprite fade out
+          entry.fading = true;
+          if(!this._flameFading) this._flameFading = [];
+          this._flameFading.push(entry);
+          this._flameAccums.delete(id);
+        } else if(entry.sprite){
+          // Follow tank position
+          entry.sprite.position.x = tank.x + (Math.random() - 0.5) * 0.2;
+          entry.sprite.position.z = tank.z + (Math.random() - 0.5) * 0.2;
+          entry.sprite.position.y = tank.def.turret.h + tank.def.body.h + 3.6;
+        }
+      }
+    }
+    // Fading flame labels
+    if(this._flameFading){
+      for(let i = this._flameFading.length - 1; i >= 0; i--){
+        const f = this._flameFading[i];
+        f.life = (f.life || 0.6) - dt;
+        if(f.sprite){
+          f.sprite.material.opacity = Math.max(0, (f.life || 0) / 0.6);
+          if(f.life <= 0){
+            this.scene.remove(f.sprite);
+            f.sprite.material.dispose();
+            this._flameFading.splice(i, 1);
+          }
+        } else {
+          this._flameFading.splice(i, 1);
+        }
+      }
     }
     // Water foam around tanks in lakes
     this._updateWaterFoam(dt);
@@ -1310,9 +1415,12 @@ class Game {
     const c = document.createElement('canvas');
     c.width = 256; c.height = 96;
     const g = c.getContext('2d');
-    g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 12;
-    g.fillStyle = '#ff6a2a'; g.font = 'bold 42px Segoe UI, Arial, sans-serif';
+    g.font = 'bold 42px "Segoe UI", "Arial Black", Arial, sans-serif';
     g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.strokeStyle = '#000'; g.lineWidth = 6; g.lineJoin = 'round';
+    g.strokeText('Ricochet!', 128, 48);
+    g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 12;
+    g.fillStyle = '#ff6a2a';
     g.fillText('Ricochet!', 128, 48);
     const tex = new THREE.CanvasTexture(c);
     const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false});
@@ -1322,6 +1430,91 @@ class Game {
     this.scene.add(s);
     if(!this._ricoLabels) this._ricoLabels = [];
     this._ricoLabels.push({sprite:s, life:1.2, maxLife:1.2});
+  }
+
+  _getDmgCanvas(){
+    if(!this._dmgCanvasPool) this._dmgCanvasPool = [];
+    let c = this._dmgCanvasPool.pop();
+    if(!c){ c = document.createElement('canvas'); c.width = 128; c.height = 64; }
+    return c;
+  }
+  _putDmgCanvas(c){
+    if(!this._dmgCanvasPool) this._dmgCanvasPool = [];
+    if(this._dmgCanvasPool.length < 20) this._dmgCanvasPool.push(c);
+  }
+
+  spawnDamageLabel(x, y, z, amount){
+    const c = this._getDmgCanvas();
+    const g = c.getContext('2d');
+    g.clearRect(0, 0, 128, 64);
+    g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 6;
+    g.font = 'bold 38px "Segoe UI", "Arial Black", Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.strokeStyle = '#000'; g.lineWidth = 5; g.lineJoin = 'round';
+    g.strokeText('-' + Math.round(amount), 64, 32);
+    g.fillStyle = '#ff4444';
+    g.fillText('-' + Math.round(amount), 64, 32);
+    const tex = new THREE.CanvasTexture(c);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false}));
+    s.renderOrder = 999;
+    s.position.set(x + (Math.random()-0.5)*1.5, y, z + (Math.random()-0.5)*1.5);
+    s.scale.set(2.8, 1.4, 1);
+    this.scene.add(s);
+    if(!this._dmgLabels) this._dmgLabels = [];
+    this._dmgLabels.push({sprite:s, life:1.0, maxLife:1.0, vy:1.2 + Math.random()*0.8});
+  }
+
+  _accumFlameDamage(tank, amount){
+    if(!this._flameAccums) this._flameAccums = new Map();
+    let entry = this._flameAccums.get(tank.id);
+    if(!entry){
+      const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+      const g = c.getContext('2d');
+      const tex = new THREE.CanvasTexture(c);
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false}));
+      s.renderOrder = 999;
+      s.position.set(tank.x, tank.def.turret.h + tank.def.body.h + 3.6, tank.z);
+      s.scale.set(2.8, 1.4, 1);
+      this.scene.add(s);
+      entry = {sprite:s, canvas:c, ctx:g, tex, damage:0, timer:0.3};
+      this._flameAccums.set(tank.id, entry);
+    }
+    entry.damage += amount;
+    entry.timer = 0.3;
+    // Redraw canvas with climbing number
+    const g = entry.ctx;
+    const c = entry.canvas;
+    g.clearRect(0, 0, c.width, c.height);
+    g.font = 'bold 38px "Segoe UI", "Arial Black", Arial, sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = 'rgba(0,0,0,0.9)'; g.shadowBlur = 6;
+    g.strokeStyle = '#000'; g.lineWidth = 5; g.lineJoin = 'round';
+    g.strokeText('-' + Math.round(entry.damage), 64, 32);
+    g.fillStyle = '#ff6644';
+    g.fillText('-' + Math.round(entry.damage), 64, 32);
+    entry.tex.needsUpdate = true;
+  }
+
+  spawnExhaust(x, y, z, dirAngle, kmh){
+    if(!this.isFancy) return;
+    if(!this._exhaustParts) this._exhaustParts = [];
+    if(this._exhaustParts.length > 30) return;
+    const tex = VFX.getTex('smoke');
+    const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false, opacity:0.5});
+    const s = new THREE.Sprite(mat);
+    const baseScale = 0.3 + Math.random() * 0.25;
+    const sc = baseScale * (0.7 + kmh / 200);
+    s.position.set(x, y, z);
+    s.scale.set(sc, sc, 1);
+    this.scene.add(s);
+    const spd = 0.8 + kmh / 60;
+    this._exhaustParts.push({
+      sprite:s, life:0.6 + Math.random() * 0.4, maxLife:1.0,
+      vx: Math.sin(dirAngle) * spd + (Math.random() - 0.5) * 0.4,
+      vz: Math.cos(dirAngle) * spd + (Math.random() - 0.5) * 0.4,
+      vy: 0.5 + Math.random() * 0.6,
+      baseScale: sc
+    });
   }
 
   /* Check if any part of the tank intersects water */
@@ -1471,6 +1664,7 @@ class Game {
           const p = t._foamParticles[i];
           p.x += p.dx * p.speed * dt;
           p.z += p.dz * p.speed * dt;
+          p.speed *= 0.97;
           p.life -= dt;
           if(p.life <= 0){
             this.scene.remove(p.mesh);
@@ -1531,8 +1725,54 @@ class Game {
   }
 
   _muzzleFlash(pos, dir){
-    const ex = new Explosion(pos.x, pos.y+0.2, pos.z, 0xffe08a, 8);
-    ex.attach(this.scene); this.explosions.push(ex);
+    // Directional gun flash (stretched along barrel)
+    const flareTex = VFX.getTex('flare');
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
+    flash.position.set(pos.x, pos.y + 0.15, pos.z);
+    flash.scale.set(2.0, 2.0, 1);
+    this.scene.add(flash);
+    const flashLife = 0.12;
+    if(!this._muzzleFlashes) this._muzzleFlashes = [];
+    this._muzzleFlashes.push({sprite:flash, life:flashLife, maxLife:flashLife});
+
+    // Shell eject / spark puff (small directional burst)
+    const sparkTex = VFX.getTex('smoke');
+    for(let i=0; i<3; i++){
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:sparkTex, transparent:true, opacity:0.7, blending:THREE.AdditiveBlending, depthWrite:false}));
+      const sc = 0.15 + Math.random() * 0.1;
+      s.position.set(pos.x, pos.y + 0.1 + Math.random() * 0.15, pos.z);
+      s.scale.set(sc, sc, 1);
+      this.scene.add(s);
+      if(!this._muzzleFlashes) this._muzzleFlashes = [];
+      this._muzzleFlashes.push({
+        sprite:s, life:0.1 + Math.random() * 0.08, maxLife:0.18,
+        vx: (dir.x || 0) * 1.5 + (Math.random() - 0.5) * 1.0,
+        vz: (dir.z || 0) * 1.5 + (Math.random() - 0.5) * 1.0,
+        vy: 0.3 + Math.random() * 0.4,
+        baseScale: sc
+      });
+    }
+
+    // Muzzle smoke — follows shell path (fancy only)
+    if(this.isFancy){
+      const tex = VFX.getTex('smoke');
+      for(let i=0; i<5; i++){
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false, opacity:0.5}));
+        const sc = 0.5 + Math.random() * 0.4;
+        s.position.set(pos.x, pos.y + 0.1 + Math.random() * 0.2, pos.z);
+        s.scale.set(sc, sc, 1);
+        this.scene.add(s);
+        if(!this._muzzleSmokes) this._muzzleSmokes = [];
+        const travelSpeed = 2.0 + Math.random() * 1.5;
+        this._muzzleSmokes.push({
+          sprite:s, life:0.5 + Math.random() * 0.4, maxLife:0.9,
+          vx: (dir.x || 0) * travelSpeed + (Math.random() - 0.5) * 0.6,
+          vz: (dir.z || 0) * travelSpeed + (Math.random() - 0.5) * 0.6,
+          vy: 0.8 + Math.random() * 0.8,
+          baseScale: sc
+        });
+      }
+    }
   }
 
   spawnExplosion(x,y,z,color,count){
@@ -1548,6 +1788,17 @@ class Game {
       if(d < 45){
         this._shake = Math.max(this._shake, 0.9 * (1 - d/45));
       }
+    }
+    // Kill rewards for the local player
+    if(byTank && byTank === this.localTank){
+      const s = Menu.settings;
+      const roll = Math.random();
+      s.coins = (s.coins || 0) + 10;
+      if(roll < 0.10) s.coins += 5;  // 10% for +15
+      else if(roll < 0.15) s.coins += 15; // 5% for +25
+      if(roll < 0.01) s.gems = (s.gems || 0) + 1; // 1% for 1 gem
+      saveSettings(s);
+      Menu.toast('+10 coins' + (roll < 0.15 ? ' (+bonus!)' : '') + (roll < 0.01 ? ' +1 gem!' : ''));
     }
   }
 

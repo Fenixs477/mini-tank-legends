@@ -46,10 +46,10 @@ var Editor123 = {
         { value: 'none', label: 'None' }, { value: 'singleplayer', label: 'Singleplayer' },
         { value: 'multiplayer', label: 'Multiplayer' }, { value: 'collections', label: 'Collections' },
         { value: 'settings', label: 'Settings' }, { value: 'codes', label: 'Codes' },
-        { value: 'preview', label: 'Preview Tank' }, { value: 'back', label: '← Back' },
+        { value: 'preview', label: 'Preview Tank' }, { value: 'back', label: 'â† Back' },
     ],
 
-    /* ────── LIFECYCLE ────── */
+    /* â”€â”€â”€â”€â”€â”€ LIFECYCLE â”€â”€â”€â”€â”€â”€ */
     open: function () {
         if (this._open) return;
         this._open = true;
@@ -81,7 +81,7 @@ var Editor123 = {
         console.log('editor123._buildOverlay done, overlay appended');
     },
 
-    /* ────── LAUNCHER ────── */
+    /* â”€â”€â”€â”€â”€â”€ LAUNCHER â”€â”€â”€â”€â”€â”€ */
     _renderLauncher: function () {
         this._mode = 'launcher';
         var c = document.getElementById('editor123-content');
@@ -91,21 +91,26 @@ var Editor123 = {
             '<p style="color:#777;margin-bottom:32px;font-size:13px">Design menus &amp; build worlds visually</p>' +
             '<div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap">' +
             '<div class="e123-launcher-btn" data-mode="menus" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
-            '<div style="font-size:44px;margin-bottom:10px">🎨</div>' +
+            '<div style="font-size:44px;margin-bottom:10px">ðŸŽ¨</div>' +
             '<div style="font-size:17px;font-weight:700">Edit Menus</div>' +
             '<div style="color:#888;font-size:12px;margin-top:6px">Customize any menu screen<br>with images &amp; buttons</div></div>' +
             '<div class="e123-launcher-btn" data-mode="map" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
-            '<div style="font-size:44px;margin-bottom:10px">🗺️</div>' +
+            '<div style="font-size:44px;margin-bottom:10px">\u{1F5FA}</div>' +
             '<div style="font-size:17px;font-weight:700">World Editor</div>' +
             '<div style="color:#888;font-size:12px;margin-top:6px">3D scene with physics,<br>hierarchy &amp; GLB/FBX import</div></div>' +
+            '<div class="e123-launcher-btn" data-mode="shop" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
+            '<div style="font-size:44px;margin-bottom:10px">\u{1F6D2}</div>' +
+            '<div style="font-size:17px;font-weight:700">Shop Editor</div>' +
+            '<div style="color:#888;font-size:12px;margin-top:6px">Edit shop offers,<br>sections &amp; layout</div></div>' +
             '</div>' +
-            '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">← Back to Menu</div></div>';
+            '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">â† Back to Menu</div></div>';
         c.querySelectorAll('.e123-launcher-btn').forEach(function (b) {
             b.onmouseover = function () { this.style.borderColor = '#ffb12b'; this.style.background = 'linear-gradient(145deg,#2a303a,#222830)'; };
             b.onmouseout = function () { this.style.borderColor = '#2a2f36'; this.style.background = 'linear-gradient(145deg,#252a32,#1e232a)'; };
             b.onclick = function () {
                 try {
                     if (this.dataset.mode === 'menus') Editor123._renderMenuList();
+                    else if (this.dataset.mode === 'shop') Editor123._renderShopEditor();
                     else Editor123._render3DEditor();
                 } catch(e){ console.error(e); Editor123.toast('Error: '+e.message); }
             };
@@ -113,9 +118,9 @@ var Editor123 = {
         document.getElementById('e123-l-back').onclick = function () { Editor123.close(); };
     },
 
-    /* ═══════════════════════════
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
        MENU EDITOR
-       ═══════════════════════════ */
+       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     _renderMenuList: function () {
         this._mode = 'menus';
         var c = document.getElementById('editor123-content');
@@ -127,7 +132,7 @@ var Editor123 = {
                 '<div style="font-weight:600;font-size:12px;color:#ddd">' + (Editor123.MENU_NAMES[id] || id) + '</div>' +
                 '<div style="font-size:10px;color:#666;margin-top:3px">' + els.length + ' overlay' + (els.length !== 1 ? 's' : '') + '</div></div>';
         });
-        h += '<div id="e123-m-back" style="margin-top:12px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">← Back</div></div>' +
+        h += '<div id="e123-m-back" style="margin-top:12px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">â† Back</div></div>' +
             '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">' +
             '<div id="e123-m-toolbar" style="padding:8px 14px;background:#1a1e24;display:flex;gap:6px;align-items:center;border-bottom:1px solid #252a32;flex-shrink:0">' +
             '<span style="color:#777;font-size:12px;margin-right:8px">Select a menu to edit</span></div>' +
@@ -151,14 +156,14 @@ var Editor123 = {
         var name = this.MENU_NAMES[menuId] || menuId;
         var tb = document.getElementById('e123-m-toolbar');
         tb.innerHTML =
-            '<span style="color:#ffb12b;font-weight:600;font-size:13px">🎨 ' + name + '</span>' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:13px">ðŸŽ¨ ' + name + '</span>' +
             '<span style="color:#555;font-size:10px;margin:0 8px">|</span>' +
-            '<span class="e123-tbtn" id="e-img">🖼️ Image</span>' +
-            '<span class="e123-tbtn" id="e-btn">➕ Button</span>' +
-            '<span class="e123-tbtn" id="e-cmt">💬 Note</span>' +
-            '<span class="e123-tbtn" id="e-del" style="color:#c66">🗑️ Delete</span>' +
+            '<span class="e123-tbtn" id="e-img">ðŸ–¼ï¸ Image</span>' +
+            '<span class="e123-tbtn" id="e-btn">âž• Button</span>' +
+            '<span class="e123-tbtn" id="e-cmt">ðŸ’¬ Note</span>' +
+            '<span class="e123-tbtn" id="e-del" style="color:#c66">ðŸ—‘ï¸ Delete</span>' +
             '<div style="flex:1"></div>' +
-            '<span class="e123-tbtn" id="e-save">💾 Save</span>';
+            '<span class="e123-tbtn" id="e-save">ðŸ’¾ Save</span>';
 
         var area = document.getElementById('e123-m-area');
         area.innerHTML = '';
@@ -307,7 +312,7 @@ var Editor123 = {
             if (el.type === 'button') ctx.fillText('Label: "' + (el.label || '') + '"', w - 214, 44);
             if (el.type === 'comment') ctx.fillText('"' + (el.text || '') + '"', w - 214, 44);
             ctx.fillStyle = '#666'; ctx.font = '10px Segoe UI';
-            ctx.fillText('Drag · Dbl-click edit · Delete remove', w - 214, 66);
+            ctx.fillText('Drag Â· Dbl-click edit Â· Delete remove', w - 214, 66);
             ctx.fillText('(Background shows the actual menu)', w - 214, 82);
             ctx.restore();
         }
@@ -332,23 +337,23 @@ var Editor123 = {
             ctx.fillText(el.label || 'Button', el.x + el.w / 2, el.y + el.h / 2);
             if (el.command && el.command !== 'none') {
                 ctx.fillStyle = '#ffb12b'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-                ctx.fillText('➤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
+                ctx.fillText('âž¤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
             }
         } else if (el.type === 'comment') {
             ctx.fillStyle = 'rgba(40,60,40,0.88)';
             drawRR(el.x, el.y, el.w, el.h, 8); ctx.fill();
             ctx.strokeStyle = '#4a8'; ctx.lineWidth = 1.5; ctx.stroke();
             ctx.fillStyle = '#8f8'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-            ctx.fillText('💬 ' + (el.text || 'note'), el.x + 10, el.y + 8);
+            ctx.fillText('ðŸ’¬ ' + (el.text || 'note'), el.x + 10, el.y + 8);
             ctx.fillStyle = '#888'; ctx.font = 'italic 10px Segoe UI';
             ctx.fillText('(editor only)', el.x + 10, el.y + el.h - 20);
         }
         ctx.restore();
     },
 
-    /* ═══════════════════════════
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
        3D WORLD EDITOR (physics + hierarchy + realistic lighting)
-       ═══════════════════════════ */
+       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     _render3DEditor: function () {
         this._mode = 'map';
         this._mapLib = this._loadLib();
@@ -388,68 +393,68 @@ var Editor123 = {
         c.innerHTML =
             '<div style="width:240px;min-width:240px;background:#1a1e24;display:flex;flex-direction:column;border-right:1px solid #252a32">' +
             '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📦 LIBRARY</h3>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ“¦ LIBRARY</h3>' +
             '<div style="font-size:10px;color:#666;margin-top:2px"><span id="e-lib-count">' + this._mapLib.length + '</span> models <span id="e-lib-sel-count" style="color:#ffb12b;display:none"></span></div></div>' +
             '<div id="e-lib-list" data-lib-container style="flex:1;overflow-y:auto;padding:6px">' +
             (this._mapLib.length === 0 ? '<div style="color:#555;font-size:11px;text-align:center;padding:20px 6px">No models.<br>Click Import below.</div>' : '') + '</div>' +
             '<div style="padding:6px;border-top:1px solid #252a32">' +
-            '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">📥 Import GLB / FBX</span>' +
-            '<span class="e123-tbtn" id="e-imp-server" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px">🌐 From Server</span>' +
-            '<span class="e123-tbtn" id="e-del-lib" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px;color:#c66">🗑️ Remove</span></div>' +
-            '<div id="e123-map-back" style="padding:8px;background:#2a2f36;text-align:center;cursor:pointer;color:#888;font-size:11px">← Back</div></div>' +
+            '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">ðŸ“¥ Import GLB / FBX</span>' +
+            '<span class="e123-tbtn" id="e-imp-server" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px">ðŸŒ From Server</span>' +
+            '<span class="e123-tbtn" id="e-del-lib" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px;color:#c66">ðŸ—‘ï¸ Remove</span></div>' +
+            '<div id="e123-map-back" style="padding:8px;background:#2a2f36;text-align:center;cursor:pointer;color:#888;font-size:11px">â† Back</div></div>' +
 
             // Center: 3D viewport
             '<div style="flex:1;display:flex;flex-direction:column">' +
             '<div style="padding:4px 10px;background:#1a1e24;border-bottom:1px solid #252a32;display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px">' +
-            '<span style="color:#ffb12b;font-weight:600;font-size:12px">🌍 Viewport</span>' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:12px">ðŸŒ Viewport</span>' +
             '<span class="e123-tbtn e-pri" id="e-add-btn" style="font-size:11px;font-weight:700">+ Add</span>' +
             '<span style="color:#666"><span id="e-obj-cnt">' + this._mapObjs.length + '</span> objs</span>' +
-            '<span id="e-placing-indicator" style="color:#8f8;display:none">🔵 Placing...</span>' +
+            '<span id="e-placing-indicator" style="color:#8f8;display:none">ðŸ”µ Placing...</span>' +
             '<span style="color:#444">|</span>' +
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">⟷ Move</span>' +
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">↻ Rot</span>' +
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">⇔ Scale</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">âŸ· Move</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">â†» Rot</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">â‡” Scale</span>' +
             '<span style="color:#444">|</span>' +
-            '<span class="e123-tbtn" id="e-snap-btn" style="font-size:10px">🧲 Snap</span>' +
-            '<span class="e123-tbtn" id="e-scatter-btn" style="font-size:10px">🌱 Scatter</span>' +
-            '<span class="e123-tbtn" id="e-rand-btn" style="font-size:10px">🎲 Rand</span>' +
-            '<span class="e123-tbtn" id="e-scene-settings-btn" style="font-size:10px">⚙️ Scene</span>' +
+            '<span class="e123-tbtn" id="e-snap-btn" style="font-size:10px">ðŸ§² Snap</span>' +
+            '<span class="e123-tbtn" id="e-scatter-btn" style="font-size:10px">ðŸŒ± Scatter</span>' +
+            '<span class="e123-tbtn" id="e-rand-btn" style="font-size:10px">ðŸŽ² Rand</span>' +
+            '<span class="e123-tbtn" id="e-scene-settings-btn" style="font-size:10px">âš™ï¸ Scene</span>' +
             '<div style="flex:1"></div>' +
-            '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">▶ Sim</span>' +
-            '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">🗑️ Clear</span>' +
-            '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">💾 Save</span>' +
-            '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">✕ Deselect</span>' +
-            '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">🎮 Save to Game</span>' +
-            '<span class="e123-tbtn" id="e-export-map" style="font-size:10px">📋 Export Map Code</span>' +
-            '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">⌨️</span></div>' +
+            '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">â–¶ Sim</span>' +
+            '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">ðŸ—‘ï¸ Clear</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">ðŸ’¾ Save</span>' +
+            '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">âœ• Deselect</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">ðŸŽ® Save to Game</span>' +
+            '<span class="e123-tbtn" id="e-export-map" style="font-size:10px">ðŸ“‹ Export Map Code</span>' +
+            '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">âŒ¨ï¸</span></div>' +
             '<div id="e-shortcuts-panel" style="display:none;position:absolute;top:32px;right:8px;background:#1a1e24;border:1px solid #2a2f36;border-radius:6px;padding:8px 12px;font-size:10px;color:#aaa;z-index:50;line-height:1.6;white-space:nowrap">' +
             '<b style="color:#ffb12b">Scene Shortcuts</b><br>' +
-            'Ctrl+Click — Toggle multi-select<br>' +
-            'Ctrl+A — Select all objects<br>' +
-            'Ctrl+C — Copy selected<br>' +
-            'Ctrl+V — Paste<br>' +
-            'Ctrl+D — Duplicate<br>' +
-            'Delete — Delete selected<br>' +
-            'ESC — Deselect<br>' +
-            'G — Toggle snap-to-grid<br>' +
-            'R — Randomize rotation<br>' +
-            'F — Focus on selected<br>' +
+            'Ctrl+Click â€” Toggle multi-select<br>' +
+            'Ctrl+A â€” Select all objects<br>' +
+            'Ctrl+C â€” Copy selected<br>' +
+            'Ctrl+V â€” Paste<br>' +
+            'Ctrl+D â€” Duplicate<br>' +
+            'Delete â€” Delete selected<br>' +
+            'ESC â€” Deselect<br>' +
+            'G â€” Toggle snap-to-grid<br>' +
+            'R â€” Randomize rotation<br>' +
+            'F â€” Focus on selected<br>' +
             '<b style="color:#ffb12b;margin-top:4px;display:inline-block">Library Shortcuts</b><br>' +
-            'Ctrl+Click — Toggle multi-select<br>' +
-            'Ctrl+A — Select all models<br>' +
-            'Delete — Remove selected</div>' +
+            'Ctrl+Click â€” Toggle multi-select<br>' +
+            'Ctrl+A â€” Select all models<br>' +
+            'Delete â€” Remove selected</div>' +
             '<div id="e-view-3d" style="flex:1;position:relative;overflow:hidden;background:#111;min-height:300px"></div></div>' +
 
             // Right: Hierarchy + Inspector
             '<div style="width:240px;min-width:240px;background:#1a1e24;display:flex;flex-direction:column;border-left:1px solid #252a32">' +
             '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📋 HIERARCHY</h3>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ“‹ HIERARCHY</h3>' +
             '<div style="font-size:10px;color:#666;margin-top:2px">Scene objects</div></div>' +
             '<div id="e-hierarchy" style="flex:1;overflow-y:auto;padding:6px">' +
-            '<div style="padding:5px 8px;color:#555;font-size:11px;border-left:2px solid #3a4;margin-bottom:2px">🌍 Ground</div>' +
+            '<div style="padding:5px 8px;color:#555;font-size:11px;border-left:2px solid #3a4;margin-bottom:2px">ðŸŒ Ground</div>' +
             '</div>' +
             '<div style="border-top:1px solid #252a32;padding:10px 12px">' +
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">🔍 INSPECTOR</h3></div>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ” INSPECTOR</h3></div>' +
             '<div id="e-inspector" style="flex:0 0 auto;max-height:260px;overflow-y:auto;padding:6px 12px 12px;font-size:12px">' +
             '<div style="color:#555">Select an object to edit</div></div></div>';
 
@@ -499,12 +504,12 @@ var Editor123 = {
         addItem('Sound', 'Sound Source', function () { self._spawnBuiltin('sound', 'sound', 'Sound'); });
         addItem('Water', 'Water Body', function () { self._spawnBuiltin('water', 'water', 'Water Body'); });
         addItem('Ground', 'Ground Plane', function () { self._spawnBuiltin('ground', 'ground', 'Ground Plane'); });
-        addItem('Tools', '🌿 Grass Painter', function () { self._showGrassPainter(); });
-        addItem('Tools', '🎨 Paint Terrain', function () { self._showPaintTool(); });
+        addItem('Tools', 'ðŸŒ¿ Grass Painter', function () { self._showGrassPainter(); });
+        addItem('Tools', 'ðŸŽ¨ Paint Terrain', function () { self._showPaintTool(); });
         var cats = {};
         items.forEach(function (it) { if (!cats[it.cat]) cats[it.cat] = []; cats[it.cat].push(it); });
         var html = '';
-        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️', Tools: '🔧' };
+        var catIcons = { Primitives: 'âœ¨', '2D Shapes': 'ðŸ“', Image: 'ðŸ–¼ï¸', Light: 'ðŸ’¡', Sound: 'ðŸ”Š', Water: 'ðŸŒŠ', Ground: 'ðŸ”ï¸', Tools: 'ðŸ”§' };
         Object.keys(cats).forEach(function (cat) {
             html += '<div style="color:#ffb12b;font-size:10px;font-weight:600;padding:6px 8px 2px;text-transform:uppercase;letter-spacing:.5px">' + (catIcons[cat] || '') + ' ' + cat + '</div>';
             cats[cat].forEach(function (it) {
@@ -572,7 +577,7 @@ var Editor123 = {
         div.id = 'e-paint-panel';
         div.style.cssText = 'position:absolute;top:28px;left:230px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:10px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:180px';
         div.innerHTML =
-            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🎨 Paint Terrain</div>' +
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">ðŸŽ¨ Paint Terrain</div>' +
             '<label style="color:#aaa;display:block;margin:4px 0">Color:</label>' +
             '<input type="color" id="e-paint-color" value="#4a7a4a" style="width:100%;height:30px;border:none;background:transparent;cursor:pointer">' +
             '<label style="color:#aaa;display:block;margin:4px 0">Brush size:</label>' +
@@ -591,7 +596,7 @@ var Editor123 = {
         };
         document.getElementById('e-paint-apply').onclick = function () {
             self._paintMode = true;
-            self.toast('Paint mode active — click objects to color them');
+            self.toast('Paint mode active â€” click objects to color them');
         };
         document.getElementById('e-paint-close').onclick = function () {
             self._paintMode = false;
@@ -599,7 +604,7 @@ var Editor123 = {
             self.toast('Paint mode OFF');
         };
         self._paintMode = true;
-        self.toast('Paint mode active — click objects to color them');
+        self.toast('Paint mode active â€” click objects to color them');
     },
 
     _showGrassPainter: function () {
@@ -610,7 +615,7 @@ var Editor123 = {
         div.id = 'e-grass-panel';
         div.style.cssText = 'position:absolute;top:28px;left:230px;z-index:300;background:#1a1e24;border:1px solid #2a2f36;border-radius:8px;padding:10px;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,0.5);min-width:200px';
         div.innerHTML =
-            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🌿 3D Grass Painter</div>' +
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">ðŸŒ¿ 3D Grass Painter</div>' +
             '<div style="color:#888;font-size:10px;margin-bottom:8px">Instanced 3D blades with wind sway &amp; gradient</div>' +
             '<label style="color:#aaa;display:block;margin:4px 0">Brush radius:</label>' +
             '<input type="range" id="e-grass-radius" min="0.3" max="15" step="0.1" value="3" style="width:100%">' +
@@ -625,7 +630,7 @@ var Editor123 = {
             '<label style="color:#aaa;display:block;margin:4px 0">Color tip:</label>' +
             '<input type="color" id="e-grass-color-top" value="#79a01c" style="width:100%;height:24px;border:none;background:transparent;cursor:pointer">' +
             '<details style="margin-top:8px;background:#1e232a;border-radius:6px;padding:4px">' +
-            '<summary style="cursor:pointer;color:#ffb12b;font-weight:600;font-size:11px;padding:4px">🌬️ Wind &amp; Shader</summary>' +
+            '<summary style="cursor:pointer;color:#ffb12b;font-weight:600;font-size:11px;padding:4px">ðŸŒ¬ï¸ Wind &amp; Shader</summary>' +
             '<div style="padding:6px 4px">' +
             '<label style="color:#aaa;display:block;margin:2px 0;font-size:10px">Wind Speed (' + this._grassWindSpeed.toFixed(1) + ')</label>' +
             '<input type="range" id="e-grass-wind-speed" min="0.1" max="5.0" step="0.1" value="' + this._grassWindSpeed + '" style="width:100%">' +
@@ -633,8 +638,8 @@ var Editor123 = {
             '<input type="range" id="e-grass-wind-strength" min="0.0" max="2.0" step="0.05" value="' + this._grassWindStrength + '" style="width:100%">' +
             '</div></details>' +
             '<div style="margin-top:6px;display:flex;gap:4px">' +
-            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">🌱 Paint</span>' +
-            '<span class="e123-tbtn" id="e-grass-erase" style="flex:1;text-align:center;color:#f88">🧹 Erase</span>' +
+            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">ðŸŒ± Paint</span>' +
+            '<span class="e123-tbtn" id="e-grass-erase" style="flex:1;text-align:center;color:#f88">ðŸ§¹ Erase</span>' +
             '<span class="e123-tbtn" id="e-grass-close" style="flex:1;text-align:center">Close</span></div>' +
             '<div style="color:#666;font-size:10px;margin-top:6px">Click/hold to paint or erase 3D grass</div>';
         var btn = document.getElementById('e-add-btn');
@@ -672,14 +677,14 @@ var Editor123 = {
             self._currentTool = 'grass_painter';
             self._grassMode = true;
             self._grassEraseMode = false;
-            self.toast('3D grass paint active — click ground to stamp blades');
+            self.toast('3D grass paint active â€” click ground to stamp blades');
         };
         document.getElementById('e-grass-erase').onclick = function () {
             self._currentTool = 'grass_painter';
             self._grassMode = true;
             self._grassEraseMode = true;
             if (self._grassBrushCircle) self._grassBrushCircle.scale.setScalar(self._grassBrushSize);
-            self.toast('Grass erase active — click/hold to remove blades');
+            self.toast('Grass erase active â€” click/hold to remove blades');
         };
         document.getElementById('e-grass-close').onclick = function () {
             self._currentTool = 'select';
@@ -690,7 +695,7 @@ var Editor123 = {
             self.toast('Grass painter closed');
         };
         // NOTE: _currentTool stays 'select' until user clicks Paint or Erase
-        self.toast('Grass painter panel open — configure settings, then click 🌱 Paint');
+        self.toast('Grass painter panel open â€” configure settings, then click ðŸŒ± Paint');
     },
 
     _spawnGrass: function (pos) {
@@ -809,7 +814,7 @@ var Editor123 = {
             }
         }
 
-        this.toast('Erased ' + removed + ' blade(s) — ' + this._grassCount + ' remaining');
+        this.toast('Erased ' + removed + ' blade(s) â€” ' + this._grassCount + ' remaining');
     },
 
     /** Create or recreate the single global grass InstancedMesh for all blades */
@@ -969,7 +974,7 @@ var Editor123 = {
             item.className = 'e123-lib-item';
             item.dataset.idx = i;
             item.style.cssText = 'padding:6px 8px;background:' + (selected ? 'rgba(255,177,43,0.12)' : '#22272e') + ';border-radius:5px;margin-bottom:3px;cursor:pointer;border:1.5px solid ' + (selected ? '#ffb12b' : 'transparent') + ';display:flex;align-items:center;gap:6px';
-            item.innerHTML = '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
+            item.innerHTML = '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">ðŸ“¦</div>' +
                 '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (m.name || 'Model') + '</div>' +
                 '<div style="font-size:9px;color:#666">' + (m.type || 'glb') + '</div></div>';
             item.onclick = function (ev) {
@@ -989,7 +994,7 @@ var Editor123 = {
                 var ind = document.getElementById('e-placing-indicator');
                 if (ind) {
                     if (self._mapPlacing !== false && self._mapLib[self._mapPlacing]) {
-                        ind.style.display = ''; ind.textContent = '🔵 Placing: ' + self._mapLib[self._mapPlacing].name + (self._mapPlacingMulti.length > 1 ? ' (+' + (self._mapPlacingMulti.length - 1) + ')' : '');
+                        ind.style.display = ''; ind.textContent = 'ðŸ”µ Placing: ' + self._mapLib[self._mapPlacing].name + (self._mapPlacingMulti.length > 1 ? ' (+' + (self._mapPlacingMulti.length - 1) + ')' : '');
                     } else {
                         ind.style.display = 'none';
                     }
@@ -1022,7 +1027,7 @@ var Editor123 = {
                 var sel = !!selSet[i];
                 var indent = depth * 16;
                 var isParent = children[i] && children[i].length > 0;
-                var icon = (o.kind === 'ground') ? '🏔️' : (o.kind === 'light') ? '💡' : (o.kind === 'sound') ? '🔊' : (o.kind === 'water') ? '🌊' : (isParent ? '📁' : '📦');
+                var icon = (o.kind === 'ground') ? 'ðŸ”ï¸' : (o.kind === 'light') ? 'ðŸ’¡' : (o.kind === 'sound') ? 'ðŸ”Š' : (o.kind === 'water') ? 'ðŸŒŠ' : (isParent ? 'ðŸ“' : 'ðŸ“¦');
                 html += '<div class="e123-h-item" data-idx="' + i + '" style="padding:4px 8px 4px ' + (8 + indent) + 'px;font-size:11px;cursor:pointer;border-left:2px solid ' + (sel ? '#ffb12b' : '#444') + ';background:' + (sel ? 'rgba(255,177,43,0.1)' : 'transparent') + ';margin-bottom:1px;border-radius:0 4px 4px 0;display:flex;align-items:center;gap:4px">' +
                     icon + ' ' + (o.name || 'Object ' + (i + 1)) +
                     (o.parentIdx != null && o.parentIdx >= 0 ? '<span style="color:#555;font-size:9px;margin-left:auto">child</span>' : '') +
@@ -1043,10 +1048,10 @@ var Editor123 = {
                 var menu = document.createElement('div');
                 menu.style.cssText = 'position:fixed;left:' + e.clientX + 'px;top:' + e.clientY + 'px;background:#22272e;border:1px solid #2a2f36;border-radius:6px;padding:4px 0;z-index:300;font-size:11px;min-width:120px';
                 menu.innerHTML =
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">🗑️ Delete (' + count + ')</div>' +
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬆️ Parent to selected</div>' +
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬇️ Unparent</div>' +
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">✏️ Rename</div>';
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">ðŸ—‘ï¸ Delete (' + count + ')</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">â¬†ï¸ Parent to selected</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">â¬‡ï¸ Unparent</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">âœï¸ Rename</div>';
                 document.body.appendChild(menu);
                 var close = function () { if (menu.parentNode) menu.parentNode.removeChild(menu); };
                 menu.querySelectorAll('.e123-ctx-item').forEach(function (item2, ci) {
@@ -1166,8 +1171,8 @@ var Editor123 = {
             html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Width <input id="e-insp-iw" type="number" step="0.1" min="0.1" value="' + ((obj.planeW || 2).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-ih" type="number" step="0.1" min="0.1" value="' + ((obj.planeH || 2).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
-                '<span class="e123-tbtn" id="e-insp-reimg" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🖼️ Import New Image</span>';
-            if (obj.imgWidth) html += '<div style="color:#666;font-size:9px;margin-top:2px">Original: ' + obj.imgWidth + '×' + obj.imgHeight + 'px</div>';
+                '<span class="e123-tbtn" id="e-insp-reimg" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸ–¼ï¸ Import New Image</span>';
+            if (obj.imgWidth) html += '<div style="color:#666;font-size:9px;margin-top:2px">Original: ' + obj.imgWidth + 'Ã—' + obj.imgHeight + 'px</div>';
         } else if (kind === 'light') {
             html += '<div style="display:grid;grid-template-columns:1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Intensity <input id="e-insp-li" type="number" step="0.1" min="0" value="' + ((obj.intensity != null ? obj.intensity : 1).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
@@ -1181,18 +1186,18 @@ var Editor123 = {
             html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Volume <input id="e-insp-sv" type="number" step="0.1" min="0" max="1" value="' + ((obj.volume != null ? obj.volume : 1).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Range <input id="e-insp-sr" type="number" step="1" min="0" value="' + ((obj.range || 15).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
-                '<span class="e123-tbtn" id="e-insp-snd" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🔊 Import Audio File</span>';
+                '<span class="e123-tbtn" id="e-insp-snd" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸ”Š Import Audio File</span>';
         } else if (kind === 'water') {
             html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Width <input id="e-insp-ww" type="number" step="1" min="1" value="' + ((obj.planeW || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-wh" type="number" step="1" min="1" value="' + ((obj.planeH || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
-                '<div style="color:#3af;font-size:10px">🌊 Uses stylized water shader</div>';
+                '<div style="color:#3af;font-size:10px">ðŸŒŠ Uses stylized water shader</div>';
         } else if (kind === 'ground') {
             html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:4px">' +
                 '<label style="color:#888;font-size:10px">Width <input id="e-insp-gw" type="number" step="1" min="1" value="' + ((obj.planeW || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label>' +
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-gh" type="number" step="1" min="1" value="' + ((obj.planeH || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
-                '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>' +
-                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🌿 Copy grass color to ground</span>';
+                '<div style="color:#888;font-size:9px">ðŸ”ï¸ Ground plane â€” use +Add to create more</div>' +
+                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸŒ¿ Copy grass color to ground</span>';
         } else if (kind === 'primitive' || kind === 'shape2d') {
             html += '<div style="color:#666;font-size:10px;margin-bottom:4px">' + (kind === 'primitive' ? '3D ' : '2D ') + (obj.subType || '').charAt(0).toUpperCase() + (obj.subType || '').slice(1) + '</div>';
         }
@@ -1296,7 +1301,7 @@ var Editor123 = {
             var colorEl = document.getElementById('e-insp-color');
             if (colorEl) colorEl.onchange = function () {
                 obj.color = parseInt(this.value.slice(1), 16);
-                // Update material color directly — do NOT rebuild scene (preserves position/rot/scale)
+                // Update material color directly â€” do NOT rebuild scene (preserves position/rot/scale)
                 var cm = self._mapModels[self._mapSelObj];
                 if (cm) {
                     var hex = new THREE.Color(obj.color);
@@ -1307,7 +1312,7 @@ var Editor123 = {
                                 // Custom shader material with uColor uniform
                                 if (mat.uniforms && mat.uniforms.uColor) {
                                     mat.uniforms.uColor.value.copy(hex);
-                                // NodeMaterial / TSL — colorNode or standard color.set
+                                // NodeMaterial / TSL â€” colorNode or standard color.set
                                 } else if (mat.colorNode && typeof mat.colorNode.assign === 'function') {
                                     mat.colorNode.assign(new THREE.Color(obj.color));
                                 } else if (mat.color && typeof mat.color.set === 'function') {
@@ -1452,7 +1457,7 @@ var Editor123 = {
         document.getElementById('e-save-3d').onclick = function () { self._saveMap(); self.toast('Saved ' + self._mapObjs.length + ' objects'); };
         document.getElementById('e-simulate').onclick = function () {
             self._physSimulating = !self._physSimulating;
-            this.textContent = self._physSimulating ? '⏸ Pause' : '▶ Sim';
+            this.textContent = self._physSimulating ? 'â¸ Pause' : 'â–¶ Sim';
             self._rebuildScene();
         };
         // Gizmo mode buttons
@@ -1671,10 +1676,10 @@ var Editor123 = {
         gizmo.addEventListener('dragging-changed', function (ev) {
             controls.enabled = !ev.value;
             if (ev.value) {
-                // Drag started — show badge near gizmo screen position
+                // Drag started â€” show badge near gizmo screen position
                 rotBadge.style.display = 'block';
             } else {
-                // Drag ended — hide badge
+                // Drag ended â€” hide badge
                 rotBadge.style.display = 'none';
                 // Persist snapped rotation back to data model
                 if (self._mapSelObj != null && self._mapObjs[self._mapSelObj]) {
@@ -1758,7 +1763,7 @@ var Editor123 = {
         window.addEventListener('resize', ro);
         this._mapResizeHandler = ro;
 
-        // Input router — tool state is managed by _currentTool ('select' | 'grass_painter')
+        // Input router â€” tool state is managed by _currentTool ('select' | 'grass_painter')
         var raycaster = new THREE.Raycaster();
         var mouse = new THREE.Vector2();
         renderer.domElement.addEventListener('pointermove', function (ev) {
@@ -1899,7 +1904,7 @@ var Editor123 = {
                     if (pa && m.material.uniforms.uProxPositions.value !== pa) { var dst = m.material.uniforms.uProxPositions.value; for (var pi = 0; pi < 48; pi++) dst[pi].copy(pa[pi]); }
                 });
 
-                // Grass shader uTime (global InstancedMesh — not in _mapModels)
+                // Grass shader uTime (global InstancedMesh â€” not in _mapModels)
                 if (self._grassMesh && self._grassMesh.material && self._grassMesh.material.uniforms && self._grassMesh.material.uniforms.uTime) {
                     self._grassMesh.material.uniforms.uTime.value = time;
                 }
@@ -1914,7 +1919,7 @@ var Editor123 = {
                     }
                 }
 
-                // Brush circle visual (no painting — painting is handled by click handler)
+                // Brush circle visual (no painting â€” painting is handled by click handler)
                 if (self._grassBrushCircle) {
                     if (self._currentTool === 'grass_painter' && self._mapMouseNDC) {
                         var bcRay = new THREE.Raycaster();
@@ -2088,13 +2093,13 @@ var Editor123 = {
                     if (!self._mapGround) self._mapGround = mesh;
                 }
             } else if (kind === 'grass3d') {
-                // Single global InstancedMesh — managed by _ensureGrassMesh / _spawnGrass.
+                // Single global InstancedMesh â€” managed by _ensureGrassMesh / _spawnGrass.
                 // Push null placeholder to keep _mapModels & _physBodies parallel to _mapObjs.
                 self._mapModels.push(null);
                 self._physBodies.push(null);
                 return;
             } else if (kind === 'grass') {
-                // Legacy 2D grass (Points-based) — kept for old saves
+                // Legacy 2D grass (Points-based) â€” kept for old saves
                 var grassTex = null;
                 if (o.textureUrl) {
                     var texLoader = new THREE.TextureLoader();
@@ -2269,7 +2274,7 @@ var Editor123 = {
             this._transformControls.attach(this._mapModels[this._mapSelObj]);
             this._transformControls.setSpace('world');
         }
-        // Ground sanity check — force visible, correct position, valid material
+        // Ground sanity check â€” force visible, correct position, valid material
         for (var gi = 0; gi < this._mapObjs.length; gi++) {
             if (this._mapObjs[gi] && this._mapObjs[gi].kind === 'ground') {
                 var gm = null;
@@ -2329,7 +2334,7 @@ var Editor123 = {
             .then(function (models) {
                 if (!models || models.length === 0) { self.toast('No models on server'); return; }
                 var html = models.map(function (m, i) {
-                    return '<div class="e123-srv-item" data-idx="' + i + '" style="padding:8px 12px;background:#22272e;border-radius:6px;margin-bottom:4px;cursor:pointer">📦 ' + m.name + '</div>';
+                    return '<div class="e123-srv-item" data-idx="' + i + '" style="padding:8px 12px;background:#22272e;border-radius:6px;margin-bottom:4px;cursor:pointer">ðŸ“¦ ' + m.name + '</div>';
                 }).join('');
                 var div = document.createElement('div');
                 div.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center';
@@ -2398,7 +2403,7 @@ var Editor123 = {
                 }
                 if (modelFiles.length === 0) { self.toast('No model files (FBX/GLB) selected'); return; }
                 self.toast('Processing ' + modelFiles.length + ' file(s)...');
-                // Sequential processing — one file at a time with setTimeout yield
+                // Sequential processing â€” one file at a time with setTimeout yield
                 // to keep the UI responsive during a batch of 150+ files.
                 var loadedCnt = 0;
                 var failCnt = 0;
@@ -2406,7 +2411,7 @@ var Editor123 = {
                 function processNext() {
                     if (fileIdx >= modelFiles.length) {
                         try { self._saveLib(self._mapLib); } catch (e) {
-                            console.warn('localStorage quota exceeded — models kept in memory only');
+                            console.warn('localStorage quota exceeded â€” models kept in memory only');
                         }
                         self._renderLibList();
                         self.toast('Loaded ' + loadedCnt + ' model(s)' + (failCnt ? ', ' + failCnt + ' failed' : ''));
@@ -2477,7 +2482,7 @@ var Editor123 = {
         item.dataset.idx = idx;
         item.style.cssText = 'padding:6px 8px;background:#22272e;border-radius:5px;margin-bottom:3px;cursor:pointer;border:1.5px solid transparent;display:flex;align-items:center;gap:6px';
         item.innerHTML =
-            '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
+            '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">ðŸ“¦</div>' +
             '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
             (assetName || 'Model') + '</div>' +
             '<div style="font-size:9px;color:#666">' + (entry.type || 'glb') + '</div></div>';
@@ -2493,10 +2498,10 @@ var Editor123 = {
             var ind = document.getElementById('e-placing-indicator');
             if (ind) {
                 ind.style.display = '';
-                ind.textContent = '🔵 Placing: ' + assetName;
+                ind.textContent = 'ðŸ”µ Placing: ' + assetName;
             }
             self._renderLibList();
-            self.toast('Selected: ' + assetName + ' — click ground to place');
+            self.toast('Selected: ' + assetName + ' â€” click ground to place');
         };
         list.appendChild(item);
         // Keep the model count badge up to date
@@ -2711,19 +2716,19 @@ var Editor123 = {
                 self.toast('Duplicated ' + copies.length + ' object(s)');
                 return;
             }
-            // G — Toggle snap
+            // G â€” Toggle snap
             if (key === 'KeyG' && !ctrl) {
                 var snapBtn2 = document.getElementById('e-snap-btn');
                 if (snapBtn2) snapBtn2.click();
                 return;
             }
-            // R — Randomize rotation/scale
+            // R â€” Randomize rotation/scale
             if (key === 'KeyR' && !ctrl) {
                 var randBtn2 = document.getElementById('e-rand-btn');
                 if (randBtn2) randBtn2.click();
                 return;
             }
-            // F — Focus on selected
+            // F â€” Focus on selected
             if (key === 'KeyF' && !ctrl && self._mapSelObj != null && self._mapModels[self._mapSelObj]) {
                 var targetObj = self._mapModels[self._mapSelObj];
                 if (targetObj && self._mapControls) {
@@ -2769,9 +2774,9 @@ var Editor123 = {
         if (rb) rb.remove();
     },
 
-    /* ═══════════════════════════
+    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
        PERSISTENCE
-       ═══════════════════════════ */
+       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
     _saveElem: function () {
         var self = this;
         var d = {};
@@ -2837,7 +2842,7 @@ var Editor123 = {
         var json = JSON.stringify(clean);
         var sizeBytes = new Blob([json]).size;
         if (sizeBytes > 4 * 1024 * 1024) {
-            console.warn('Library data ~' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB — may exceed localStorage quota');
+            console.warn('Library data ~' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB â€” may exceed localStorage quota');
         }
         try {
             localStorage.setItem('tankparty_editor123_library', json);
@@ -2852,5 +2857,174 @@ var Editor123 = {
     _imgData: function (img) {
         var c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
         c.getContext('2d').drawImage(img, 0, 0); return c.toDataURL();
+    },
+
+    /* ──── SHOP EDITOR ──── */
+    _renderShopEditor: function () {
+        this._mode = 'shop';
+        var self = this;
+        var c = document.getElementById('editor123-content');
+        var html =
+            '<div style="display:flex;height:100%;width:100%">' +
+            '<div style="width:240px;min-width:240px;background:#1a1e24;padding:14px;overflow-y:auto;border-right:1px solid #252a32">' +
+            '<h3 style="margin:0 0 12px;color:#ffb12b;font-size:14px;letter-spacing:.5px">SHOP EDITOR</h3>' +
+            '<div style="margin-bottom:10px"><label style="color:#888;font-size:11px">Page to edit</label>' +
+            '<div style="display:flex;gap:4px;margin-bottom:12px">' +
+            '<div class="se-page-btn active" data-page="shop" style="flex:1;padding:6px;border-radius:6px;background:#2a5a2a;text-align:center;cursor:pointer;font-size:11px;color:#fff">Shop</div>' +
+            '<div class="se-page-btn" data-page="buy" style="flex:1;padding:6px;border-radius:6px;background:#333;text-align:center;cursor:pointer;font-size:11px;color:#888">Buy</div>' +
+            '<div class="se-page-btn" data-page="receive" style="flex:1;padding:6px;border-radius:6px;background:#333;text-align:center;cursor:pointer;font-size:11px;color:#888">Receive</div></div>' +
+            '<div id="se-page-content">' +
+            '<div style="margin-bottom:10px"><label style="color:#888;font-size:11px">Sections (comma-sep)</label>' +
+            '<input id="se-sections" type="text" value="' + (SHOP_DATA.sections.join(',') || 'main,bundles,currencies,subscriptions') + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px"></div>' +
+            '<div style="margin-bottom:10px"><label style="color:#888;font-size:11px">Backdrop image URL</label>' +
+            '<input id="se-backdrop" type="text" value="' + (SHOP_DATA.backdrop || '') + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px" placeholder="assets/shop/background.png"></div>' +
+            '<div class="btn" id="se-add-offer" style="font-size:12px;padding:8px">+ Add Deal</div>' +
+            '<div class="btn" id="se-save" style="font-size:12px;padding:8px;margin-top:6px;background:#2a5a2a;border-color:#3a7a3a">Save Shop</div>' +
+            '<div class="btn" id="se-export" style="font-size:12px;padding:8px;margin-top:6px;background:#2a2a5a;border-color:#3a3a7a">Export Rotation</div>' +
+            '<div class="btn" id="se-download" style="font-size:12px;padding:8px;margin-top:6px;background:#2a2a2a;border-color:#555">Download shop.json</div>' +
+            '<div class="btn" id="se-reset" style="font-size:12px;padding:8px;margin-top:6px;background:#5a2a2a;border-color:#7a3a3a">Reset to Default</div></div>' +
+            '<div id="e123-m-back" style="margin-top:16px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">&lt;- Back to Launcher</div></div>' +
+            '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">' +
+            '<div style="padding:8px 14px;background:#1a1e24;display:flex;gap:6px;align-items:center;border-bottom:1px solid #252a32;flex-shrink:0">' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:13px">\u{1F6D2} ' + (SHOP_DATA.offers.length || 0) + ' deals loaded</span></div>' +
+            '<div id="se-list" style="flex:1;overflow-y:auto;padding:12px"></div>' +
+            '</div></div>';
+        c.innerHTML = html;
+        self._renderShopOfferList();
+        self._updateShopEditorHeader();
+        document.getElementById('e123-m-back').onclick = function () { self._renderLauncher(); };
+        document.getElementById('se-add-offer').onclick = function () { self._shopAddOffer(); };
+        document.getElementById('se-save').onclick = function () { self._shopSave(); };
+        document.getElementById('se-export').onclick = function () { self._shopExportRotation(); };
+        document.getElementById('se-download').onclick = function () { self._shopDownloadJson(); };
+        document.getElementById('se-reset').onclick = function () { self._shopReset(); };
+        // Page selection tabs
+        document.querySelectorAll('.se-page-btn').forEach(function (b) {
+            b.onclick = function () {
+                document.querySelectorAll('.se-page-btn').forEach(function (x) { x.style.background = '#333'; x.style.color = '#888'; });
+                this.style.background = '#2a5a2a'; this.style.color = '#fff';
+                var pg = document.getElementById('se-page-content');
+                if (this.dataset.page === 'shop') pg.style.display = '';
+                else pg.innerHTML = '<div style="color:#666;font-size:12px;text-align:center;padding:40px 0">' + this.dataset.page.charAt(0).toUpperCase() + this.dataset.page.slice(1) + ' page editor - coming soon<br><small>Drag elements will be here</small></div>';
+            };
+        });
+    },
+
+    _renderShopOfferList: function () {
+        var list = document.getElementById('se-list');
+        if (!list) return;
+        if (!SHOP_DATA.offers.length) { SHOP_DATA.offers = SHOP_DATA.ALL_DEALS.map(function(d) { return Object.assign({}, d); }); }
+        var offers = SHOP_DATA.offers;
+        var html = '';
+        offers.forEach(function (o, i) {
+            var priceStr = o.price + ' ' + (o.currency === 'coins' ? '$' : '\u25C6');
+            html += '<div class="se-offer-card" data-idx="' + i + '" style="background:#22272e;border:1px solid #333;border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;transition:.1s">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center">' +
+                '<div><strong>' + o.reward + '</strong> <span style="color:#888;font-size:11px">x' + o.amount + '</span></div>' +
+                '<div style="text-align:right;font-size:11px;color:#8af">' + priceStr + '</div></div>' +
+                '<div style="display:flex;gap:10px;margin-top:6px;font-size:10px;color:#666">' +
+                '<span>Priority: ' + o.priority + '</span><span>Stock: ' + (o.stock < 0 ? '\u221E' : o.stock) + '</span></div></div>';
+        });
+        list.innerHTML = html;
+        this._updateShopEditorHeader();
+        list.querySelectorAll('.se-offer-card').forEach(function (card) {
+            card.onclick = function () {
+                Editor123._shopEditOffer(parseInt(this.dataset.idx));
+            };
+        });
+    },
+
+    _updateShopEditorHeader: function () {
+        var h = document.querySelector('#editor123-content > div > div:nth-child(2) > div:first-child span');
+        if (h) h.textContent = '\u{1F6D2} ' + (SHOP_DATA.offers.length || 0) + ' offers loaded';
+    },
+
+    _shopAddOffer: function () {
+        var newOffer = { reward:'coins', amount:100, price:10, currency:'gems', priority:1, stock:10 };
+        SHOP_DATA.offers.push(newOffer);
+        this._renderShopOfferList();
+        this._shopEditOffer(SHOP_DATA.offers.length - 1);
+    },
+
+    _shopEditOffer: function (idx) {
+        var self = this;
+        var offer = SHOP_DATA.offers[idx];
+        if (!offer) return;
+        var c = document.getElementById('editor123-content');
+        var existing = document.getElementById('se-edit-panel');
+        if (existing) existing.remove();
+        var panel = document.createElement('div');
+        panel.id = 'se-edit-panel';
+        panel.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:320px;background:#1a1e24;border-left:1px solid #333;z-index:10;padding:16px;overflow-y:auto';
+        panel.innerHTML =
+            '<h4 style="color:#ffb12b;margin:0 0 12px;font-size:13px">Edit Offer</h4>' +
+            '<label style="color:#888;font-size:11px">Reward (coins/gems/basic_crate/rare_crate)</label><input id="se-e-reward" value="' + offer.reward + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Amount</label><input id="se-e-amount" type="number" value="' + offer.amount + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Price</label><input id="se-e-price" type="number" value="' + offer.price + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Currency (coins/gems)</label><input id="se-e-currency" value="' + offer.currency + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Priority (1-3, higher=more likely)</label><input id="se-e-priority" type="number" value="' + offer.priority + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Stock (0 = sold out)</label><input id="se-e-stock" type="number" value="' + offer.stock + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<div style="display:flex;gap:8px">' +
+            '<div class="btn" id="se-e-save" style="font-size:12px;padding:8px;flex:1;background:#2a5a2a">Update</div>' +
+            '<div class="btn" id="se-e-delete" style="font-size:12px;padding:8px;flex:1;background:#5a2a2a">Delete</div></div>';
+        c.style.position = 'relative';
+        c.appendChild(panel);
+        document.getElementById('se-e-save').onclick = function () {
+            offer.reward = document.getElementById('se-e-reward').value;
+            offer.amount = parseInt(document.getElementById('se-e-amount').value) || 0;
+            offer.price = parseInt(document.getElementById('se-e-price').value) || 0;
+            offer.currency = document.getElementById('se-e-currency').value;
+            offer.priority = parseInt(document.getElementById('se-e-priority').value) || 1;
+            offer.stock = parseInt(document.getElementById('se-e-stock').value) || 0;
+            self._renderShopOfferList();
+            panel.remove();
+            Editor123.toast('Offer updated');
+        };
+        document.getElementById('se-e-delete').onclick = function () {
+            SHOP_DATA.offers.splice(idx, 1);
+            self._renderShopOfferList();
+            panel.remove();
+            Editor123.toast('Offer deleted');
+        };
+    },
+
+    _shopExportRotation: function () {
+        var data = { generatedAt: new Date().toISOString(), dayKey: Math.floor(Date.now() / 86400000), offers: SHOP_DATA.getOffers() };
+        var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'rotatingshop.json'; a.click();
+        URL.revokeObjectURL(url);
+        this.toast('Rotation exported');
+    },
+
+    _shopSave: function () {
+        var sectionsStr = document.getElementById('se-sections');
+        if (sectionsStr) SHOP_DATA.sections = sectionsStr.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+        var backdropEl = document.getElementById('se-backdrop');
+        if (backdropEl) SHOP_DATA.backdrop = backdropEl.value || null;
+        SHOP_DATA.saveShopFile();
+        this.toast('Shop saved to saves/shop.json');
+    },
+
+    _shopDownloadJson: function () {
+        var data = { offers: SHOP_DATA.offers, sections: SHOP_DATA.sections, backdrop: SHOP_DATA.backdrop };
+        var blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'shop.json'; a.click();
+        URL.revokeObjectURL(url);
+        Editor123.toast('shop.json downloaded');
+    },
+
+    _shopReset: function () {
+        if (!confirm('Reset shop to default offers?')) return;
+        SHOP_DATA.offers = [];
+        localStorage.removeItem('tankparty_shop');
+        localStorage.removeItem('shop_daykey');
+        localStorage.removeItem('shop_free_claimed');
+        SHOP_DATA.refreshDaily();
+        this._renderShopOfferList();
+        this.toast('Shop reset to defaults');
     },
 };

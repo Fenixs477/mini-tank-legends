@@ -217,12 +217,16 @@ class Tank {
   }
 
   _addOverlays(turretH){
+    if(this.hpSprite && this.hpSprite.parent === this.root) return;
     this.hpSprite = this._makeHpSprite();
     this.hpSprite.userData.isOverlay = true;
+    this.hpSprite.renderOrder = 999;
     this.hpSprite.position.y = turretH + 2.4;
     this.root.add(this.hpSprite);
 
     this._drownBar = this._makeDrownBar();
+    this._drownBar.userData.isOverlay = true;
+    this._drownBar.renderOrder = 999;
     this._drownBar.position.y = turretH + 1.5;
     this.root.add(this._drownBar);
   }
@@ -247,6 +251,8 @@ class Tank {
     g.fillStyle='#fff'; g.fillText(this.name, 128, 26);
     // HP bar background
     g.fillStyle='rgba(0,0,0,0.6)'; g.fillRect(8,44,240,20);
+    // HP bar outline
+    g.strokeStyle='#000'; g.lineWidth=3; g.strokeRect(8,44,240,20);
     // HP bar fill
     const pct = Math.max(0, this.hp/this.maxHp);
     const col = pct>0.6?'#3ad17a':(pct>0.3?'#ffb12b':'#ff3b3b');
@@ -435,6 +441,21 @@ class Tank {
     }
 
     if(game) this._ramCheck(game);
+
+    // Smoke from tracks when drifting (fancy only)
+    if(this.drifting && game && game.isFancy){
+      this._driftSmokeTimer = (this._driftSmokeTimer || 0) + dt;
+      if(this._driftSmokeTimer >= 0.08){
+        this._driftSmokeTimer = 0;
+        const bw = this.def.body.w / 2 + 0.3, bl = this.def.body.l / 2;
+        const perpX = Math.cos(this.heading), perpZ = -Math.sin(this.heading);
+        for(let side=-1; side<=1; side+=2){
+          const sx = this.x + perpX * bw * side + (Math.random() - 0.5) * 0.3;
+          const sz = this.z + perpZ * bw * side + (Math.random() - 0.5) * 0.3;
+          game.spawnExhaust(sx, 0.08, sz, this.heading + Math.PI * 0.5 * side, 20);
+        }
+      }
+    }
 
     if(inp.turretWorldAngle != null){
       let diff = ((inp.turretWorldAngle - this.turretAngle + Math.PI) % (Math.PI*2)) - Math.PI;
@@ -630,10 +651,15 @@ class Tank {
     this.trailSegments = [];
   }
 
-  takeDamage(amount, fromTank, game){
+  takeDamage(amount, fromTank, game, accumulate){
     if(!this.alive || this.dying) return;
     this.hp -= amount;
     if(fromTank && fromTank !== this) fromTank.damageDealt += amount;
+    if(accumulate && game){
+      game._accumFlameDamage(this, amount);
+    } else if(game && game.spawnDamageLabel){
+      game.spawnDamageLabel(this.x, this.def.turret.h + this.def.body.h + 3.6, this.z, amount);
+    }
     if(this.hp <= 0){
       this.hp = 0; this.alive = false;
       if(fromTank && fromTank !== this) fromTank.kills++;

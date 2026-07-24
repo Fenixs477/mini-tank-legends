@@ -1,5 +1,5 @@
 /* ============================================================
-   bot.js — Simple but believable AI for bots / fake players.
+   bot.js â€” Simple but believable AI for bots / fake players.
    Drives toward nearest enemy, dodges walls, fires when aligned.
    ============================================================ */
 

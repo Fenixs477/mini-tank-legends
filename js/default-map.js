@@ -1,5 +1,5 @@
 /* ============================================================
-   default-map.js — Baked-in default map data
+   default-map.js â€” Baked-in default map data
    Replace DEFAULT_MAP with exported code from the editor.
    ============================================================ */
 

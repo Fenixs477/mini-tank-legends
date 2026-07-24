@@ -1,5 +1,5 @@
-/* ============================================================
-   menu.js — All UI: main menu, multiplayer, host/join, hidden
+﻿/* ============================================================
+   menu.js â€” All UI: main menu, multiplayer, host/join, hidden
    code (copy + 5s toast), collections, settings (rebindable keys
    + aim-line opacity/color + view-range width), map editor
    launcher, ESC menu, background images, host map selection.
@@ -14,6 +14,8 @@ const Menu = {
   init(game){
     this.game = game;
     document.body.classList.add(this._detectPlatform() === 'desktop' ? 'is-desktop' : 'is-mobile');
+    Audio.init();
+    SHOP_DATA.init();
     this._wireButtons();
     this._renderBinds();
     this._renderAimSettings();
@@ -134,7 +136,7 @@ const Menu = {
         this._showSection(plat === 'android' ? 'fs-android-rotate' : 'fs-ios-rotate');
         overlay.classList.remove('hidden');
       } else {
-        // Desktop — show prompt when not in fullscreen
+        // Desktop â€” show prompt when not in fullscreen
         if(isFS || this._fsDismissed){
           overlay.classList.add('hidden');
           this._checkRenderingTips();
@@ -254,15 +256,23 @@ const Menu = {
     document.getElementById(id).classList.remove('hidden');
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('ui-layer').classList.remove('game-active');
+    if(id !== 'menu-store' && id !== 'menu-shop-buy' && id !== 'menu-shop-receive'){
+      if(this._shopTimer){ clearInterval(this._shopTimer); this._shopTimer = null; }
+    }
     // Re-evaluate fullscreen overlay when returning to any menu
     this._refreshFullscreenState();
     if(id === 'menu-main'){
+      Audio.playMusic('assets/menu.mp3');
       if(!this._customMenuActive()){
         this._startMainPreview();
       }
       if(this._customMenuActive()) this._renderCustomMainMenu();
       else this._restoreDefaultMainMenu();
       this._renderProfile();
+    }
+    if(id === 'menu-store'){
+      Audio.playMusic('assets/shop/shop.mp3');
+      this._renderShop();
     }
     if(id === 'menu-collections'){
       this._collectionsFrames = null;
@@ -340,7 +350,7 @@ const Menu = {
       }
     });
     const resetBtn = document.createElement('div');
-    resetBtn.textContent = '← Default Menu';
+    resetBtn.textContent = 'â† Default Menu';
     resetBtn.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);color:var(--muted);font-size:12px;cursor:pointer;padding:8px 16px';
     resetBtn.onclick = ()=>{
       localStorage.removeItem('tankparty_custommainmenu');
@@ -393,11 +403,15 @@ const Menu = {
       };
     }
     if(clanEl) clanEl.textContent = s.playerClan || '';
-    if(coinEl) coinEl.textContent = (s.coins||0) + ' 🪙';
-    if(crystalEl) crystalEl.textContent = (s.crystals||0) + ' 💎';
+    if(coinEl) coinEl.textContent = (s.coins||0) + ' $';
+    if(crystalEl) crystalEl.textContent = (s.gems||0) + ' \u25C6';
   },
-  showHUD(){ document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
-    document.getElementById('hud').classList.remove('hidden'); },
+  showHUD(){
+    if(this._shopTimer){ clearInterval(this._shopTimer); this._shopTimer = null; }
+    document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
+    document.getElementById('hud').classList.remove('hidden');
+    Audio.playMusic('assets/1.mp3');
+  },
 
   toast(msg){
     const t = document.getElementById('toast');
@@ -421,7 +435,7 @@ const Menu = {
   /* ---------- free roam ---------- */
   _startFreeRoam(){
     if(typeof NakamaNet === 'undefined'){
-      this.toast('Nakama not available — use Battle Mode → Private Room');
+      this.toast('Nakama not available â€” use Battle Mode â†’ Private Room');
       return;
     }
     if(!NakamaNet.socket || !NakamaNet.socket.isConnected){
@@ -459,7 +473,7 @@ const Menu = {
     document.getElementById('btn-join-room').onclick = async ()=>{
       this.show('menu-join');
       const list = document.getElementById('room-list');
-      list.innerHTML = '<div class="muted">Searching for public rooms…</div>';
+      list.innerHTML = '<div class="muted">Searching for public roomsâ€¦</div>';
       const rooms = await Net.listPublicRooms();
       if(!rooms.length){
         list.innerHTML = '<div class="muted">No public rooms found.<br>You can host one, or join a hidden room with a code.</div>';
@@ -468,7 +482,7 @@ const Menu = {
       list.innerHTML='';
       rooms.forEach(r=>{
         const row = document.createElement('div'); row.className='room-row';
-        row.innerHTML = `<div><div class="rn">Room ${r.code}</div><div class="rm">${r.name||'Public'} • ${r.count||0}/${r.max||8}</div></div><div>Join →</div>`;
+        row.innerHTML = `<div><div class="rn">Room ${r.code}</div><div class="rm">${r.name||'Public'} â€¢ ${r.count||0}/${r.max||8}</div></div><div>Join â†’</div>`;
         row.onclick = ()=> this.game.startClient(r.code);
         list.appendChild(row);
       });
@@ -506,6 +520,12 @@ const Menu = {
     };
     document.getElementById('bigmap-close').onclick = ()=> document.getElementById('bigmap').classList.add('hidden');
       document.getElementById('minimap-btn').onclick = ()=> this.game.toggleBigMap();
+      document.getElementById('menu-btn').onclick = ()=> this.toggleEsc();
+    // Shop buttons
+    var shopBuyCancel = document.getElementById('shop-buy-cancel');
+    if(shopBuyCancel) shopBuyCancel.onclick = ()=>{ Audio.click(); this.show('menu-store'); };
+    var shopReceiveOk = document.getElementById('shop-receive-ok');
+    if(shopReceiveOk) shopReceiveOk.onclick = ()=>{ Audio.click(); this.show('menu-store'); };
 
     // Play buttons
     const btnPlay = document.getElementById('btn-play');
@@ -944,24 +964,34 @@ const Menu = {
   _wireEsc(){
     var self = this;
     window.addEventListener('keydown', e=>{
-      if(e.code!=='Escape') return;
-      // ignore ESC while typing in an input
+      if(e.code!=='Escape' && e.code!=='Tab') return;
+      if(e.code==='Tab') e.preventDefault();
       if(document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
-      // ignore if a big map is open
+      // If big map is open, close it on Escape/Tab
       if(!document.getElementById('bigmap').classList.contains('hidden')){
         document.getElementById('bigmap').classList.add('hidden'); return;
       }
-      // Settings/storage/collections/store → go to main menu directly (no confirmation popup)
+      // Tab toggles esc menu (ignores key-repeat)
+      if(e.code==='Tab'){
+        if(e.repeat) return;
+        if(document.getElementById('hud').classList.contains('hidden')) return;
+        this.toggleEsc();
+        return;
+      }
+      // Escape: close big map or pop settings menu to main menu
       var visibleMenu = document.querySelector('.menu:not(.hidden)');
       if(visibleMenu){
         var mid = visibleMenu.id;
-        if(mid === 'menu-settings' || mid === 'menu-storage' || mid === 'menu-collections' || mid === 'menu-store'){
-          if(mid === 'menu-settings' && self.settings) saveSettings(self.settings);
+        if(mid === 'menu-settings' && self.settings) saveSettings(self.settings);
+        if(mid === 'menu-store' || mid === 'menu-shop-buy' || mid === 'menu-shop-receive'){
+          self.show('menu-main');
+          return;
+        }
+        if(mid === 'menu-storage' || mid === 'menu-collections'){
           self.show('menu-main');
           return;
         }
       }
-      this.toggleEsc();
     });
   },
   _wireMinimapKey(){
@@ -1004,7 +1034,7 @@ const Menu = {
     });
     wrap.querySelectorAll('.bind-key').forEach(el=>{
       el.onclick = async ()=>{
-        el.classList.add('binding'); el.textContent='Press a key / wheel…';
+        el.classList.add('binding'); el.textContent='Press a key / wheelâ€¦';
         const captured = await Input.captureBind();
         this.settings.binds[el.dataset.action] = captured;
         saveSettings(this.settings);
@@ -1017,8 +1047,8 @@ const Menu = {
   },
   _keyLabel(k){
     if(k==='LMB') return 'LMB';
-    if(k==='WheelUp') return 'Wheel ↑';
-    if(k==='WheelDown') return 'Wheel ↓';
+    if(k==='WheelUp') return 'Wheel â†‘';
+    if(k==='WheelDown') return 'Wheel â†“';
     if(k==='Space') return 'Space';
     if(k.startsWith('Key')) return k.slice(3);
     if(k.startsWith('Arrow')) return k.slice(5)+' arrow';
@@ -1116,9 +1146,9 @@ const Menu = {
     wrap.innerHTML = `
       <label>Camera Rotation</label>
       <div class="cam-rotate-row">
-        <span class="cam-rotate-btn" id="cam-rotate-left">←</span>
+        <span class="cam-rotate-btn" id="cam-rotate-left">â†</span>
         <span class="cam-rotate-label">rotate left / right</span>
-        <span class="cam-rotate-btn" id="cam-rotate-right">→</span>
+        <span class="cam-rotate-btn" id="cam-rotate-right">â†’</span>
       </div>
       <div class="hint">Keyboard: ArrowLeft / ArrowRight (rebindable in Controls above)</div>`;
     document.getElementById('cam-rotate-left').onclick = ()=>{
@@ -1589,7 +1619,7 @@ const Menu = {
           const {ix, iy} = imgCoord({ clientX: _scrollDrag.startX, clientY: _scrollDrag.startY });
           _scrollDrag = null;
           if(wasDrag && Math.abs(vel) > 0.5){ startScrollInertia(vel); return; }
-          // Was a click — check pivot actions first, then frame selection
+          // Was a click â€” check pivot actions first, then frame selection
           let handled = false;
           for(let fi=0; fi<this._collectionsFrames.length; fi++){
             const f = this._collectionsFrames[fi];
@@ -1850,7 +1880,7 @@ const Menu = {
     this._renderCollections();
   },
 
-  showConnecting(msg){ document.getElementById('connecting').querySelector('h2').textContent = msg||'Connecting…';
+  showConnecting(msg){ document.getElementById('connecting').querySelector('h2').textContent = msg||'Connectingâ€¦';
     document.getElementById('connecting').classList.remove('hidden'); },
   hideConnecting(){ document.getElementById('connecting').classList.add('hidden'); },
 
@@ -1921,6 +1951,186 @@ const Menu = {
       slot.dataset.index = i;
       grid.appendChild(slot);
     }
+  },
+
+  /* ============================================================
+     SHOP
+     ============================================================ */
+  _renderShop(){
+    Audio.click();
+    if(this._shopTimer){ clearInterval(this._shopTimer); this._shopTimer = null; }
+    this._updateCurrencies();
+    this._renderDeals();
+    this._renderFreeOffer();
+    this._updateShopTimer();
+    this._wireShopSidebar();
+    document.getElementById('shop-back-main').onclick = () => { Audio.click(); this.show('menu-main'); };
+    this._shopTimer = setInterval(() => this._updateShopTimer(), 60000);
+  },
+
+  _updateCurrencies(){
+    const s = Menu.settings;
+    const ce = document.getElementById('shop-coins');
+    const ge = document.getElementById('shop-gems');
+    if(ce) ce.textContent = s.coins || 0;
+    if(ge) ge.textContent = s.gems || 0;
+  },
+
+  _wireShopSidebar(){
+    document.querySelectorAll('.shop-sidebar-section').forEach(el => {
+      el.onclick = () => {
+        Audio.click();
+        document.querySelectorAll('.shop-sidebar-section').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelectorAll('.shop-page').forEach(p => p.classList.add('hidden'));
+        const page = document.getElementById('shop-page-' + el.dataset.section);
+        if(page) page.classList.remove('hidden');
+      };
+    });
+  },
+
+  _renderDeals(){
+    const container = document.getElementById('shop-deals');
+    if(!container) return;
+    container.innerHTML = '';
+    const offers = SHOP_DATA.getOffers();
+    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const rewardLabels = { coins:'Coins', gems:'Gems', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
+    offers.forEach((offer, idx) => {
+      const card = document.createElement('div');
+      const soldOut = offer.stock === 0;
+      card.className = 'shop-deal-card' + (soldOut ? ' sold-out' : '');
+      const img = rewardImages[offer.reward] || '';
+      const label = rewardLabels[offer.reward] || offer.reward;
+      const isCrate = offer.reward === 'basic_crate' || offer.reward === 'rare_crate';
+      card.innerHTML =
+        '<div class="shop-deal-image" style="background-image:url(\'' + img + '\')"></div>' +
+        '<div class="shop-deal-amount">' + offer.amount + '</div>' +
+        '<div class="shop-deal-label">' + label + '</div>' +
+        '<div class="shop-deal-price' + (offer.currency === 'coins' ? ' coins' : '') + '">' + offer.price + ' ' + (offer.currency === 'coins' ? '$' : '\u25C6') + '</div>' +
+        (offer.stock > 0 ? '<div class="shop-deal-stock">' + offer.stock + ' left</div>' : '') +
+        (soldOut ? '<div class="shop-deal-stock">SOLD OUT</div>' : '');
+      if(!soldOut){
+        card.onclick = () => this._showShopBuy(offer);
+      }
+      container.appendChild(card);
+    });
+  },
+
+  _renderFreeOffer(){
+    const el = document.getElementById('shop-free-offer');
+    if(!el) return;
+    const claimed = SHOP_DATA.isFreeClaimed();
+    el.innerHTML =
+      '<div class="shop-free-card' + (claimed ? ' claimed' : '') + '">' +
+      '<div class="shop-free-icon">$</div>' +
+      '<div><div style="font-weight:700;font-size:16px">Daily Free</div>' +
+      '<div class="shop-free-info">' + (claimed ? 'Claimed today' : 'Get ' + SHOP_DATA.FREE_OFFER.amount + ' coins free') + '</div></div>' +
+      '<div class="shop-free-btn">' + (claimed ? 'Done' : 'Claim') + '</div></div>';
+    if(!claimed){
+      el.querySelector('.shop-free-card').onclick = () => {
+        if(SHOP_DATA.claimFree()){
+          Audio.click();
+          this._updateCurrencies();
+          Menu.toast('Claimed ' + SHOP_DATA.FREE_OFFER.amount + ' coins!');
+          this._renderFreeOffer();
+        }
+      };
+    }
+  },
+
+  _updateShopTimer(){
+    const el = document.getElementById('shop-timer');
+    if(!el) return;
+    const now = Date.now();
+    const nextDay = Math.ceil(now / 86400000) * 86400000;
+    const remaining = nextDay - now;
+    const hrs = Math.floor(remaining / 3600000);
+    const mins = Math.floor((remaining % 3600000) / 60000);
+    el.textContent = 'New deals in ' + hrs + 'h ' + mins + 'm';
+  },
+
+  _showShopBuy(offer){
+    Audio.click();
+    if(!offer || offer.stock === 0) return;
+    this._currentBuyOffer = offer;
+    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const img = rewardImages[offer.reward] || '';
+    document.getElementById('shop-buy-image').style.backgroundImage = "url('" + img + "')";
+    const costText = offer.price + ' ' + (offer.currency === 'coins' ? '$' : '\u25C6');
+    document.getElementById('shop-buy-cost').textContent = costText;
+    const canAfford = SHOP_DATA.canAfford(offer);
+    const btn = document.getElementById('shop-buy-btn');
+    btn.className = 'button' + (canAfford ? '' : ' btn-gray');
+    btn.onclick = canAfford ? () => this._shopBuyConfirm(offer) : null;
+    document.getElementById('shop-back-buy').onclick = () => { Audio.click(); this.show('menu-store'); };
+    this.show('menu-shop-buy');
+  },
+
+  _shopBuyConfirm(offer){
+    if(!offer) return;
+    const ok = SHOP_DATA.purchase(offer);
+    if(!ok){ this.toast('Purchase failed'); this.show('menu-store'); return; }
+    Audio.click();
+    this._currentRewardOffer = offer;
+    this._shopReceive(offer);
+  },
+
+  _shopReceive(offer){
+    this.show('menu-shop-receive');
+    const wrapper = document.getElementById('shop-receive-wrapper');
+    const video = document.getElementById('shop-receive-video');
+    const rewardDiv = document.getElementById('shop-receive-reward');
+    const claimDiv = document.getElementById('shop-receive-claim');
+    const imageDiv = document.getElementById('shop-receive-image');
+    const amountDiv = document.getElementById('shop-receive-amount');
+    const bgVideo = document.getElementById('shop-receive-bg-video');
+
+    // Reset
+    rewardDiv.classList.add('hidden');
+    claimDiv.classList.add('hidden');
+    claimDiv.onclick = null;
+    bgVideo.style.opacity = '0';
+    bgVideo.pause();
+
+    // Start buy.mp4
+    video.src = 'assets/shop/buy.mp4';
+    video.currentTime = 0;
+    video.play().catch(() => {});
+    video.style.opacity = '1';
+    video.onended = null;
+
+    // After 5s, show reward
+    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const rewardLabels = { coins:'', gems:'', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
+    const img = rewardImages[offer.reward] || '';
+    const label = rewardLabels[offer.reward] || '';
+    const amt = offer.amount + (offer.reward === 'coins' || offer.reward === 'gems' ? '' : 'x ' + (rewardLabels[offer.reward] || ''));
+    imageDiv.style.backgroundImage = "url('" + img + "')";
+    amountDiv.textContent = offer.reward === 'coins' || offer.reward === 'gems' ? amt : label + ' x' + offer.amount;
+
+    setTimeout(() => {
+      video.style.opacity = '0';
+      rewardDiv.classList.remove('hidden');
+      rewardDiv.style.opacity = '0';
+      setTimeout(() => { rewardDiv.style.opacity = '1'; }, 50);
+
+      // After reward animation, fade in bg video and show claim
+      setTimeout(() => {
+        bgVideo.src = 'assets/shop/buyed.mp4';
+        bgVideo.currentTime = 0;
+        bgVideo.play().catch(() => {});
+        bgVideo.style.opacity = '1';
+        claimDiv.classList.remove('hidden');
+        claimDiv.onclick = () => {
+          Audio.click();
+          video.pause();
+          bgVideo.pause();
+          this._updateCurrencies();
+          this.show('menu-store');
+        };
+      }, 1500);
+    }, 5000);
   },
 
 };

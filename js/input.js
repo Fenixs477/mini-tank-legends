@@ -1,5 +1,5 @@
 /* ============================================================
-   input.js — keyboard + mouse + wheel + TOUCH (mobile dual joystick),
+   input.js â€” keyboard + mouse + wheel + TOUCH (mobile dual joystick),
    with rebindable keybinds.
    ============================================================ */
 
@@ -52,7 +52,7 @@ class TouchJoystick {
     this.outer.className = 'joystick-outer';
     this.container.appendChild(this.outer);
 
-    // Inner knob — size relative to container
+    // Inner knob â€” size relative to container
     this.knob = document.createElement('div');
     this.knob.className = 'joystick-knob';
     const knobSize = Math.round(joySize * 0.38);
@@ -103,7 +103,7 @@ class TouchJoystick {
           this.armed = false;
 
           // Lock all touchmove to this document while joystick is
-          // active — necessary for iOS standalone (home screen) mode
+          // active â€” necessary for iOS standalone (home screen) mode
           document.addEventListener('touchmove', preventDocMove, {passive: false});
         }
       }
@@ -306,7 +306,7 @@ class Input {
         camBtns = document.createElement('div');
         camBtns.id = 'cam-rotate-btns';
         camBtns.className = 'cam-rotate-btns joystick-hidden';
-        camBtns.innerHTML = '<button class="cam-rot-btn" id="cam-rot-left" aria-label="Rotate camera left">◀</button><button class="cam-rot-btn" id="cam-rot-right" aria-label="Rotate camera right">▶</button>';
+        camBtns.innerHTML = '<button class="cam-rot-btn" id="cam-rot-left" aria-label="Rotate camera left">â—€</button><button class="cam-rot-btn" id="cam-rot-right" aria-label="Rotate camera right">â–¶</button>';
         document.body.appendChild(camBtns);
       }
       const leftBtn = document.getElementById('cam-rot-left');

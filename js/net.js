@@ -1,5 +1,5 @@
 /* ============================================================
-   net.js — Fully working Peer-to-Peer multiplayer using PeerJS.
+   net.js â€” Fully working Peer-to-Peer multiplayer using PeerJS.
    Host = authority. Clients connect to host; host relays snapshots.
    - Host advertises a public room OR a hidden 6-char code.
    - Public rooms discovered via a shared "lobby" peer-id pattern.
@@ -78,7 +78,7 @@ const Net = {
 
       this.peer.on('open', id=>{
         this.myPeerId = id;
-        this._status('Waiting for players…', 'on');
+        this._status('Waiting for playersâ€¦', 'on');
         if(isPublic) this._announcePublic(code).catch(()=>{});
         ok(id);
       });

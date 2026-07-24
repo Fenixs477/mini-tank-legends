@@ -1,5 +1,5 @@
 /* ============================================================
-   world.js — generates the big battlefield with 4 Minecraft-style
+   world.js â€” generates the big battlefield with 4 Minecraft-style
    biomes (forest, lake, rock_valley, plains):
      - grass ground (shaded) + brown paths
      - procedural stone walls (big rocks, hard cover)
@@ -17,6 +17,7 @@ class World {
     this.trees = [];
     this.bushes = [];
     this.lakes = [];
+    this._quality = 'default';
     this.size = CONFIG.WORLD_SIZE;
     this.half = this.size/2;
     this.treesPlaced = true;
@@ -69,7 +70,7 @@ class World {
 
     const mat = new THREE.MeshStandardMaterial({map: tex, roughness: 0.95, metalness: 0});
     this.groundMat = mat;
-    const geo = new THREE.PlaneGeometry(this.size, this.size, 1, 1);
+    const geo = new THREE.PlaneGeometry(this.size * 4, this.size * 4, 1, 1);
     geo.rotateX(-Math.PI/2);
     this.ground = new THREE.Mesh(geo, mat);
     this.ground.receiveShadow = true;
@@ -90,14 +91,14 @@ class World {
     sun.shadow.mapSize.height = 2048;
     sun.shadow.bias = -0.005;
     sun.shadow.normalBias = 0.02;
-    // Shadow camera must cover the entire 3000x3000 world
-    const d = 1200;
+    // Shadow camera covers visible gameplay area (walls/tanks within ±150)
+    const d = 250;
     sun.shadow.camera.left = -d;
     sun.shadow.camera.right = d;
     sun.shadow.camera.top = d;
     sun.shadow.camera.bottom = -d;
     sun.shadow.camera.near = 0.1;
-    sun.shadow.camera.far = 2000;
+    sun.shadow.camera.far = 500;
     sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(sun);
     this.scene.add(sun.target);
@@ -114,7 +115,8 @@ class World {
     ];
     this._waterMaterials = [];
     for(const l of lakeData){
-      const geo = new THREE.CircleGeometry(l.r, 48);
+      const segs = this._quality === 'fancy' ? 36 : 20;
+      const geo = new THREE.CircleGeometry(l.r, segs);
       geo.rotateX(-Math.PI/2);
       const mat = WaterShader.createMaterial(l.r);
       const m = new THREE.Mesh(geo, mat);
@@ -356,6 +358,7 @@ class World {
   }
 
   setQuality(quality){
+    this._quality = quality || 'default';
   }
 
   renderToCanvas(ctx, w, h, opts={}){

@@ -76,8 +76,8 @@
         </div>
         <div class="profile-sep"></div>
         <div class="profile-bottom">
-          <span class="profile-coin">0 🪙</span>
-          <span class="profile-crystal">0 💎</span>
+          <span class="profile-coin">0 $</span>
+          <span class="profile-crystal">0 &#9670;</span>
         </div>
       </div>
       <div class="main-menu-side" id="main-menu-side">
@@ -234,12 +234,68 @@
       </div>
     </div>
 
-    <!-- STORE (placeholder) -->
+    <!-- STORE -->
     <div class="menu hidden" id="menu-store">
-      <div class="menu-card" style="text-align:center">
-        <h2>Store</h2>
-        <div class="muted" style="padding:20px">Coming soon…</div>
-        <div class="btn btn-back" data-back="menu-main">← Back</div>
+      <div class="shop-overlay" id="shop-overlay">
+        <div class="shop-header">
+          <img class="shop-back-btn" id="shop-back-main" src="assets/shop/back.png" alt="Back">
+          <div class="shop-currencies">
+            <span class="shop-coin-disp">$ <span id="shop-coins">0</span></span>
+            <span class="shop-gem-disp">&#9670; <span id="shop-gems">0</span></span>
+          </div>
+        </div>
+        <div class="shop-body">
+          <div class="shop-sidebar">
+            <div class="shop-sidebar-section active" data-section="main">Main</div>
+            <div class="shop-sidebar-section" data-section="bundles">Bundles</div>
+            <div class="shop-sidebar-section" data-section="currencies">Currencies</div>
+            <div class="shop-sidebar-section" data-section="subscriptions">Subscriptions</div>
+          </div>
+          <div class="shop-content">
+            <div class="shop-page" id="shop-page-main">
+              <h2 class="shop-section-title">ROTATING SHOP</h2>
+              <div class="shop-timer" id="shop-timer"></div>
+              <div class="shop-deals" id="shop-deals"></div>
+              <div class="shop-free-offer" id="shop-free-offer"></div>
+            </div>
+            <div class="shop-page hidden" id="shop-page-bundles">
+              <div class="shop-coming-soon">Coming Soon</div>
+            </div>
+            <div class="shop-page hidden" id="shop-page-currencies">
+              <div class="shop-coming-soon">Coming Soon</div>
+            </div>
+            <div class="shop-page hidden" id="shop-page-subscriptions">
+              <div class="shop-coming-soon">Coming Soon</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHOP BUY PAGE -->
+    <div class="menu hidden" id="menu-shop-buy">
+      <div class="shop-buy-wrapper" id="shop-buy-wrapper">
+        <div class="shop-buy-header">
+          <img class="shop-back-btn" id="shop-back-buy" src="assets/shop/back.png" alt="Back">
+        </div>
+        <div class="shop-buy-body">
+          <div class="shop-buy-image" id="shop-buy-image"></div>
+          <div class="shop-buy-all btn-disabled" id="shop-buy-all">Buy All</div>
+          <div class="button" id="shop-buy-btn"><p>Buy: <span id="shop-buy-cost"></span></p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SHOP RECEIVE SCREEN -->
+    <div class="menu hidden" id="menu-shop-receive">
+      <div class="shop-receive-wrapper" id="shop-receive-wrapper">
+        <video class="shop-receive-video" id="shop-receive-video" muted playsinline></video>
+        <div class="shop-receive-reward hidden" id="shop-receive-reward">
+          <div class="shop-receive-image" id="shop-receive-image"></div>
+          <div class="shop-receive-amount" id="shop-receive-amount"></div>
+        </div>
+        <div class="shop-receive-claim hidden" id="shop-receive-claim">click to claim</div>
+        <video class="shop-receive-bg-video" id="shop-receive-bg-video" muted loop playsinline></video>
       </div>
     </div>
 
@@ -281,7 +337,7 @@
             <div id="tab-graphics" class="tab-content">
               <div id="graphics-settings"></div>
             </div>
-            <div class="btn btn-back" data-back="menu-main">← Back</div>
+          <div class="btn btn-back" data-back="menu-main">&lt;- Back</div>
           </div>
         </div>
       </div>
@@ -290,6 +346,7 @@
     <!-- HUD -->
     <div id="hud" class="hidden">
       <div id="minimap-btn" title="Open map"><svg width="39" height="39" viewBox="0 0 24 24" fill="none" stroke="#ffb12b" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg><span class="map-key-hint">M</span></div>
+      <div id="menu-btn" title="Menu"><svg width="39" height="39" viewBox="0 0 24 24" fill="none" stroke="#ffb12b" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span class="map-key-hint">TAB</span></div>
       <div id="speed-readout"><span id="speed-val">0</span> <small>km/h</small></div>
       <div id="leaderboard">
         <div class="lb-title">Leaderboard</div>
@@ -297,6 +354,7 @@
       </div>
       <div id="drown-bar-wrap" class="hidden"><div id="drown-bar"></div></div>
       <div id="hp-wrap"><div id="hp-bar"></div><span id="hp-text">100 / 100</span></div>
+      <canvas id="reload-indicator" width="104" height="104"></canvas>
       <div id="camo-indicator"><span id="camo-dot"></span><span id="camo-text">EXPOSED</span></div>
       <div id="drift-hint" class="hidden">DRIFT</div>
       <div id="heat-wrap" class="hidden"><div id="heat-bar-outer"><div id="heat-bar"></div></div><span class="heat-tick" style="top:0">1000</span><span class="heat-tick" style="top:50%">500</span><span class="heat-tick" style="top:100%">0</span><span id="heat-text"></span></div>
@@ -431,10 +489,12 @@
   <script src="js/bot.js?v=1784317672"></script>
   <script src="js/nakama-net.js?v=1784317672"></script>
   <script src="js/net.js?v=1784317672"></script>
+  <script src="js/audio.js?v=20260724"></script>
+  <script src="js/shopdata.js?v=20260724"></script>
   <script src="js/menu.js?v=1784317835"></script>
   <script src="js/menu-editor.js?v=1784317672"></script>
   <script src="js/editor123.js?v=1784317675"></script>
   <script src="js/default-map.js?v=1784317672"></script>
-  <script src="js/game.js?v=1784320000"></script>
+  <script src="js/game.js?v=20260723"></script>
 </body>
 </html>

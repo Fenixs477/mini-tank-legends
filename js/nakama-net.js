@@ -1,5 +1,5 @@
 /* ============================================================
-   nakama-net.js — Nakama game backend integration.
+   nakama-net.js â€” Nakama game backend integration.
    Handles auth, real-time multiplayer, cloud storage.
    ============================================================ */
 
@@ -100,7 +100,7 @@ const NakamaNet = {
         this._wireMatch();
         return match;
       } catch(e) {
-        // Match stale or gone — will create new one below
+        // Match stale or gone â€” will create new one below
       }
     }
     // Create new match as world host

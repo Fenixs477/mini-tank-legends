@@ -3,22 +3,20 @@ class WaterShader {
   static vertex(){
     return `
       uniform float uTime;
-      uniform float uLakeRadius;
 
       varying vec3  vWorldPos;
-      varying float vEdgeDist;
+      varying vec2  vUv;
 
       void main(){
         vec3 pos = position;
 
         vec4 worldPos = modelMatrix * vec4(pos, 1.0);
         vWorldPos = worldPos.xyz;
+        vUv = uv;
 
-        /* 0 = center, 1 = shoreline edge */
-        vEdgeDist = length(position.xz) / uLakeRadius;
-
-        pos.y += sin(worldPos.x * 0.20 + uTime * 2.0) *
-                 cos(worldPos.z * 0.20 + uTime * 1.5) * 0.10;
+        float wave = sin(worldPos.x * 0.2 + uTime * 1.5) *
+                     cos(worldPos.z * 0.2 + uTime * 1.2) * 0.04;
+        pos.y += max(0.0, wave);
 
         gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
       }
@@ -29,18 +27,19 @@ class WaterShader {
     return `
       uniform float uTime;
       uniform vec3  uDeepColor;
+      uniform vec3  uSurfaceColor;
       uniform vec3  uAquaColor;
       uniform vec3  uFoamColor;
       uniform vec3  uTankPosition;
 
       varying vec3  vWorldPos;
-      varying float vEdgeDist;
+      varying vec2  vUv;
 
       float hash(vec2 p){
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
       }
 
-      float noise2d(vec2 p){
+      float noise(vec2 p){
         vec2 i = floor(p);
         vec2 f = fract(p);
         f = f * f * (3.0 - 2.0 * f);
@@ -51,44 +50,53 @@ class WaterShader {
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
 
-      float fbm(vec2 p){
-        float val = 0.0;
-        float amp = 0.5;
-        float freq = 1.0;
-        for(int i = 0; i < 4; i++){
-          val += amp * noise2d(p * freq);
-          freq *= 2.0;
-          amp *= 0.5;
-        }
-        return val;
-      }
-
       void main(){
-        vec2 wp = vWorldPos.xz;
+        /* â€” underwater depth currents (slow) â€” */
+        vec2 depthUV = vWorldPos.xz * 0.08 + vec2(uTime * 0.05, uTime * 0.03);
+        float depthNoise = noise(depthUV);
+        vec3 baseWater = mix(uSurfaceColor, uDeepColor,
+                             smoothstep(-0.2, 0.5, depthNoise));
 
-        /* layer 1 — deep blue ↔ aqua underwater edge */
-        float aquaWobble = fbm(wp * 0.12 + uTime * 0.02) * 0.08;
-        float shallowMask = smoothstep(0.45 + aquaWobble, 0.82 + aquaWobble, vEdgeDist);
-        vec3 waterColor = mix(uDeepColor, uAquaColor, shallowMask);
+        /* â€” shore edge with heavy noise distortion â€” */
+        vec2 centerOffset = vUv - vec2(0.5);
+        float distFromCenter = length(centerOffset) * 2.0;
+        float angle = atan(centerOffset.y, centerOffset.x);
+        distFromCenter += sin(angle * 5.0 + uTime * 0.3) * 0.04 +
+                          sin(angle * 8.0 + uTime * 0.2 + 1.2) * 0.025 +
+                          sin(angle * 3.0 + uTime * 0.15 + 3.1) * 0.03;
+        vec2 shoreUV = vWorldPos.xz * 0.2 +
+                       vec2(sin(uTime * 1.5) * 0.4, sin(uTime * 0.4) * 0.6);
+        vec2 shoreUV2 = vWorldPos.xz * 0.4 +
+                        vec2(sin(uTime * 0.7) * 0.6, sin(uTime * 0.25) * 0.8);
+        float shoreEdge = distFromCenter +
+                          noise(shoreUV) * 0.25 +
+                          noise(shoreUV2) * 0.12;
 
-        /* layer 2 — surface foam (world-space noise, seamless) */
-        float surfNoise = fbm(wp * 0.18 + uTime * 0.03);
-        float surfaceFoam = step(0.65, surfNoise);
+        /* aqua rim near shore */
+        baseWater = mix(baseWater, uAquaColor,
+                        smoothstep(0.6, 0.85, shoreEdge));
 
-        /* layer 3 — sharp shoreline white foam */
-        float shoreWobble = fbm(wp * 0.25 + uTime * 0.035) * 0.04;
-        float shorelineFoam = step(0.90 + shoreWobble, vEdgeDist);
+        /* sharp shoreline foam â€” ragged inner edge toward lake */
+        float foamJitter = noise(vWorldPos.xz * 0.8 + sin(uTime * 0.3) * 0.4) * 0.10;
+        float foamBreath = sin(uTime * 0.3) * 0.04;
+        float shorelineFoam = step(0.93 + foamJitter + foamBreath, shoreEdge);
 
-        /* layer 4 — tank contact ring */
-        float distToTank = distance(wp, uTankPosition.xz);
+        /* â€” floating surface foam patches â€” */
+        vec2 surfaceUV = vWorldPos.xz * 0.35 +
+                         vec2(sin(uTime * 0.25) * 0.6, sin(uTime * 0.18) * 0.4);
+        float surfaceFoam = step(0.75, noise(surfaceUV));
+
+        /* â€” tank contact ring â€” */
+        float distToTank = distance(vWorldPos.xz, uTankPosition.xz);
         float tankRing = step(distToTank, 2.5) * step(1.0, distToTank);
-        float tankNoise = fbm(wp * 0.30 + uTime * 0.05);
-        tankRing *= step(0.40, tankNoise);
+        float tankNoise = noise(vWorldPos.xz * 0.3 + uTime * 0.05);
+        tankRing *= step(0.4, tankNoise);
 
-        float totalCover = clamp(shorelineFoam + surfaceFoam + tankRing, 0.0, 1.0);
-        vec3 finalColor = mix(waterColor, uFoamColor, totalCover);
+        /* â€” final assembly â€” */
+        vec3 finalColor = mix(baseWater, uFoamColor,
+                              max(surfaceFoam * 0.7, shorelineFoam + tankRing));
 
-        gl_FragColor = vec4(finalColor, 0.95);
+        gl_FragColor = vec4(finalColor, 0.93);
       }
     `;
   }
@@ -99,13 +107,14 @@ class WaterShader {
       fragmentShader: WaterShader.fragment(),
       uniforms: {
         uTime:         { value: 0 },
-        uLakeRadius:   { value: radius },
-        uDeepColor:    { value: new THREE.Color('#0066cc') },
-        uAquaColor:    { value: new THREE.Color('#2cd5c4') },
-        uFoamColor:    { value: new THREE.Color('#ffffff') },
+        uDeepColor:    { value: new THREE.Color(0.318, 0.529, 1.0) },
+        uSurfaceColor: { value: new THREE.Color(0.0, 0.45, 0.85) },
+        uAquaColor:    { value: new THREE.Color(0.318, 0.667, 1.0) },
+        uFoamColor:    { value: new THREE.Color(1.0, 1.0, 1.0) },
         uTankPosition: { value: new THREE.Vector3(0, 0, 0) },
       },
       transparent: true,
+      opacity: 0.93,
       depthWrite: false,
       side: THREE.DoubleSide,
     });

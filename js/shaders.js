@@ -1,5 +1,5 @@
 /* ============================================================
-   shaders.js — GLSL: water, metallic tank, ground, walls, trees,
+   shaders.js â€” GLSL: water, metallic tank, ground, walls, trees,
    bushes, shell, flame, explosion, star decal, fire particles
    ============================================================ */
 
