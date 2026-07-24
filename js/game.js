@@ -381,7 +381,7 @@ class Game {
   applyGraphicsSettings(){
     const q = this.settings.graphicsQuality;
     this.isFancy = q === 'fancy';
-    this.renderer.shadowMap.enabled = this.isFancy;
+    this.renderer.shadowMap.enabled = true;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.isFancy ? 2 : 1.5));
     if(this.world) this.world.setQuality(q);
   }
