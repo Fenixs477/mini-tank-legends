@@ -731,7 +731,7 @@ class Game {
     if(this._helixVideos){
       for(const [, hv] of this._helixVideos){
         hv.el.pause(); hv.el.currentTime = 0;
-        this.scene.remove(hv.group);
+        if(hv.parent) hv.parent.remove(hv.mesh);
         hv.mesh.geometry.dispose();
         hv.mesh.material.dispose();
         hv.tex.dispose();
@@ -1040,12 +1040,6 @@ class Game {
         if(hasFlame){
           hv.firing = true;
           hv.fadeTimer = 0;
-          const muzzle = tank.muzzle();
-          const d = muzzle.dir;
-          const cx = muzzle.pos.x + d.x * hv.range * 0.5;
-          const cz = muzzle.pos.z + d.z * hv.range * 0.5;
-          hv.group.position.set(cx, 0.15, cz);
-          hv.group.rotation.y = tank.turretAngle;
           hv.mesh.material.opacity = 1;
           if(hv.el.paused) hv.el.play().catch(() => {});
         } else if(hv.firing){
@@ -1057,7 +1051,7 @@ class Game {
           hv.mesh.material.opacity = Math.max(0, hv.fadeTimer / 0.15);
           if(hv.fadeTimer <= 0){
             hv.el.pause(); hv.el.currentTime = 0;
-            this.scene.remove(hv.group);
+            hv.parent.remove(hv.mesh);
             hv.mesh.geometry.dispose();
             hv.mesh.material.dispose();
             hv.tex.dispose();
@@ -1793,13 +1787,13 @@ class Game {
     const w = halfW * 2 * 1.1;
     const h = range * 1.1;
     const geo = new THREE.PlaneGeometry(w, h);
+    geo.translate(0, h / 2, 0);
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
-    const group = new THREE.Group();
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.set(-Math.PI / 2, 0, Math.PI);
-    group.add(mesh);
-    this.scene.add(group);
-    this._helixVideos.set(tank.id, { group, mesh, tex, el, firing: true, fadeTimer: 0, range });
+    if(tank.barrelEnd) mesh.position.copy(tank.barrelEnd.position);
+    tank.turretGroup.add(mesh);
+    this._helixVideos.set(tank.id, { mesh, tex, el, parent: tank.turretGroup, firing: true, fadeTimer: 0 });
   }
 
   _muzzleFlash(pos, dir){
