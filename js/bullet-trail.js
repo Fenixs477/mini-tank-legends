@@ -40,7 +40,7 @@ class BulletTrailManager {
     mesh.frustumCulled = false;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, start: new THREE.Vector3(), end: new THREE.Vector3(), fading: false, fadeTimer: 0, burstTimer: 0 };
+    return { mesh, start: new THREE.Vector3(), end: new THREE.Vector3(), fading: false, fadeTimer: 0, burstTimer: 0, _burstStart: new THREE.Vector3() };
   }
 
   _makeSparkTex(){
@@ -107,6 +107,7 @@ class BulletTrailManager {
     trail.fading = true;
     trail.fadeTimer = this.fadeTime;
     trail.burstTimer = this.burstTime;
+    trail._burstStart.copy(trail.start);
     this._burstSparks(trail.end, 4 + Math.floor(Math.random() * 4));
   }
 
@@ -124,18 +125,19 @@ class BulletTrailManager {
       const verts = posAttr.array;
 
       if(t.fading){
+        t.fadeTimer -= dt;
         const burstLeft = t.burstTimer;
         if(burstLeft > 0){
           t.burstTimer -= dt;
           const bp = 1 - (t.burstTimer / this.burstTime);
+          t.start.lerpVectors(t._burstStart, t.end, bp);
           const easeOut = 1 - (1 - bp) * (1 - bp);
           const widthMul = 1 + (this.burstWidthMul - 1) * (easeOut < 0.5 ? easeOut * 2 : 2 * (1 - easeOut));
           t.mesh.material.color.copy(this.color).lerp(this._white, Math.sin(bp * Math.PI) * 0.6);
           const burstOpacity = 1 + Math.sin(bp * Math.PI * 2) * 0.3;
-          t.mesh.material.opacity = Math.min(1, burstOpacity);
+          t.mesh.material.opacity = Math.min(1, Math.max(burstOpacity, t.fadeTimer / this.fadeTime));
         } else {
           t.mesh.material.color.copy(this.color);
-          t.fadeTimer -= dt;
           t.mesh.material.opacity = Math.max(0, t.fadeTimer / this.fadeTime);
         }
 
