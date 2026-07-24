@@ -82,17 +82,16 @@ class World {
   }
 
   _makeLights(){
-    const hemi = new THREE.HemisphereLight(0xdfeaff, 0x6a7040, 1.3);
+    const hemi = new THREE.HemisphereLight(0xdfeaff, 0x6a7040, 0.7);
     this.scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xfff4dc, 1.6);
+    const sun = new THREE.DirectionalLight(0xfff4dc, 2.0);
     sun.position.set(80,160,40);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 2048;
-    sun.shadow.mapSize.height = 2048;
-    sun.shadow.bias = -0.005;
-    sun.shadow.normalBias = 0.02;
-    // Shadow camera covers visible gameplay area (walls/tanks within ±150)
-    const d = 250;
+    sun.shadow.mapSize.width = 4096;
+    sun.shadow.mapSize.height = 4096;
+    sun.shadow.bias = -0.003;
+    sun.shadow.normalBias = 0.005;
+    const d = 150;
     sun.shadow.camera.left = -d;
     sun.shadow.camera.right = d;
     sun.shadow.camera.top = d;
@@ -103,7 +102,7 @@ class World {
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sunLight = sun;
-    const amb = new THREE.AmbientLight(0x7a7a8a, 0.6);
+    const amb = new THREE.AmbientLight(0x7a7a8a, 0.3);
     this.scene.add(amb);
   }
 
