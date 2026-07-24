@@ -1775,7 +1775,7 @@ class Game {
     el.loop = true;
     el.playsInline = true;
     el.crossOrigin = 'anonymous';
-    el.play().catch(() => {});
+    el.playbackRate = 5; el.play().catch(() => {});
     const tex = new THREE.VideoTexture(el);
     tex.center.set(0.5, 0.5);
     tex.rotation = Math.PI / 2;
