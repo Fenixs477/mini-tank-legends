@@ -19,7 +19,7 @@ const CONFIG = {
   ],
 
   // World
-  WORLD_SIZE:      300,   // small map
+  WORLD_SIZE:      150,   // small map
   GRID_DIVISIONS:  60,    // ground shader grid lines
   TANK_Y:          1.2,   // all tanks drive at this Y (flat, like the reference)
 
