@@ -1783,6 +1783,8 @@ class Game {
     el.crossOrigin = 'anonymous';
     el.play().catch(() => {});
     const tex = new THREE.VideoTexture(el);
+    tex.center.set(0.5, 0.5);
+    tex.rotation = Math.PI / 2;
     const range = 22;
     const halfW = range * 0.15;
     const w = range * 1.1;
