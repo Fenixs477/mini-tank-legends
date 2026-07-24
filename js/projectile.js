@@ -198,8 +198,7 @@ class Shell {
   }
 }
 
-/* Flamethrower cone (Helix) â€” particles stream from muzzle outward within a fixed cone triangle.
-   Damage high up close, falls off with distance. Visual + damage cone share same angle. */
+/* Flamethrower cone (Helix) — damage-only cone. Video overlay handles visuals. */
 class FlameCone {
   constructor(owner, pos, dir, def){
     this.id = 'p' + (_nextProjId++);
@@ -211,53 +210,13 @@ class FlameCone {
     this.life = 0.22;
     this.dead = false;
     this.type = 'flame';
-    this.particles = [];
-    this._build();
-  }
-
-  _build(){
     this.group = new THREE.Group();
     this.group.position.set(this.x, this.y, this.z);
-
-    const perp = new THREE.Vector3(-this.dir.z, 0, this.dir.x);
-    this._perp = perp;
-    const tex = VFX.getTex('flame');
-    const tanHalf = 0.12;
-
-    for(let i=0; i<57; i++){
-      // All particles target the full 20m range so density is even at all distances
-      const targetDist = this.range * (0.85 + Math.random() * 0.15);
-      const coneR = targetDist * tanHalf;
-      const latNorm = (Math.random() - 0.5) * 2;
-      const lateral = perp.clone().multiplyScalar(latNorm * coneR);
-      lateral.y += (Math.random() - 0.5) * coneR * 0.6;
-
-      const targetPos = this.dir.clone().multiplyScalar(targetDist).add(lateral);
-      const dir = targetPos.clone().normalize();
-
-      const maxLife = 0.18 + Math.random() * 0.06;
-      const speed = targetDist / maxLife;
-
-      const sz = (0.6 + targetDist / this.range * 1.4) * (0.8 + Math.random() * 0.6);
-      const mat = new THREE.SpriteMaterial({map:tex, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false});
-      const s = new THREE.Sprite(mat);
-      s.scale.set(sz * 0.7, sz * 1.1, 1);
-      s.userData.dir = dir;
-      s.userData.speed = speed;
-      s.userData.maxLife = maxLife;
-      s.userData.age = Math.random() * maxLife;
-      s.userData.baseScale = sz;
-      s.position.set(0, 0, 0);
-      this.group.add(s);
-      this.particles.push(s);
-    }
   }
 
   attach(scene){ scene.add(this.group); this.scene=scene; }
   detach(){
     if(this.scene){ this.scene.remove(this.group); this.scene=null; }
-    this.particles.forEach(p => { if(p.material) p.material.dispose(); });
-    this.particles = [];
   }
 
   _damageAtDist(dist){
@@ -300,24 +259,6 @@ class FlameCone {
       if(coneBlocked) continue;
       t.takeDamage(this._damageAtDist(dist) * dt * 10, this.owner, game, true);
     }
-
-    // Animate particles: stream from muzzle toward fixed cone position
-    this.particles.forEach(p => {
-      p.userData.age += dt;
-
-      if(p.userData.age >= p.userData.maxLife){
-        p.position.set(0, 0, 0);
-        p.userData.age = 0;
-        p.userData.maxLife = 0.18 + Math.random() * 0.06;
-      }
-
-      p.position.addScaledVector(p.userData.dir, p.userData.speed * dt);
-
-      const lifeFrac = 1 - (p.userData.age / p.userData.maxLife);
-      p.material.opacity = coneBlocked ? 0 : lifeFrac * lifeFrac * 0.85;
-      const grow = 1.5 - lifeFrac * 0.5;
-      p.scale.setScalar(p.userData.baseScale * grow);
-    });
 
     if(this.life <= 0) this.dead = true;
   }

@@ -25,6 +25,7 @@ class Game {
     this.physicsWorld = null;
     this._physBodies = [];
     this._eventQueue = null;
+    this._helixVideos = new Map();
   }
 
   /* ---------- Three.js bootstrap ---------- */
@@ -727,6 +728,15 @@ class Game {
     this.explosions.forEach(e=>e.detach());
     this.tanks=[]; this.projectiles=[]; this.explosions=[];
     this.localTank=null; this.time=0;
+    if(this._helixVideos){
+      for(const [, hv] of this._helixVideos){
+        hv.el.pause(); hv.el.currentTime = 0;
+        this.scene.remove(hv.sprite);
+        hv.sprite.material.dispose();
+        hv.tex.dispose();
+      }
+      this._helixVideos.clear();
+    }
     this._resetPhysics();
   }
 
@@ -1019,6 +1029,37 @@ class Game {
         if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
         return true;
       });
+    }
+    // Helix video overlay
+    if(this._helixVideos.size){
+      for(const [tankId, hv] of this._helixVideos){
+        const tank = this.tanks.find(t => t.id === tankId);
+        if(!tank){ hv.fadeTimer = 0.15; continue; }
+        const hasFlame = this.projectiles.some(p => p.type === 'flame' && p.owner && p.owner.id === tankId);
+        if(hasFlame){
+          hv.firing = true;
+          hv.fadeTimer = 0;
+          const muzzle = tank.muzzle();
+          hv.sprite.position.copy(muzzle.pos);
+          hv.sprite.position.y += 0.3;
+          hv.sprite.material.opacity = 1;
+          if(hv.el.paused) hv.el.play().catch(() => {});
+        } else if(hv.firing){
+          hv.firing = false;
+          hv.fadeTimer = 0.15;
+        }
+        if(!hv.firing){
+          hv.fadeTimer -= dt;
+          hv.sprite.material.opacity = Math.max(0, hv.fadeTimer / 0.15);
+          if(hv.fadeTimer <= 0){
+            hv.el.pause(); hv.el.currentTime = 0;
+            this.scene.remove(hv.sprite);
+            hv.sprite.material.dispose();
+            hv.tex.dispose();
+            this._helixVideos.delete(tankId);
+          }
+        }
+      }
     }
     // Ricochet labels
     if(this._ricoLabels){
@@ -1721,7 +1762,29 @@ class Game {
         );
       }
     }
-    if(tank===this.localTank) this._muzzleFlash(pos, dir);
+    if(tank===this.localTank){
+      this._muzzleFlash(pos, dir);
+      if(tank.def.shellType === 'flame') this._ensureHelixVideo(tank);
+    }
+  }
+
+  _ensureHelixVideo(tank){
+    if(this._helixVideos.has(tank.id)) return;
+    const el = document.createElement('video');
+    el.src = 'assets/helix/fire.mp4';
+    el.muted = true;
+    el.loop = true;
+    el.playsInline = true;
+    el.crossOrigin = 'anonymous';
+    el.play().catch(() => {});
+    const tex = new THREE.VideoTexture(el);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+    const muzzle = tank.muzzle();
+    const spr = new THREE.Sprite(mat);
+    spr.position.copy(muzzle.pos);
+    spr.scale.set(6, 3, 1);
+    this.scene.add(spr);
+    this._helixVideos.set(tank.id, { sprite: spr, tex, el, firing: true, fadeTimer: 0 });
   }
 
   _muzzleFlash(pos, dir){
