@@ -98,7 +98,7 @@ class BulletTrailManager {
   }
 
   pushPosition(trail, x, y, z){
-    if(!trail || !trail.mesh.visible) return;
+    if(!trail) return;
     trail.end.set(x, y, z);
   }
 
@@ -152,8 +152,7 @@ class BulletTrailManager {
 
       v.copy(t.end).sub(t.start);
       const len = v.length();
-      if(len < 0.05 && !t.fading){ m.visible = false; continue; }
-      if(len < 0.05) continue;
+      if(len < 0.05){ if(!t.fading && t.burstTimer <= 0){ m.visible = false; continue; } continue; }
       dir.copy(v).divideScalar(len);
 
       mid.addVectors(t.start, t.end).multiplyScalar(0.5);
