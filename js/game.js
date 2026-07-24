@@ -1782,10 +1782,11 @@ class Game {
     tex.wrapS = THREE.RepeatWrapping;
     tex.repeat.x = -1;
     tex.offset.x = 1;
-    const range = 22;
-    const halfW = range * 0.15;
-    const w = halfW * 2 * 1.1;
-    const h = range * 1.1;
+    const range = tank.def.shellRange || 22;
+    const tanHalf = tank.def.fireConeHalfAngle || 0.12;
+    const halfW = range * tanHalf;
+    const w = halfW * 2;
+    const h = range;
     const geo = new THREE.PlaneGeometry(w, h);
     geo.translate(0, h / 2, 0);
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
