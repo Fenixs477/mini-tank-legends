@@ -1789,7 +1789,7 @@ class Game {
     const h = range;
     const geo = new THREE.PlaneGeometry(w, h);
     geo.translate(0, h / 2, 0);
-    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.75, blending: THREE.NormalBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.set(-Math.PI / 2, 0, Math.PI);
     if(tank.barrelEnd) { mesh.position.copy(tank.barrelEnd.position); mesh.position.x += 0.35; }
