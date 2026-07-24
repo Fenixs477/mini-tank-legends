@@ -1790,6 +1790,7 @@ class Game {
     const geo = new THREE.PlaneGeometry(w, h);
     geo.translate(0, h / 2, 0);
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.75, blending: THREE.NormalBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+    mat.onBeforeCompile = s => { s.fragmentShader = s.fragmentShader.replace('gl_FragColor = vec4( outgoingLight, diffuseColor.a );', 'float _lum=dot(outgoingLight,vec3(0.299,0.587,0.114));if(_lum<0.06)discard;gl_FragColor=vec4(outgoingLight,diffuseColor.a);'); };
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.set(-Math.PI / 2, 0, Math.PI);
     if(tank.barrelEnd) { mesh.position.copy(tank.barrelEnd.position); mesh.position.x += 0.35; }
