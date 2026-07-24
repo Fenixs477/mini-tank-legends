@@ -238,7 +238,6 @@
     <div class="menu hidden" id="menu-store">
       <div class="shop-overlay" id="shop-overlay">
         <div class="shop-header">
-          <img class="shop-back-btn" id="shop-back-main" src="assets/shop/back.png" alt="Back">
           <div class="shop-currencies">
             <span class="shop-coin-disp">$ <span id="shop-coins">0</span></span>
             <span class="shop-gem-disp">&#9670; <span id="shop-gems">0</span></span>
@@ -246,10 +245,14 @@
         </div>
         <div class="shop-body">
           <div class="shop-sidebar">
-            <div class="shop-sidebar-section active" data-section="main">Main</div>
-            <div class="shop-sidebar-section" data-section="bundles">Bundles</div>
-            <div class="shop-sidebar-section" data-section="currencies">Currencies</div>
-            <div class="shop-sidebar-section" data-section="subscriptions">Subscriptions</div>
+            <div class="shop-store-logo">STORE</div>
+            <div class="shop-sidebar-section active" data-section="main" style="--btn-bg:#f97316">MAIN</div>
+            <div class="shop-sidebar-section" data-section="offers" style="--btn-bg:#a855f7">OFFERS</div>
+            <div class="shop-sidebar-section" data-section="bank" style="--btn-bg:#eab308">BANK</div>
+            <div class="shop-sidebar-section" data-section="bundles" style="--btn-bg:#22c55e">BUNDLES</div>
+            <div class="shop-sidebar-section" data-section="keys" style="--btn-bg:#ef4444">KEYS</div>
+            <div class="shop-sidebar-section" data-section="tlplus" style="--btn-bg:#d97706">TL+</div>
+            <div class="shop-sidebar-back" id="shop-back-main">← BACK</div>
           </div>
           <div class="shop-content">
             <div class="shop-page" id="shop-page-main">
@@ -258,13 +261,19 @@
               <div class="shop-deals" id="shop-deals"></div>
               <div class="shop-free-offer" id="shop-free-offer"></div>
             </div>
+            <div class="shop-page hidden" id="shop-page-offers">
+              <div class="shop-coming-soon">Coming Soon</div>
+            </div>
+            <div class="shop-page hidden" id="shop-page-bank">
+              <div class="shop-coming-soon">Coming Soon</div>
+            </div>
             <div class="shop-page hidden" id="shop-page-bundles">
               <div class="shop-coming-soon">Coming Soon</div>
             </div>
-            <div class="shop-page hidden" id="shop-page-currencies">
+            <div class="shop-page hidden" id="shop-page-keys">
               <div class="shop-coming-soon">Coming Soon</div>
             </div>
-            <div class="shop-page hidden" id="shop-page-subscriptions">
+            <div class="shop-page hidden" id="shop-page-tlplus">
               <div class="shop-coming-soon">Coming Soon</div>
             </div>
           </div>

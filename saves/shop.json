@@ -16,6 +16,6 @@
     {"reward":"basic_crate","amount":1,"price":150,"currency":"coins","priority":3,"stock":1},
     {"reward":"rare_crate","amount":1,"price":500,"currency":"coins","priority":3,"stock":1}
   ],
-  "sections": ["main","bundles","currencies","subscriptions"],
+  "sections": ["main","offers","bank","bundles","keys","tlplus"],
   "backdrop": "assets/shop/background.png"
 }

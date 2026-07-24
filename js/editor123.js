@@ -2875,7 +2875,7 @@ var Editor123 = {
             '<div class="se-page-btn" data-page="receive" style="flex:1;padding:6px;border-radius:6px;background:#333;text-align:center;cursor:pointer;font-size:11px;color:#888">Receive</div></div>' +
             '<div id="se-page-content">' +
             '<div style="margin-bottom:10px"><label style="color:#888;font-size:11px">Sections (comma-sep)</label>' +
-            '<input id="se-sections" type="text" value="' + (SHOP_DATA.sections.join(',') || 'main,bundles,currencies,subscriptions') + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px"></div>' +
+            '<input id="se-sections" type="text" value="' + (SHOP_DATA.sections.join(',') || 'main,offers,bank,bundles,keys,tlplus') + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px"></div>' +
             '<div style="margin-bottom:10px"><label style="color:#888;font-size:11px">Backdrop image URL</label>' +
             '<input id="se-backdrop" type="text" value="' + (SHOP_DATA.backdrop || '') + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px" placeholder="assets/shop/background.png"></div>' +
             '<div class="btn" id="se-add-offer" style="font-size:12px;padding:8px">+ Add Deal</div>' +
