@@ -1791,7 +1791,7 @@ class Game {
     const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.set(-Math.PI / 2, 0, Math.PI);
-    if(tank.barrelEnd) mesh.position.copy(tank.barrelEnd.position);
+    if(tank.barrelEnd) { mesh.position.copy(tank.barrelEnd.position); mesh.position.x += 0.35; }
     tank.turretGroup.add(mesh);
     this._helixVideos.set(tank.id, { mesh, tex, el, parent: tank.turretGroup, firing: true, fadeTimer: 0 });
   }
