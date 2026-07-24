@@ -731,8 +731,9 @@ class Game {
     if(this._helixVideos){
       for(const [, hv] of this._helixVideos){
         hv.el.pause(); hv.el.currentTime = 0;
-        this.scene.remove(hv.sprite);
-        hv.sprite.material.dispose();
+        this.scene.remove(hv.mesh);
+        hv.mesh.geometry.dispose();
+        hv.mesh.material.dispose();
         hv.tex.dispose();
       }
       this._helixVideos.clear();
@@ -1040,9 +1041,11 @@ class Game {
           hv.firing = true;
           hv.fadeTimer = 0;
           const muzzle = tank.muzzle();
-          hv.sprite.position.copy(muzzle.pos);
-          hv.sprite.position.y += 0.3;
-          hv.sprite.material.opacity = 1;
+          const d = muzzle.dir;
+          hv.mesh.position.set(muzzle.pos.x, muzzle.pos.y + 0.5, muzzle.pos.z);
+          const lookTarget = new THREE.Vector3(muzzle.pos.x + d.x * 10, muzzle.pos.y + 0.5, muzzle.pos.z + d.z * 10);
+          hv.mesh.lookAt(lookTarget);
+          hv.mesh.material.opacity = 1;
           if(hv.el.paused) hv.el.play().catch(() => {});
         } else if(hv.firing){
           hv.firing = false;
@@ -1050,11 +1053,12 @@ class Game {
         }
         if(!hv.firing){
           hv.fadeTimer -= dt;
-          hv.sprite.material.opacity = Math.max(0, hv.fadeTimer / 0.15);
+          hv.mesh.material.opacity = Math.max(0, hv.fadeTimer / 0.15);
           if(hv.fadeTimer <= 0){
             hv.el.pause(); hv.el.currentTime = 0;
-            this.scene.remove(hv.sprite);
-            hv.sprite.material.dispose();
+            this.scene.remove(hv.mesh);
+            hv.mesh.geometry.dispose();
+            hv.mesh.material.dispose();
             hv.tex.dispose();
             this._helixVideos.delete(tankId);
           }
@@ -1778,13 +1782,18 @@ class Game {
     el.crossOrigin = 'anonymous';
     el.play().catch(() => {});
     const tex = new THREE.VideoTexture(el);
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false });
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
     const muzzle = tank.muzzle();
-    const spr = new THREE.Sprite(mat);
-    spr.position.copy(muzzle.pos);
-    spr.scale.set(6, 3, 1);
-    this.scene.add(spr);
-    this._helixVideos.set(tank.id, { sprite: spr, tex, el, firing: true, fadeTimer: 0 });
+    const coneRange = 22;
+    const tanHalf = 0.15;
+    const coneW = coneRange * tanHalf * 2;
+    const geo = new THREE.PlaneGeometry(coneW * 1.1, coneW * 0.6);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(muzzle.pos.x, muzzle.pos.y + 0.5, muzzle.pos.z);
+    const lookTarget = new THREE.Vector3(muzzle.pos.x + tank.dir.x * 10, muzzle.pos.y + 0.5, muzzle.pos.z + tank.dir.z * 10);
+    mesh.lookAt(lookTarget);
+    this.scene.add(mesh);
+    this._helixVideos.set(tank.id, { mesh, tex, el, firing: true, fadeTimer: 0, coneRange, tanHalf });
   }
 
   _muzzleFlash(pos, dir){
