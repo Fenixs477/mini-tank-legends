@@ -732,7 +732,8 @@ class Game {
       for(const [, hv] of this._helixVideos){
         hv.el.pause(); hv.el.currentTime = 0;
         this.scene.remove(hv.group);
-        hv.meshes.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+        hv.mesh.geometry.dispose();
+        hv.mesh.material.dispose();
         hv.tex.dispose();
       }
       this._helixVideos.clear();
@@ -1041,12 +1042,11 @@ class Game {
           hv.fadeTimer = 0;
           const muzzle = tank.muzzle();
           const d = muzzle.dir;
-          const cx = muzzle.pos.x + d.x * hv.coneRange * 0.45;
-          const cz = muzzle.pos.z + d.z * hv.coneRange * 0.45;
-          hv.group.position.set(cx, muzzle.pos.y + 0.5, cz);
-          hv.group.lookAt(this.camera.position);
-          const op = 1;
-          hv.meshes.forEach(m => m.material.opacity = op);
+          const cx = muzzle.pos.x + d.x * hv.range * 0.5;
+          const cz = muzzle.pos.z + d.z * hv.range * 0.5;
+          hv.group.position.set(cx, 0.15, cz);
+          hv.group.rotation.y = tank.turretAngle;
+          hv.mesh.material.opacity = 1;
           if(hv.el.paused) hv.el.play().catch(() => {});
         } else if(hv.firing){
           hv.firing = false;
@@ -1054,12 +1054,12 @@ class Game {
         }
         if(!hv.firing){
           hv.fadeTimer -= dt;
-          const op = Math.max(0, hv.fadeTimer / 0.15);
-          hv.meshes.forEach(m => m.material.opacity = op);
+          hv.mesh.material.opacity = Math.max(0, hv.fadeTimer / 0.15);
           if(hv.fadeTimer <= 0){
             hv.el.pause(); hv.el.currentTime = 0;
             this.scene.remove(hv.group);
-            hv.meshes.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+            hv.mesh.geometry.dispose();
+            hv.mesh.material.dispose();
             hv.tex.dispose();
             this._helixVideos.delete(tankId);
           }
@@ -1783,20 +1783,18 @@ class Game {
     el.crossOrigin = 'anonymous';
     el.play().catch(() => {});
     const tex = new THREE.VideoTexture(el);
-    const coneRange = 22;
-    const tanHalf = 0.15;
-    const coneW = coneRange * tanHalf * 2;
-    const w = coneW * 1.1;
-    const h = coneW * 0.6;
+    const range = 22;
+    const halfW = range * 0.15;
+    const w = range * 1.1;
+    const h = halfW * 2 * 1.1;
     const geo = new THREE.PlaneGeometry(w, h);
-    const mat = () => new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
     const group = new THREE.Group();
-    const m1 = new THREE.Mesh(geo, mat());
-    const m2 = new THREE.Mesh(geo, mat());
-    m2.rotation.y = Math.PI / 2;
-    group.add(m1, m2);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    group.add(mesh);
     this.scene.add(group);
-    this._helixVideos.set(tank.id, { group, meshes: [m1, m2], tex, el, firing: true, fadeTimer: 0, coneRange });
+    this._helixVideos.set(tank.id, { group, mesh, tex, el, firing: true, fadeTimer: 0, range });
   }
 
   _muzzleFlash(pos, dir){
