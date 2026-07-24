@@ -4,10 +4,16 @@ class BulletTrailManager {
     const o = opts || {};
     this.maxTrails = o.maxTrails || 48;
     this.fadeTime = o.fadeTime || 0.18;
+    this.burstTime = o.burstTime || 0.14;
     this.width = o.width || 0.12;
+    this.burstWidthMul = o.burstWidthMul || 4;
     this.color = new THREE.Color(o.color || 0xffcc00);
+    this._white = new THREE.Color(0xffffff);
     this._pool = [];
     this._active = [];
+    this._sparks = [];
+    this._sparkPool = [];
+    this._sparkTex = this._makeSparkTex();
     this._v = new THREE.Vector3();
     this._mid = new THREE.Vector3();
     this._dir = new THREE.Vector3();
@@ -34,7 +40,46 @@ class BulletTrailManager {
     mesh.frustumCulled = false;
     mesh.visible = false;
     this.scene.add(mesh);
-    return { mesh, start: new THREE.Vector3(), end: new THREE.Vector3(), fading: false, fadeTimer: 0 };
+    return { mesh, start: new THREE.Vector3(), end: new THREE.Vector3(), fading: false, fadeTimer: 0, burstTimer: 0 };
+  }
+
+  _makeSparkTex(){
+    const c = document.createElement('canvas');
+    c.width = 32; c.height = 32;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.3, 'rgba(255,200,100,1)');
+    g.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 32, 32);
+    return new THREE.CanvasTexture(c);
+  }
+
+  _createSpark(pos){
+    const mat = new THREE.SpriteMaterial({ map: this._sparkTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+    const spr = new THREE.Sprite(mat);
+    spr.position.copy(pos);
+    spr.scale.setScalar(0.3);
+    this.scene.add(spr);
+    return { sprite: spr, vel: new THREE.Vector3(), life: 0.3, maxLife: 0.3 };
+  }
+
+  _burstSparks(pos, count){
+    for(let i = 0; i < count; i++){
+      const s = this._sparkPool.length ? this._sparkPool.pop() : this._createSpark(pos);
+      s.sprite.position.copy(pos);
+      s.sprite.material.opacity = 1;
+      s.sprite.visible = true;
+      s.life = 0.2 + Math.random() * 0.15;
+      s.maxLife = s.life;
+      const angle = Math.random() * Math.PI * 2;
+      const elev = (Math.random() - 0.5) * Math.PI * 0.6;
+      const speed = 3 + Math.random() * 5;
+      s.vel.set(Math.cos(angle) * Math.cos(elev) * speed, Math.sin(elev) * speed * 0.6, Math.sin(angle) * Math.cos(elev) * speed);
+      s.sprite.scale.setScalar(0.15 + Math.random() * 0.25);
+      this._sparks.push(s);
+    }
   }
 
   spawn(startPos){
@@ -44,6 +89,8 @@ class BulletTrailManager {
     t.end.copy(startPos);
     t.fading = false;
     t.fadeTimer = 0;
+    t.burstTimer = 0;
+    t.mesh.material.color.copy(this.color);
     t.mesh.material.opacity = 1;
     t.mesh.visible = true;
     this._active.push(t);
@@ -59,6 +106,8 @@ class BulletTrailManager {
     if(!trail || trail.fading) return;
     trail.fading = true;
     trail.fadeTimer = this.fadeTime;
+    trail.burstTimer = this.burstTime;
+    this._burstSparks(trail.end, 4 + Math.floor(Math.random() * 4));
   }
 
   update(dt, camera){
@@ -75,10 +124,24 @@ class BulletTrailManager {
       const verts = posAttr.array;
 
       if(t.fading){
-        t.fadeTimer -= dt;
-        m.material.opacity = Math.max(0, t.fadeTimer / this.fadeTime);
-        if(t.fadeTimer <= 0){
+        const burstLeft = t.burstTimer;
+        if(burstLeft > 0){
+          t.burstTimer -= dt;
+          const bp = 1 - (t.burstTimer / this.burstTime);
+          const easeOut = 1 - (1 - bp) * (1 - bp);
+          const widthMul = 1 + (this.burstWidthMul - 1) * (easeOut < 0.5 ? easeOut * 2 : 2 * (1 - easeOut));
+          t.mesh.material.color.copy(this.color).lerp(this._white, Math.sin(bp * Math.PI) * 0.6);
+          const burstOpacity = 1 + Math.sin(bp * Math.PI * 2) * 0.3;
+          t.mesh.material.opacity = Math.min(1, burstOpacity);
+        } else {
+          t.mesh.material.color.copy(this.color);
+          t.fadeTimer -= dt;
+          t.mesh.material.opacity = Math.max(0, t.fadeTimer / this.fadeTime);
+        }
+
+        if(t.fadeTimer <= 0 && t.burstTimer <= 0){
           m.visible = false;
+          t.mesh.material.color.copy(this.color);
           this._pool.push(t);
           arr.splice(i, 1);
           continue;
@@ -87,7 +150,8 @@ class BulletTrailManager {
 
       v.copy(t.end).sub(t.start);
       const len = v.length();
-      if(len < 0.05){ m.visible = false; continue; }
+      if(len < 0.05 && !t.fading){ m.visible = false; continue; }
+      if(len < 0.05) continue;
       dir.copy(v).divideScalar(len);
 
       mid.addVectors(t.start, t.end).multiplyScalar(0.5);
@@ -104,7 +168,10 @@ class BulletTrailManager {
         right.normalize();
       }
 
-      const hw = this.width * 0.5;
+      const burstScale = t.fading && t.burstTimer > 0
+        ? 1 + (this.burstWidthMul - 1) * (1 - Math.abs(1 - t.burstTimer / this.burstTime * 2))
+        : 1;
+      const hw = this.width * 0.5 * burstScale;
       const hl = len * 0.5;
       r.copy(right).multiplyScalar(hw);
       d.copy(dir).multiplyScalar(hl);
@@ -117,6 +184,24 @@ class BulletTrailManager {
       posAttr.needsUpdate = true;
       m.visible = true;
     }
+
+    for(let i = this._sparks.length - 1; i >= 0; i--){
+      const s = this._sparks[i];
+      s.life -= dt;
+      if(s.life <= 0){
+        s.sprite.visible = false;
+        this._sparkPool.push(s);
+        this._sparks.splice(i, 1);
+        continue;
+      }
+      const p = s.life / s.maxLife;
+      s.sprite.material.opacity = p * p;
+      s.sprite.scale.multiplyScalar(1 - dt * 1.5);
+      s.sprite.position.x += s.vel.x * dt;
+      s.sprite.position.y += s.vel.y * dt;
+      s.sprite.position.z += s.vel.z * dt;
+      s.vel.y -= 9.8 * dt;
+    }
   }
 
   dispose(){
@@ -127,5 +212,10 @@ class BulletTrailManager {
     });
     this._active.length = 0;
     this._pool.length = 0;
+    this._sparks.forEach(s => { this.scene.remove(s.sprite); s.sprite.material.dispose(); });
+    this._sparkPool.forEach(s => { this.scene.remove(s.sprite); s.sprite.material.dispose(); });
+    this._sparks.length = 0;
+    this._sparkPool.length = 0;
+    if(this._sparkTex) this._sparkTex.dispose();
   }
 }
