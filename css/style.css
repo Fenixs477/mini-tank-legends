@@ -1131,54 +1131,49 @@ html, body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes shopSlideDown{from{transform:translateY(-20px);opacity:0}to{transform:none;opacity:1}}
 
-/* ===== SHOP (new) ===== */
-.shop-overlay{position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(0,0,0,0.7),rgba(0,0,0,0.7)),url('assets/shop/background.png');background-size:cover;background-position:center;animation:shopSlideDown .35s ease}
-@keyframes shopSlideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
+/* ===== SHOP ===== */
+.shop-overlay{position:absolute;inset:0;display:flex;flex-direction:column;background:rgba(20,20,20,0.92);backdrop-filter:blur(3px);animation:pop .25s ease;z-index:10}
 .shop-header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;flex-shrink:0}
-.shop-back-btn{height:36px;cursor:pointer;opacity:0.8;transition:.15s}
-.shop-back-btn:hover{opacity:1}
 .shop-currencies{display:flex;gap:20px;font-size:18px;font-weight:700}
-.shop-coin-disp{color:#ffb12b}
+.shop-coin-disp{color:var(--accent)}
 .shop-gem-disp{color:#8af}
-.shop-body{display:flex;flex:1;overflow:hidden}
-.shop-sidebar{width:220px;min-width:220px;background:rgba(10,10,15,0.85);padding:16px;display:flex;flex-direction:column;gap:8px}
-.shop-store-logo{background:#FF3366;color:#fff;font-weight:900;font-size:24px;text-align:center;padding:12px;border-radius:12px;border:4px solid #000;box-shadow:4px 4px 0 0 #000;text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
-.shop-sidebar-section{padding:12px;cursor:pointer;font-size:16px;font-weight:800;text-align:center;border-radius:12px;border:4px solid #000;text-transform:uppercase;letter-spacing:1px;transition:all .12s;background:#6D6D6D;color:#fff;box-shadow:2px 2px 0 0 #000}
-.shop-sidebar-section:hover{filter:brightness(1.15)}
-.shop-sidebar-section.active{background:var(--btn-bg,#f97316);color:#000;box-shadow:4px 4px 0 0 #000;transform:translateY(-2px)}
-.shop-sidebar-section:active{transform:translateY(2px);box-shadow:none!important}
-.shop-sidebar-back{background:#d4d4d4;color:#000;border:4px solid #000;text-align:center;padding:10px;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:4px 4px 0 0 #000;transition:.1s;margin-top:auto}
-.shop-sidebar-back:hover{background:#bbb}
-.shop-sidebar-back:active{transform:translateY(2px);box-shadow:none!important}
+.shop-body{display:flex;flex:1;overflow:hidden;gap:0}
+.shop-sidebar{width:180px;min-width:180px;background:var(--card);padding:16px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line)}
+.shop-store-logo{font-size:22px;font-weight:800;text-align:center;padding:12px 0;margin-bottom:8px;letter-spacing:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.shop-sidebar-section{padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-radius:8px;transition:.12s;color:var(--muted);background:transparent;border:1px solid transparent}
+.shop-sidebar-section:hover{color:#fff;background:rgba(255,255,255,0.05)}
+.shop-sidebar-section.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:700}
+.shop-sidebar-back{padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-radius:8px;transition:.12s;color:var(--muted);text-align:center;margin-top:auto;background:transparent;border:1px solid transparent}
+.shop-sidebar-back:hover{color:#fff;background:rgba(255,255,255,0.05);border-color:var(--line)}
 .shop-content{flex:1;overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:24px;display:flex;gap:32px}
 .shop-page{display:inline-block;min-width:100%;white-space:normal;vertical-align:top}
 .shop-coming-soon{color:var(--muted);font-size:24px;text-align:center;padding:80px 0}
 .shop-section-title{font-size:20px;font-weight:700;margin-bottom:12px;color:#ddd;letter-spacing:2px}
 .shop-timer{font-size:13px;color:var(--muted);margin-bottom:20px}
-.shop-deals{display:flex;gap:16px;flex-wrap:nowrap;padding-bottom:16px}
-.shop-deal-card{background:rgba(20,20,28,0.9);border:1px solid #333;border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:.2s;min-width:180px;flex-shrink:0}
-.shop-deal-card:hover{border-color:mediumspringgreen;transform:translateY(-4px);box-shadow:0 6px 24px rgba(0,255,128,0.15)}
+.shop-deals{display:flex;gap:12px;flex-wrap:nowrap;padding-bottom:16px}
+.shop-deal-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:.15s;min-width:160px;flex-shrink:0}
+.shop-deal-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
 .shop-deal-card:active{transform:translateY(-1px)}
-.shop-deal-card.sold-out{opacity:0.4;cursor:default;pointer-events:none}
-.shop-deal-card.sold-out:hover{border-color:#333;transform:none;box-shadow:none}
-.shop-deal-image{width:80px;height:80px;margin:0 auto 10px;background-size:contain;background-repeat:no-repeat;background-position:center}
-.shop-deal-amount{font-size:22px;font-weight:700;color:#fff;margin-bottom:4px}
-.shop-deal-label{font-size:12px;color:var(--muted);margin-bottom:10px}
-.shop-deal-price{font-size:15px;font-weight:600;color:#8af;margin-bottom:4px}
-.shop-deal-price.coins{color:#ffb12b}
-.shop-deal-stock{font-size:11px;color:#666}
+.shop-deal-card.sold-out{opacity:0.35;cursor:default;pointer-events:none}
+.shop-deal-card.sold-out:hover{border-color:var(--line);transform:none;box-shadow:none}
+.shop-deal-image{width:72px;height:72px;margin:0 auto 8px;background-size:contain;background-repeat:no-repeat;background-position:center}
+.shop-deal-amount{font-size:20px;font-weight:700;color:#fff;margin-bottom:2px}
+.shop-deal-label{font-size:11px;color:var(--muted);margin-bottom:8px}
+.shop-deal-price{font-size:14px;font-weight:600;color:#8af;margin-bottom:4px}
+.shop-deal-price.coins{color:var(--accent)}
+.shop-deal-stock{font-size:10px;color:#666}
 .shop-free-offer{margin-top:24px;display:flex;gap:16px;align-items:center}
-.shop-free-card{background:rgba(20,30,20,0.9);border:1px solid #2a5a2a;border-radius:14px;padding:16px 24px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:.2s}
-.shop-free-card:hover{border-color:#4c4;box-shadow:0 4px 16px rgba(0,200,0,0.15)}
+.shop-free-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:.15s}
+.shop-free-card:hover{border-color:var(--accent)}
 .shop-free-card.claimed{opacity:0.5;cursor:default;pointer-events:none}
-.shop-free-icon{font-size:36px}
-.shop-free-info{font-size:13px;color:var(--muted)}
-.shop-free-btn{font-size:13px;padding:8px 20px;background:#2a5a2a;border-radius:8px;color:#4c4;font-weight:600;cursor:pointer;border:1px solid #4a8a4a;transition:.15s}
-.shop-free-btn:hover{background:#3a6a3a}
-
+.shop-free-icon{font-size:28px;font-weight:700;color:var(--accent)}
+.shop-free-info{font-size:12px;color:var(--muted)}
+.shop-free-btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;background:var(--accent);color:#1a1a1a;transition:.12s;cursor:pointer;white-space:nowrap}
+.shop-free-btn:hover{transform:scale(1.05)}
 /* Buy page */
-.shop-buy-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;background:linear-gradient(rgba(0,0,0,0.85),rgba(0,0,0,0.85)),url('assets/shop/background.png');background-size:cover;background-position:center;animation:shopSlideDown .35s ease}
+.shop-buy-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;background:rgba(20,20,20,0.95);backdrop-filter:blur(3px);animation:pop .25s ease}
 .shop-buy-header{padding:16px 24px;flex-shrink:0}
 .shop-buy-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
 .shop-buy-image{width:120px;height:120px;background-size:contain;background-repeat:no-repeat;background-position:center}
@@ -1187,7 +1182,7 @@ html, body {
 .shop-buy-all:hover:not(.btn-disabled){background:#3a3a3a}
 
 /* Receive page */
-.shop-receive-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;animation:shopSlideDown .35s ease}
+.shop-receive-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;animation:pop .25s ease}
 .shop-receive-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
 .shop-receive-bg-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0}
 .shop-receive-reward{position:relative;z-index:1;text-align:center;animation:fadeIn .75s ease}
