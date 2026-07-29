@@ -60,7 +60,7 @@ const MenuEditor = {
     const w = this._canvas.width;
     const h = this._canvas.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#20242a';
+    ctx.fillStyle = 'rgba(32, 36, 42, 0.8)';
     ctx.fillRect(0, 0, w, h);
     const grid = 30;
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
@@ -75,8 +75,10 @@ const MenuEditor = {
     ctx.save();
     if(el.type === 'image' && el.image){
       ctx.drawImage(el.image, el.x, el.y, el.w, el.h);
-    } else if(el.type === 'button'){
-      ctx.fillStyle = el.bgColor || '#383838';
+    } else if(el.type === 'button' || el.type === 'chat-input' || el.type === 'chat-send'){
+      // Transparent UI - no background fill, only border
+      ctx.strokeStyle = el.placeholderColor || 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       const r = 12;
       ctx.moveTo(el.x + r, el.y);
@@ -89,16 +91,19 @@ const MenuEditor = {
       ctx.lineTo(el.x, el.y + r);
       ctx.quadraticCurveTo(el.x, el.y, el.x + r, el.y);
       ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#3a3a3a';
-      ctx.lineWidth = 1;
       ctx.stroke();
+      
+      // Semi-transparent fill for visibility
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.fill();
+      
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 15px Segoe UI';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(el.label || 'Button', el.x + el.w/2, el.y + el.h/2);
-      if(el.command && el.command !== 'none'){
+      const label = el.type === 'chat-input' ? 'Chat Input' : el.type === 'chat-send' ? 'Send' : (el.label || 'Button');
+      ctx.fillText(label, el.x + el.w/2, el.y + el.h/2);
+      if(el.command && el.command !== 'none' && el.type === 'button'){
         ctx.fillStyle = '#ffb12b';
         ctx.font = '10px Segoe UI';
         ctx.textAlign = 'right';
@@ -178,14 +183,15 @@ const MenuEditor = {
       const img = new Image();
       img.onload = ()=>{
         this._imageCounter++;
-        this.elements.push({
-          type: 'image',
-          image: img,
-          x: 50, y: 50,
-          w: Math.min(img.width, 400),
-          h: Math.min(img.height, 400),
-          name: 'Image ' + this._imageCounter,
-        });
+this.elements.push({
+    type: 'image',
+    image: img,
+    x: 50, y: 50,
+    w: Math.min(img.width, 400),
+    h: Math.min(img.height, 400),
+    name: 'Image ' + this._imageCounter,
+    opacity: 0.8
+  });
         this._save();
         this.toast('Image added');
       };
@@ -194,17 +200,39 @@ const MenuEditor = {
     };
 
     document.getElementById('me-add-btn').onclick = ()=>{
-      this.elements.push({
-        type: 'button',
-        x: 100, y: 100,
-        w: 160, h: 50,
-        label: 'New Button',
-        bgColor: '#383838',
-        command: 'none',
-        hitbox: { x: 0, y: 0, w: 160, h: 50 },
-      });
+this.elements.push({
+    type: 'button',
+    x: 100, y: 103,
+    w: 160, h: 50,
+    label: 'New Button',
+    command: 'none',
+    hitbox: { x: 0, y: 0, w: 160, h: 50 },
+    placeholderColor: 'rgba(255, 255, 255, 0.3)'
+  });
       this._save();
       this.toast('Button added');
+    };
+
+    document.getElementById('me-add-chat-input').onclick = ()=>{
+this.elements.push({
+    type: 'chat-input',
+    x: 100, y: 200,
+    w: 300, h: 40,
+    placeholderColor: 'rgba(255, 255, 255, 0.3)'
+  });
+      this._save();
+      this.toast('Chat Input added');
+    };
+
+    document.getElementById('me-add-chat-send').onclick = ()=>{
+this.elements.push({
+    type: 'chat-send',
+    x: 420, y: 200,
+    w: 80, h: 40,
+    placeholderColor: 'rgba(255, 255, 255, 0.3)'
+  });
+      this._save();
+      this.toast('Send Button added');
     };
 
     document.getElementById('me-delete-selected').onclick = ()=>{
@@ -277,6 +305,7 @@ const MenuEditor = {
         html += `<option value="${c.value}"${(el.command||'none')===c.value?' selected':''}>${c.label}</option>`;
       });
       html += `</select></div>`;
+      html += `<div class="me-row"><span>Placeholder Color</span> <input type="color" class="me-color" value="${this._rgbaToHex(el.placeholderColor||'rgba(255,255,255,0.3)')}" data-prop="placeholderColor"></div>`;
       html += `<div class="me-title" style="margin-top:12px">Hitbox</div>`;
       html += `<div class="me-hint">Relative to element position</div>`;
       html += `<div class="me-row"><span>HX</span> <input type="number" class="me-num" value="${el.hitbox?.x||0}" data-prop="hitbox.x"></div>`;
@@ -287,13 +316,20 @@ const MenuEditor = {
     if(el.type === 'image'){
       html += `<div class="me-row"><span>Name</span> ${el.name||'Image'}</div>`;
     }
+    if(el.type === 'chat-input' || el.type === 'chat-send'){
+      html += `<div class="me-row"><span>Placeholder Color</span> <input type="color" class="me-color" value="${this._rgbaToHex(el.placeholderColor||'rgba(255,255,255,0.3)')}" data-prop="placeholderColor"></div>`;
+    }
     ins.innerHTML = html;
-    ins.querySelectorAll('.me-num, .me-text, .me-select').forEach(inp=>{
+    ins.querySelectorAll('.me-num, .me-text, .me-select, .me-color').forEach(inp=>{
       inp.onchange = ()=>{
         const path = inp.dataset.prop.split('.');
         let target = el;
         for(let i=0;i<path.length-1;i++) target = target[path[i]] = target[path[i]] || {};
-        target[path[path.length-1]] = inp.type==='number' ? +inp.value : inp.value;
+        if(inp.type === 'color'){
+          target[path[path.length-1]] = this._hexToRgba(inp.value);
+        } else {
+          target[path[path.length-1]] = inp.type==='number' ? +inp.value : inp.value;
+        }
         this._save();
       };
     });
@@ -337,6 +373,24 @@ const MenuEditor = {
     const ctx = c.getContext('2d');
     ctx.drawImage(img, 0, 0, c.width, c.height);
     return c.toDataURL();
+  },
+
+  _rgbaToHex(rgba){
+    if(rgba.startsWith('#')) return rgba;
+    const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if(!match) return '#ffffff';
+    const r = parseInt(match[1]).toString(16).padStart(2, '0');
+    const g = parseInt(match[2]).toString(16).padStart(2, '0');
+    const b = parseInt(match[3]).toString(16).padStart(2, '0');
+    return '#' + r + g + b;
+  },
+
+  _hexToRgba(hex){
+    if(hex.startsWith('rgba')) return hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, 0.3)`;
   },
 
   _applyToMainMenu(){
