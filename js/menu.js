@@ -194,6 +194,21 @@ const Menu = {
       this._checkRenderingTips();
     };
 
+    // Close button & Escape key (bypass)
+    const fsCloseBtn = document.getElementById('btn-fs-close');
+    if(fsCloseBtn) fsCloseBtn.onclick = () => {
+      this._fsDismissed = true;
+      overlay.classList.add('hidden');
+      this._checkRenderingTips();
+    };
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape' && !overlay.classList.contains('hidden')){
+        this._fsDismissed = true;
+        overlay.classList.add('hidden');
+        this._checkRenderingTips();
+      }
+    });
+
     // Mobile dismiss buttons
     const iosDismiss = document.getElementById('btn-ios-rotate-dismiss');
     if(iosDismiss) iosDismiss.onclick = () => {

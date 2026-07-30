@@ -323,6 +323,7 @@ input:focus{border-color:var(--accent)}
   justify-content:center;font-family:sans-serif;pointer-events:none;line-height:1}
 
 .is-mobile .map-key-hint{display:none!important}
+.is-desktop .settings-tab[data-tab="other"]{display:none}
 
 
 
@@ -1713,6 +1714,9 @@ html, body {
   background-image:radial-gradient(circle at 50% 30%,rgba(255,177,43,.08),transparent 60%),linear-gradient(160deg,#1f1f1f,#141414 70%)}
 
 .fullscreen-icon{font-size:64px;line-height:1;margin-bottom:6px;opacity:0.3;letter-spacing:0}
+
+.fs-close{position:absolute;top:16px;right:20px;font-size:22px;cursor:pointer;color:#666;z-index:1000;transition:.15s;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%}
+.fs-close:hover{color:#fff;background:rgba(255,255,255,.08)}
 
 .fullscreen-hint{font-size:13px;color:var(--muted);margin-top:6px}
 

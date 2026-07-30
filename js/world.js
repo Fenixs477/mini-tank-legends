@@ -5,6 +5,7 @@ class World {
     this.trees = [];
     this.bushes = [];
     this.lakes = [];
+    this._waterMaterials = [];
     this._quality = 'default';
     this.size = CONFIG.WORLD_SIZE;
     this.half = this.size / 2;
@@ -50,8 +51,8 @@ class World {
     sun.castShadow = true;
     sun.shadow.mapSize.width = 4096;
     sun.shadow.mapSize.height = 4096;
-    sun.shadow.bias = -0.003;
-    sun.shadow.normalBias = 0.005;
+    sun.shadow.bias = -0.001;
+    sun.shadow.normalBias = 0.0005;
     const d = 120;
     sun.shadow.camera.left = -d;
     sun.shadow.camera.right = d;
@@ -72,14 +73,12 @@ class World {
     const segs = 32;
     const geo = new THREE.CircleGeometry(r, segs);
     geo.rotateX(-Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x2a8aba, transparent: true, opacity: 0.85,
-      roughness: 0.1, metalness: 0.3
-    });
+    const mat = WaterShader.createMaterial(r);
     const m = new THREE.Mesh(geo, mat);
     m.position.set(0, 0.05, 0);
-    m.receiveShadow = true;
+    m.frustumCulled = false;
     this.scene.add(m);
+    this._waterMaterials.push(mat);
     this.lakes.push({ x: 0, z: 0, r: r });
   }
 
@@ -156,6 +155,11 @@ class World {
     return null;
   }
 
+  waveHeight(x, z, time){
+    const wave = Math.sin(x * 0.2 + time * 1.5) * Math.cos(z * 0.2 + time * 1.2) * 0.04;
+    return Math.max(0, wave);
+  }
+
   randomSpawn(){
     for(let tries = 0; tries < 200; tries++){
       const x = (Math.random() - 0.5) * this.size * 0.85;
@@ -167,11 +171,28 @@ class World {
     return { x: 0, z: 0 };
   }
 
-  hidingIn(x, z){ return null; }
-  camoFactor(x, z){ return 1; }
+  hidingIn(x, z){
+    for(const b of this.bushes){
+      if(Math.hypot(x - b.x, z - b.z) < CONFIG.BUSH_HIDE_RADIUS) return 'bush';
+    }
+    return null;
+  }
+  camoFactor(x, z){
+    for(const b of this.bushes){
+      if(Math.hypot(x - b.x, z - b.z) < CONFIG.BUSH_HIDE_RADIUS + 2) return 0.3;
+    }
+    return 1;
+  }
   tryPlaceTrees(){}
 
-  update(dt, time, tankPos){}
+  update(dt, time, tankPos){
+    for(const mat of this._waterMaterials){
+      mat.uniforms.uTime.value = time;
+      if(tankPos && mat.uniforms.uTankPosition){
+        mat.uniforms.uTankPosition.value.set(tankPos.x, 0, tankPos.z);
+      }
+    }
+  }
 
   loadCustomMapData(data){
     if(!data || !data.objects) return;
