@@ -24,14 +24,22 @@ class Game {
     this._myRemoteId = null;
     this.physicsWorld = null;
     this._physBodies = [];
+    this.casings = [];
     this._eventQueue = null;
     this._helixVideos = new Map();
+    this.glad = null;
+    this._gladBoxes = [];
+    this._gladPickups = [];
+    this._adapT = 0;
   }
 
   /* ---------- Three.js bootstrap ---------- */
   init(){
-    this.renderer = new THREE.WebGLRenderer({antialias:true});
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+    // MSAA only helps at 1x DPR; at higher pixel ratios supersampling already
+    // smooths edges, and antialias+high-res is the classic fill-rate killer.
+    this.renderer = new THREE.WebGLRenderer({antialias: devicePixelRatio <= 1, powerPreference: 'high-performance', stencil:false, depth:true});
+    this._maxPixelRatio = Math.min(devicePixelRatio, 1.5);
+    this.renderer.setPixelRatio(this._maxPixelRatio);
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -49,6 +57,7 @@ class Game {
     // camera zoom and orbit state
     this.camDist = CONFIG.CAM_DIST;
     this.camAngle = Math.PI; // radians, π = behind the tank
+    this.camMode = 'arrows';
 
     // aim/trajectory line (from muzzle, length = shellRange)
     this._initAimLine();
@@ -214,13 +223,13 @@ class Game {
     try {
       if(typeof RAPIER === 'undefined') return;
       this.physicsWorld = new RAPIER.World({x:0, y:-20, z:0});
-      this._eventQueue = new RAPIER.EventQueue(true);
+      this._eventQueue = new RAPIER.EventQueue(false);
       // Ground body
       var gDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0);
       var gBody = this.physicsWorld.createRigidBody(gDesc);
-      var gCol = RAPIER.ColliderDesc.cuboid(160, 0.5, 160)
-        .setUserData({type:'ground'});
-      this.physicsWorld.createCollider(gCol, gBody);
+      var gCol = this.physicsWorld.createCollider(RAPIER.ColliderDesc.cuboid(160, 0.5, 160), gBody);
+      if(gCol && typeof gCol.setActiveEvents === 'function') gCol.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      gCol.userData = {type:'ground'};
       this._physBodies.push(gBody);
       // Wall colliders
       if(this.world && this.world.walls){
@@ -228,9 +237,9 @@ class Game {
           try {
             var wDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(w.x, 0.5, w.z);
             var wBody = this.physicsWorld.createRigidBody(wDesc);
-            var wCol = RAPIER.ColliderDesc.cuboid(w.w/2, 5.0, w.d/2)
-              .setUserData({type:'wall'});
-            this.physicsWorld.createCollider(wCol, wBody);
+            var wCol = this.physicsWorld.createCollider(RAPIER.ColliderDesc.cuboid(w.w/2, 5.0, w.d/2), wBody);
+            if(wCol && typeof wCol.setActiveEvents === 'function') wCol.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+            wCol.userData = {type:'wall'};
             this._physBodies.push(wBody);
           } catch(e2){}
         }
@@ -238,11 +247,10 @@ class Game {
     } catch(e){ console.warn('Rapier init:', e); }
   }
 
-  /* Rapier collision event handler */
-  _onCollision(event){
+  /* Rapier collision event handler (compat: drainCollisionEvents gives
+     collider handles, resolved back to wrappers via getCollider) */
+  _onCollision(c1Handle, c2Handle){
     if(!this.physicsWorld) return;
-    var c1Handle = event.collider1();
-    var c2Handle = event.collider2();
     var c1 = this.physicsWorld.getCollider(c1Handle);
     var c2 = this.physicsWorld.getCollider(c2Handle);
     if(!c1 || !c2) return;
@@ -370,7 +378,12 @@ class Game {
 
   applySettings(s){
     this.settings = s;
-    if(this.input) this.input.binds = s.binds;
+    this.camMode = s.camMode || 'arrows';
+    if(this.input){
+      this.input.binds = s.binds;
+      this.input.settings = s;
+      this.input.resetCamSwipe();
+    }
     this.refreshAimLineStyle();
     this.refreshViewRangeStyle();
     this.refreshViewRangeWidth();
@@ -382,7 +395,8 @@ class Game {
     const q = this.settings.graphicsQuality;
     this.isFancy = q === 'fancy';
     this.renderer.shadowMap.enabled = true;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.isFancy ? 2 : 1.5));
+    this._maxPixelRatio = Math.min(devicePixelRatio, this.isFancy ? 2 : 1.5);
+    this.renderer.setPixelRatio(this._maxPixelRatio);
     if(this.world) this.world.setQuality(q);
   }
 
@@ -420,10 +434,510 @@ class Game {
       for(let i=0;i<20;i++) this._spawnBot();
       this._spawnDummy();
     } catch(e){ console.warn('Spawn error:', e); }
+    if(window.Menu && Menu.bumpStat) Menu.bumpStat('battles', 1);
     this._begin();
   }
 
-  /* ---------- FREE ROAM (persistent world via Nakama) ---------- */
+  /* ---------- GLADIATOR (battle royale, SP) ---------- */
+  startGladiator(){
+    this.mode='sp'; this._resetArena();
+    try {
+      var m = this._useCustomMap ? loadCustomMap() : null;
+      if(!m && typeof GLADIATOR_MAP !== 'undefined' && GLADIATOR_MAP) m = GLADIATOR_MAP;
+      if(!m) m = loadMainMap();
+      if(!m && typeof DEFAULT_MAP !== 'undefined' && DEFAULT_MAP) m = DEFAULT_MAP;
+      if(m) this.world.loadCustomMapData(m);
+    } catch(e){ console.warn('Map load error:', e); }
+    const cfg = GAMEMODES.gladiator;
+    const spawns = this._gladSpawnList();
+    this._initGladiator();
+    const localSp = spawns.length ? spawns.shift() : this.world.randomSpawn();
+    this._spawnLocal(localSp.x, localSp.z, localSp.ry);
+    for(let i=0;i<cfg.botCount;i++){
+      const sp = spawns.length ? spawns.shift() : this.world.randomSpawn();
+      this._spawnBot(sp.x, sp.z, sp.ry);
+    }
+    if(window.Menu && Menu.bumpStat) Menu.bumpStat('battles', 1);
+    this._begin();
+  }
+
+  _gladSpawnList(){
+    let pts = (this.world.spawnPoints && this.world.spawnPoints.gladiator) ? this.world.spawnPoints.gladiator.slice() : [];
+    pts = pts.filter(p => !this.world._inLake(p.x, p.z, 3) && !this.world.collides(p.x, p.z, 3));
+    const hf = this.world.half;
+    const h80 = Math.round(hf * 0.8), h37 = Math.round(hf * 0.37);
+    const fallback = [
+      {x:-h80,z:-h80},{x:h80,z:-h80},{x:-h80,z:h80},{x:h80,z:h80},
+      {x:-h80,z:0},{x:h80,z:0},{x:0,z:-h80},{x:0,z:h80},
+      {x:-h37,z:-h37},{x:h37,z:h37},
+    ];
+    const had = pts.length;
+    for(let i=0;i<fallback.length && pts.length<10;i++){
+      if(!pts.some(p => Math.hypot(p.x-fallback[i].x, p.z-fallback[i].z) < 12)){
+        pts.push({x:fallback[i].x, z:fallback[i].z, ry:Math.random()*6});
+      }
+    }
+    for(let i=pts.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=pts[i]; pts[i]=pts[j]; pts[j]=t; }
+    if(had < 10 && pts.length < 10) Menu.toast('Map has only '+had+' gladiator spawn points — filling in corners');
+    return pts.slice(0, 10);
+  }
+
+  _initGladiator(){
+    const cfg = Object.assign({}, GAMEMODES.gladiator);
+    // Scale the zone shrink to the world size so matches keep a sane length
+    cfg.zone = Object.assign({}, cfg.zone, {
+      chunk: Math.max(12, Math.round(this.world.half / 5)),
+      minHalf: Math.round(this.world.half * 0.1),
+    });
+    this.glad = {
+      cfg, stage:0,
+      safeHalf: this.world.half, orangeHalf: null, phase:'grace', phaseTimer: cfg.zone.graceTime,
+      alive:0, winner:null, ended:false,
+      airdrop:null, airdropTimer: cfg.airdrop.firstDelay,
+    };
+    this._gladBoxes = [];
+    this._gladPickups = [];
+    // Zone ground overlay (canvas texture, regenerated on state change)
+    this._gladZoneCanvas = document.createElement('canvas');
+    this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+    this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+    const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.55, depthWrite:false});
+    const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
+    zgeo.rotateX(-Math.PI/2);
+    this._gladZoneMesh = new THREE.Mesh(zgeo, zmat);
+    this._gladZoneMesh.position.y = 0.06;
+    this._gladZoneMesh.renderOrder = 5;
+    this.scene.add(this._gladZoneMesh);
+    this._refreshGladZone();
+    // Blue boxes placed via the map editor
+    (this.world.blueBoxes || []).forEach(b => this._gladSpawnBox(b.x, b.z));
+    const gh = document.getElementById('glad-hud');
+    if(gh) gh.classList.remove('hidden');
+  }
+
+  _clearGladState(){
+    this.glad = null;
+    if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
+    if(this._gladZoneTex) this._gladZoneTex.dispose();
+    this._gladBoxes.forEach(b => { if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); } });
+    this._gladBoxes = [];
+    this._gladPickups.forEach(p => { if(p.mesh){ this.scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); } });
+    this._gladPickups = [];
+    this._gladClearAirdropVisuals();
+    const gh = document.getElementById('glad-hud');
+    if(gh) gh.classList.add('hidden');
+    const gb = document.getElementById('glad-banner');
+    if(gb) gb.classList.add('hidden');
+    const gr = document.getElementById('glad-result');
+    if(gr) gr.classList.add('hidden');
+  }
+
+  _gladClearAirdropVisuals(){
+    if(this._gladAirBeam){ this.scene.remove(this._gladAirBeam); this._gladAirBeam.geometry.dispose(); this._gladAirBeam.material.dispose(); this._gladAirBeam = null; }
+    if(this._gladAirCrate){ this.scene.remove(this._gladAirCrate); this._gladAirCrate.geometry.dispose(); this._gladAirCrate.material.dispose(); this._gladAirCrate = null; }
+    if(this._gladAirRing){ this.scene.remove(this._gladAirRing); this._gladAirRing.geometry.dispose(); this._gladAirRing.material.dispose(); this._gladAirRing = null; }
+  }
+
+  _gladSpawnBox(x, z, id){
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 2.4, 2.4),
+      new THREE.MeshStandardMaterial({color:0x2299ff, emissive:0x0a4a7a, emissiveIntensity:0.25, roughness:0.4, metalness:0.4})
+    );
+    mesh.position.set(x, 1.2, z);
+    mesh.castShadow = mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this._gladBoxIdSeq = (this._gladBoxIdSeq || 0) + 1;
+    const box = { id: id || ('gb'+this._gladBoxIdSeq), x, z, hp:30, alive:true, mesh };
+    this._gladBoxes.push(box);
+    return box;
+  }
+
+  _gladDropPickup(x, z, power){
+    const grp = new THREE.Group();
+    const bm = new THREE.MeshStandardMaterial({color:0x2a7fff, emissive:0x1a5fdd, emissiveIntensity:0.8, roughness:0.3});
+    const seg1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.85, 0.14), bm);
+    const seg2 = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.7, 0.14), bm);
+    seg1.position.y = 0.3;
+    seg2.position.set(0.08, -0.3, 0); seg2.rotation.z = 0.55;
+    grp.add(seg1, seg2);
+    grp.position.set(x, 1.15, z);
+    this.scene.add(grp);
+    this._gladPickups.push({ x, z, power, type:'power', mesh:grp, phase:Math.random()*6.28 });
+    return this._gladPickups[this._gladPickups.length-1];
+  }
+
+  _gladBoxHit(shell){
+    if(!this._gladBoxes) return false;
+    for(const b of this._gladBoxes){
+      if(!b.alive) continue;
+      const dx = shell.x - b.x, dz = shell.z - b.z;
+      const rr = 1.7 + (shell.radius || 0.4);
+      if(dx*dx + dz*dz < rr*rr){
+        b.hp -= shell.damage;
+        this.spawnExplosion(b.x, 1.5, b.z, 0x44ccff, 6);
+        if(b.hp <= 0){
+          b.alive = false;
+          if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.mesh = null; }
+          this._gladDropPickup(b.x, b.z, GAMEMODES.gladiator.power.box);
+          if(shell.owner === this.localTank) Menu.toast('\u26A1 Blue box destroyed! +5 power dropped');
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  _inGladRed(x, z){
+    const g = this.glad;
+    if(!g) return false;
+    const h = g.safeHalf;
+    if(h <= 0) return true;
+    return Math.abs(x) > h || Math.abs(z) > h;
+  }
+
+  _refreshGladZone(){
+    if(!this._gladZoneMesh || !this._gladZoneCanvas) return;
+    const g = this.glad, ctx = this._gladZoneCanvas.getContext('2d'), S = this._gladZoneCanvas.width;
+    const scale = S / this.world.size;
+    const toPx = (v) => S/2 + v * scale;
+    ctx.clearRect(0, 0, S, S);
+    if(g.phase === 'grace'){ this._gladZoneMesh.visible = false; return; }
+    this._gladZoneMesh.visible = true;
+    // Red zone: outline only + an X marking the shrink target (map center)
+    ctx.strokeStyle = 'rgba(255,40,40,0.95)';
+    ctx.lineWidth = Math.max(3, S * 0.012);
+    const sh = Math.max(0, g.safeHalf);
+    const sX = toPx(-sh), sW = Math.max(1, toPx(sh) - sX);
+    ctx.strokeRect(sX, sX, sW, sW);
+    const c = S / 2, xr = Math.max(14, sW * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(c - xr, c - xr); ctx.lineTo(c + xr, c + xr);
+    ctx.moveTo(c - xr, c + xr); ctx.lineTo(c + xr, c - xr);
+    ctx.stroke();
+    this._gladZoneTex.needsUpdate = true;
+  }
+
+  _gladSpawnForNew(){
+    const pts = this._gladSpawnList();
+    const taken = this.tanks.filter(t=>t.alive).map(t=>({x:t.x, z:t.z}));
+    let best = null, bestD = -1;
+    for(const p of pts){
+      let minD = Infinity;
+      for(const tk of taken){ const d = Math.hypot(p.x-tk.x, p.z-tk.z); if(d<minD) minD = d; }
+      if(minD > bestD){ bestD = minD; best = p; }
+    }
+    return best || {x:0, z:0, ry:0};
+  }
+
+  /* ---------- GLADIATOR per-frame engine ---------- */
+  _gladUpdate(dt){
+    const g = this.glad;
+    if(!g || g.ended) return;
+    const cfg = g.cfg;
+
+    // Zone stage machine: grace -> orange (warning) -> shrink -> orange...
+    g.phaseTimer -= dt;
+    if(g.phase === 'grace' && g.phaseTimer <= 0){
+      g.phase = 'orange';
+      g.orangeHalf = this.world.half;
+      g.phaseTimer = cfg.zone.stageTime;
+      this._refreshGladZone();
+      Menu.toast('Zone incoming!');
+    } else if(g.phase === 'orange' && g.phaseTimer <= 0){
+      let next = g.safeHalf - cfg.zone.chunk;
+      if(next < cfg.zone.minHalf) next = (g.safeHalf <= cfg.zone.minHalf) ? cfg.zone.finalHalf : cfg.zone.minHalf;
+      g.safeHalf = Math.max(0, next);
+      g.orangeHalf = g.safeHalf + cfg.zone.chunk; // orange warning ring ahead of the red
+      g.stage++;
+      g.phaseTimer = cfg.zone.stageTime;
+      this._refreshGladZone();
+      Menu.toast('Zone shrinking!');
+    }
+
+    // Red zone damage (10 HP/s while outside the safe square)
+    if(g.phase !== 'grace'){
+      for(const t of this.tanks){
+        if(!t.alive || t.dying || t.isDummy) continue;
+        if(this._inGladRed(t.x, t.z)){
+          t.takeDamage(cfg.redDps * dt, null, this, true);
+          if(t.alive && !t.dying) this.spawnExplosion(t.x, 0.5, t.z, 0xff3030, 2);
+        }
+      }
+    }
+
+    // Airdrops
+    g.airdropTimer -= dt;
+    if(!g.airdrop && g.airdropTimer <= 0){
+      g.airdrop = this._gladSpawnAirdrop();
+      g.airdropTimer = cfg.airdrop.interval;
+      Menu.toast('Airdrop incoming!');
+    } else if(g.airdrop){
+      if(!g.airdrop.landed){
+        g.airdrop.countdown -= dt;
+        if(this._gladAirBeam){
+          this._gladAirBeam.material.opacity = 0.25 + 0.2 * Math.sin(this.time * 5);
+        }
+        if(g.airdrop.countdown <= 0){
+          g.airdrop.landed = true;
+          g.airdrop.life = 60;
+          Menu.toast('Airdrop landed — stand inside the blue circle!');
+        }
+      } else {
+        g.airdrop.life -= dt;
+        if(g.airdrop.life <= 0){
+          this._gladClearAirdropVisuals();
+          this._gladDropPickup(g.airdrop.x, g.airdrop.z, cfg.power.airdrop);
+          Menu.toast('Airdrop expired — power dropped as pickup');
+          g.airdrop = null;
+        } else {
+          for(const t of this.tanks){
+            if(!t.alive || t.dying || t.isDummy) continue;
+            const d = Math.hypot(t.x - g.airdrop.x, t.z - g.airdrop.z);
+            if(d < 4.5){
+              t._gladHoldTime = (t._gladHoldTime || 0) + dt;
+              if(t === this.localTank) g.airdrop.localHold = t._gladHoldTime;
+              if(t._gladHoldTime >= cfg.airdrop.holdTime){
+                t.applyPower(cfg.power.airdrop, this);
+                if(t === this.localTank) Menu.toast('Airdrop secured! +40 power');
+                else if(g.winner && t === g.winner) Menu.toast('The winner grabbed the airdrop!');
+                this.tanks.forEach(x=>{ x._gladHoldTime = 0; });
+                this._gladClearAirdropVisuals();
+                g.airdrop = null;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Shared power pickups: spin + collect (host-authoritative; any tank can grab)
+    for(let i = this._gladPickups.length - 1; i >= 0; i--){
+      const p = this._gladPickups[i];
+      p.phase = (p.phase || 0) + dt * 3;
+      if(p.mesh){
+        p.mesh.rotation.y = p.phase;
+        p.mesh.position.y = 1.15 + Math.sin(p.phase * 1.4) * 0.12;
+      }
+      for(const t of this.tanks){
+        if(!t.alive || t.dying || t.isDummy) continue;
+        const d = Math.hypot(t.x - p.x, t.z - p.z);
+        if(d < 2.6){
+          t.applyPower(p.power, this);
+          if(t === this.localTank) Menu.toast('+' + p.power + ' power!');
+          if(p.mesh){
+            this.scene.remove(p.mesh);
+            p.mesh.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
+          }
+          this._gladPickups.splice(i, 1);
+          break;
+        }
+      }
+    }
+
+    // Blue boxes idle pulse
+    for(const b of this._gladBoxes){
+      if(b.alive && b.mesh){
+        b.mesh.rotation.y += dt * 0.6;
+        b.mesh.position.y = 1.2 + Math.sin(this.time * 2 + b.x) * 0.06;
+      }
+    }
+
+    // Alive count & win check
+    const alive = this.tanks.filter(t => t.alive && !t.dying && !t.isDummy);
+    g.alive = alive.length;
+    if(!g.winner && alive.length === 1){
+      g.winner = alive[0];
+      g.ended = true;
+      this._gladAwardClanXP();
+      this._gladShowResult(false);
+    } else if(!g.winner && alive.length === 0){
+      g.ended = true;
+      this._gladAwardClanXP();
+      this._gladShowResult(false);
+    }
+  }
+
+  _gladSpawnAirdrop(){
+    const cfg = this.glad.cfg;
+    const half = Math.max(12, this.glad.safeHalf - 10);
+    let x = 0, z = 0, tries = 0;
+    do {
+      x = (Math.random() * 2 - 1) * half;
+      z = (Math.random() * 2 - 1) * half;
+      tries++;
+    } while(tries < 40 && (this.world._inLake(x, z, 4) || this.world.collidesWallsOnly(x, z, 5)));
+    const geo = new THREE.CylinderGeometry(3.2, 3.2, 260, 20, 1, true);
+    geo.translate(0, 130, 0);
+    const mat = new THREE.MeshBasicMaterial({color:0x00ddff, transparent:true, opacity:0.35, depthWrite:false});
+    this._gladAirBeam = new THREE.Mesh(geo, mat);
+    this._gladAirBeam.position.set(x, 0, z);
+    this.scene.add(this._gladAirBeam);
+    return { x, z, countdown: cfg.airdrop.countdown, hold: cfg.airdrop.holdTime, landed:false, life:0, localHold:0 };
+  }
+
+  _gladSnapshot(){
+    const g = this.glad;
+    if(!g) return null;
+    return {
+      stage: g.stage,
+      safeHalf: g.safeHalf,
+      orangeHalf: g.orangeHalf,
+      phase: g.phase,
+      phaseTimer: g.phaseTimer,
+      alive: g.alive,
+      winner: g.winner ? g.winner.id : null,
+      ended: !!g.ended,
+      airdropTimer: g.airdropTimer,
+      airdrop: g.airdrop ? {
+        x: g.airdrop.x, z: g.airdrop.z,
+        countdown: g.airdrop.countdown, landed: g.airdrop.landed,
+        life: g.airdrop.life, hold: g.airdrop.hold
+      } : null,
+      boxes: this._gladBoxes.filter(b => b.alive).map(b => ({id: b.id, x: b.x, z: b.z, hp: b.hp})),
+      pickups: this._gladPickups.map(p => ({x: p.x, z: p.z, power: p.power})),
+    };
+  }
+
+  _gladApplyHostSnapshot(gs){
+    const cfg = GAMEMODES.gladiator;
+    if(!this.glad){
+      this.glad = {
+        cfg, stage:0, safeHalf:this.world.half, orangeHalf:null, phase:'grace', phaseTimer:0,
+        alive:0, winner:null, winnerId:null, ended:false, airdrop:null, airdropTimer:0, _client:true,
+      };
+      this._gladBoxes = [];
+      this._gladPickups = [];
+      this._gladZoneCanvas = document.createElement('canvas');
+      this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+      this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+      const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.9, depthWrite:false});
+      const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
+      zgeo.rotateX(-Math.PI/2);
+      this._gladZoneMesh = new THREE.Mesh(zgeo, zmat);
+      this._gladZoneMesh.position.y = 0.06;
+      this._gladZoneMesh.renderOrder = 5;
+      this.scene.add(this._gladZoneMesh);
+      const gh = document.getElementById('glad-hud');
+      if(gh) gh.classList.remove('hidden');
+    }
+    const g = this.glad;
+    const prevEnded = g.ended;
+    g.stage = gs.stage;
+    g.safeHalf = gs.safeHalf;
+    g.orangeHalf = gs.orangeHalf;
+    g.phase = gs.phase;
+    g.phaseTimer = gs.phaseTimer;
+    g.alive = gs.alive;
+    g.winnerId = gs.winner;
+    g.ended = !!gs.ended;
+    g.airdropTimer = gs.airdropTimer;
+    if(gs.airdrop){
+      if(!g.airdrop){
+        g.airdrop = {x:0, z:0, countdown:0, landed:false, life:0, hold:0, localHold:0};
+        const geo = new THREE.CylinderGeometry(3.2, 3.2, 260, 20, 1, true);
+        geo.translate(0, 130, 0);
+        const mat = new THREE.MeshBasicMaterial({color:0x00ddff, transparent:true, opacity:0.35, depthWrite:false});
+        this._gladAirBeam = new THREE.Mesh(geo, mat);
+        this._gladAirBeam.position.set(gs.airdrop.x, 0, gs.airdrop.z);
+        this.scene.add(this._gladAirBeam);
+      } else if(this._gladAirBeam && g.airdrop.landed !== gs.airdrop.landed){
+        this._gladAirBeam.material.opacity = 0.4;
+      }
+      g.airdrop.x = gs.airdrop.x;
+      g.airdrop.z = gs.airdrop.z;
+      g.airdrop.countdown = gs.airdrop.countdown;
+      const wasLanded = g.airdrop.landed;
+      g.airdrop.landed = gs.airdrop.landed;
+      g.airdrop.life = gs.airdrop.life;
+      g.airdrop.hold = gs.airdrop.hold;
+      if(this._gladAirBeam){
+        this._gladAirBeam.position.set(gs.airdrop.x, 0, gs.airdrop.z);
+        if(wasLanded && !gs.airdrop.landed) this._gladAirBeam.material.opacity = 0.3;
+      }
+    } else if(g.airdrop){
+      g.airdrop = null;
+      this._gladClearAirdropVisuals();
+    }
+    // Blue boxes: reconcile meshes with snapshot
+    const want = new Set((gs.boxes || []).map(b => b.id));
+    for(let i = this._gladBoxes.length - 1; i >= 0; i--){
+      if(!want.has(this._gladBoxes[i].id)){
+        const b = this._gladBoxes[i];
+        if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); }
+        this._gladBoxes.splice(i, 1);
+      }
+    }
+    (gs.boxes || []).forEach(sb => {
+      let b = this._gladBoxes.find(x => x.id === sb.id);
+      if(!b){
+        b = this._gladSpawnBox(sb.x, sb.z, sb.id);
+      }
+      b.x = sb.x; b.z = sb.z; b.hp = sb.hp; b.alive = true;
+    });
+    // Pickups
+    for(let i = this._gladPickups.length - 1; i >= 0; i--){
+      const p = this._gladPickups[i];
+      if(p.mesh){
+        this.scene.remove(p.mesh);
+        p.mesh.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
+      }
+      this._gladPickups.splice(i, 1);
+    }
+    (gs.pickups || []).forEach(sp => this._gladDropPickup(sp.x, sp.z, sp.power));
+    // Zone overlay texture is static (client-side red/green approximation is fine;
+    // the authoritative visual comes from safeHalf) — regenerate cheap canvas
+    this._refreshGladZoneClient();
+    // End-of-match notification
+    if(!prevEnded && g.ended){
+      this._gladShowResult(false);
+    }
+  }
+
+  _refreshGladZoneClient(){
+    this._refreshGladZone();
+  }
+
+  _gladZoneNotice(text){
+    Menu.toast(text);
+  }
+
+  _gladShowResult(eliminated){
+    const el = document.getElementById('glad-result');
+    if(!el) return;
+    const g = this.glad;
+    if(!g) return;
+    // The result overlay must always sit on top: close any ESC menu first
+    const esc = document.getElementById('esc-menu');
+    if(esc) esc.classList.add('hidden');
+    if(window.Menu) Menu.escOpen = false;
+    const txtEl = document.getElementById('glad-result-text');
+    if(eliminated){
+      if(g._elimShown) return;
+      g._elimShown = true;
+      if(txtEl) txtEl.textContent = 'ELIMINATED — you placed #' + (this.localTank ? (this.localTank.placement || '?') : '?');
+      el.classList.remove('hidden');
+      const watchBtn = document.getElementById('glad-watch-btn');
+      if(watchBtn) watchBtn.classList.remove('hidden');
+    } else {
+      if(g._finalShown) return;
+      g._finalShown = true;
+      let winner = g.winner;
+      if(!winner && g.winnerId) winner = this.tanks.find(t => t.id === g.winnerId) || null;
+      let txt = 'MATCH OVER';
+      if(winner === this.localTank){
+        txt = 'VICTORY! Last tank standing!';
+        if(window.Menu && Menu.bumpStat) Menu.bumpStat('wins', 1);
+      }
+      else if(winner) txt = 'WINNER: ' + winner.name;
+      else if(g.winnerId) txt = 'MATCH OVER';
+      if(txtEl) txtEl.textContent = txt;
+      el.classList.remove('hidden');
+      const watchBtn = document.getElementById('glad-watch-btn');
+      if(watchBtn) watchBtn.classList.add('hidden');
+    }
+  }
+
   async startFreeRoam(){
     Menu.showConnecting('Joining free roam world…');
     try {
@@ -521,13 +1035,25 @@ class Game {
     this.mode='host'; this._resetArena();
     try {
       var m = this._useCustomMap ? loadCustomMap() : null;
+      if(!m && cfg.gamemode === 'gladiator' && typeof GLADIATOR_MAP !== 'undefined' && GLADIATOR_MAP) m = GLADIATOR_MAP;
       if(!m) m = loadMainMap();
       if(!m && typeof DEFAULT_MAP !== 'undefined' && DEFAULT_MAP) m = DEFAULT_MAP;
       if(m) this.world.loadCustomMapData(m);
     } catch(e){ console.warn('Map load error:', e); }
-    this._spawnLocal();
-    // fake players (bots)
-    for(let i=0;i<cfg.fakePlayers;i++) this._spawnBot();
+    if(cfg.gamemode === 'gladiator'){
+      const spawns = this._gladSpawnList();
+      this._initGladiator();
+      const localSp = spawns.length ? spawns.shift() : this.world.randomSpawn();
+      this._spawnLocal(localSp.x, localSp.z, localSp.ry);
+      for(let i=0;i<cfg.fakePlayers;i++){
+        const sp = spawns.length ? spawns.shift() : this.world.randomSpawn();
+        this._spawnBot(sp.x, sp.z, sp.ry);
+      }
+    } else {
+      this._spawnLocal();
+      // fake players (bots)
+      for(let i=0;i<cfg.fakePlayers;i++) this._spawnBot();
+    }
     
     // Network callbacks
     Net.onPlayerJoin = (info)=> this._onClientJoin(info);
@@ -540,14 +1066,14 @@ class Game {
   _onClientJoin(info){
     // info = {peerId, name, tank, color}
     const def = TANKS[info.tank] || TANKS.coolbuddy;
-    const sp = this.world.randomSpawn();
+    const sp = this.glad ? this._gladSpawnForNew() : this.world.randomSpawn();
     const t = new Tank(def, {
       id:'remote-'+info.peerId,
       name: info.name || 'Player',
       ownerPeer: info.peerId,
       x: sp.x,
       z: sp.z,
-      heading: Math.random()*6,
+      heading: sp.ry != null ? sp.ry : Math.random()*6,
       color: info.color || def.color
     });
     this._finalizeTank(t);
@@ -567,6 +1093,7 @@ class Game {
     // Send full current state to the newly joined client so they see everyone
     Net.sendFullStateToClient(info.peerId, {
       time: this.time,
+      glad: this.glad ? this._gladSnapshot() : null,
       tanks: this.tanks.map(tk => tk.snapshot()),
       projs: this.projectiles.filter(p=>!p.dead).map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,dx:p.dir.x,dz:p.dir.z,type:p.type,life:p.life}))
     });
@@ -626,6 +1153,7 @@ class Game {
   _applyHostState(snap){
     if(!snap || !snap.tanks) return;
     if(snap.time) this.time = snap.time;
+    if(snap.glad) this._gladApplyHostSnapshot(snap.glad);
     
     // Apply host state to local tank via remote representation
     if(snap.tanks && this.localTank && this._myRemoteId){
@@ -639,6 +1167,10 @@ class Game {
         this.localTank.damageDealt = mySnap.dd;
         this.localTank.kills = mySnap.k;
         this.localTank.dying = !!mySnap.dying;
+        this.localTank.placement = mySnap.pl || 0;
+        this.localTank.power = mySnap.pw || 0;
+        this.localTank._gladHoldTime = mySnap.gt || 0;
+        if(this.localTank.setPowerFromSnapshot) this.localTank.setPowerFromSnapshot(mySnap.pw || 0);
         if(wasAlive && !mySnap.alive && !this.localTank.dying){
           this.localTank._startDeath(this, null);
         }
@@ -723,9 +1255,16 @@ class Game {
 
   /* ---------- arena reset / spawn ---------- */
   _resetArena(){
+    this._clearGladState();
     this.tanks.forEach(t=>t.detach());
     this.projectiles.forEach(p=>p.detach());
     this.explosions.forEach(e=>e.detach());
+    this.casings.forEach(c=>c.detach());
+    if(this._strikeBombs){ this._strikeBombs.forEach(b=>{ this.scene.remove(b.mesh); if(b.mesh.geometry) b.mesh.geometry.dispose(); if(b.mesh.material) b.mesh.material.dispose(); }); this._strikeBombs = []; }
+    if(this._oilPuddles){ this._oilPuddles.forEach(p=>{ this.scene.remove(p.mesh); if(p.mesh.material) p.mesh.material.dispose(); p.mesh.geometry.dispose(); }); this._oilPuddles = []; }
+    if(this._panzerRing){ this._panzerRing.forEach(p=>this.scene.remove(p.mesh)); this._panzerRing = null; }
+    this.tanks.forEach(t => { if(t._strikeRing) this.scene.remove(t._strikeRing); });
+    this.tanks.forEach(t => { if(t.myBushes){ t.myBushes.forEach(b => this.world.removePlayerBush(b)); t.myBushes = []; } });
     this.tanks=[]; this.projectiles=[]; this.explosions=[];
     this.localTank=null; this.time=0;
     if(this._helixVideos){
@@ -751,12 +1290,12 @@ class Game {
     this._initPhysics();
   }
 
-  _spawnLocal(){
-    this.camAngle = 0;
+  _spawnLocal(px, pz, pheading){
+    this.camAngle = Math.PI + (this.settings.camRotation || 0);
     const def = TANKS[this.settings.selectedTank] || TANKS.coolbuddy;
-    const sp = this.world.randomSpawn();
+    const sp = (px != null && pz != null) ? {x:px, z:pz} : this.world.randomSpawn();
     const localId = this.mode === 'host' ? 'host-player' : 'local';
-    const t = new Tank(def, {id:localId, name:this.settings.playerName, isLocal:true, x:sp.x, z:sp.z, heading:Math.random()*6, physicsWorld:this.physicsWorld});
+    const t = new Tank(def, {id:localId, name:this.settings.playerName, isLocal:true, x:sp.x, z:sp.z, heading:(pheading != null ? pheading : Math.random()*6), physicsWorld:this.physicsWorld});
     this._finalizeTank(t); this.tanks.push(t); this.localTank = t;
     // Ensure trees are placed even if NatureAssets promise hasn't resolved yet
     if(this.world && !this.world.treesPlaced) this.world.tryPlaceTrees();
@@ -774,14 +1313,14 @@ class Game {
     }
   }
 
-  _spawnBot(){
+  _spawnBot(px, pz, pheading){
     const ids = TANK_ORDER.filter(id=>id!==this.settings.selectedTank && id!=='tankdisplay' && id!=='dummy');
     if(!ids.length) return;
     const id = ids[Math.floor(Math.random()*ids.length)];
     const def = TANKS[id];
     if(!def) return;
-    const sp = this.world.randomSpawn();
-    const t = new Tank(def, {id:'bot-'+Math.random().toString(36).slice(2,6), name:BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)], isBot:true, x:sp.x, z:sp.z, heading:Math.random()*6, physicsWorld:this.physicsWorld});
+    const sp = (px != null && pz != null) ? {x:px, z:pz} : this.world.randomSpawn();
+    const t = new Tank(def, {id:'bot-'+Math.random().toString(36).slice(2,6), name:BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)], isBot:true, x:sp.x, z:sp.z, heading:(pheading != null ? pheading : Math.random()*6), physicsWorld:this.physicsWorld});
     t.brain = new BotBrain(t);
     this._finalizeTank(t); this.tanks.push(t);
   }
@@ -813,6 +1352,9 @@ class Game {
     t.makeViewRangeCircle();
     if(!t.isLocal) t.viewCircle.visible = false;
     t.setViewRangeStyle(this.settings.viewRangeOpacity, this.settings.viewRangeColor);
+    if(t.isLocal && t.hasSuper()){
+      t._onBushSuper = () => this._deployBush(t);
+    }
     return t;
   }
 
@@ -871,17 +1413,48 @@ class Game {
 
     if(this.running){
       this.dt = dt; this.time += dt;
+      // Play-time stats: +1s while a match runs
+      this._playAcc = (this._playAcc || 0) + dt;
+      if(this._playAcc >= 1){
+        this._playAcc -= 1;
+        if(window.Menu && Menu.settings){
+          const st = Menu.settings.stats || (Menu.settings.stats = {});
+          st.playSec = (st.playSec || 0) + 1;
+          this._playSaveAcc = (this._playSaveAcc || 0) + 1;
+          if(this._playSaveAcc >= 60){ this._playSaveAcc = 0; try{ saveSettings(Menu.settings); }catch(e){} }
+        }
+      }
       try {
         if(this.physicsWorld){
-          this.physicsWorld.step(Math.min(dt, 0.033), null, null, this._eventQueue);
-          if(this._eventQueue) this._eventQueue.drainContactEvents((event) => {
-            this._onCollision(event);
+          this.physicsWorld.timestep = Math.min(dt, 0.033);
+          this.physicsWorld.step(this._eventQueue);
+          if(this._eventQueue) this._eventQueue.drainCollisionEvents((h1, h2, started) => {
+            if(!started) return;
+            this._onCollision(h1, h2);
           });
         }
       } catch(e){ console.warn('Physics step:', e); }
       this._update(dt);
     }
     this._perfUpdateEnd = performance.now();
+
+    // Adaptive resolution: if frames are heavy, scale render resolution down
+    // (and back up when the GPU keeps up) so the game stays smooth on weak GPUs
+    if(now - this._adapT > 2000){
+      this._adapT = now;
+      const hist = this._perfFpsHistory;
+      if(hist.length > 30){
+        let s = 0;
+        for(let i = hist.length - 30; i < hist.length; i++) s += (1000 / (hist[i] - hist[i-1]));
+        const fps30 = s / 29;
+        const cur = this.renderer.getPixelRatio();
+        if(fps30 < 35 && cur > 0.8){
+          this.renderer.setPixelRatio(Math.max(0.8, cur - 0.25));
+        } else if(fps30 > 50 && cur < this._maxPixelRatio){
+          this.renderer.setPixelRatio(Math.min(this._maxPixelRatio, cur + 0.2));
+        }
+      }
+    }
 
     // GPU load estimate: sample the delta between rAF start and render completion
     this._perfGpuLoadSamples.push(Math.round((performance.now() - this._perfFrameStart) / 1.66));
@@ -893,6 +1466,7 @@ class Game {
   _update(dt){
     try {
     this.world.update(dt, this.time, this.localTank);
+    if(this.glad && !this.glad._client) this._gladUpdate(dt);
 
     // Camera zoom & orbit
     const zoom = this.input.consumeZoom();
@@ -901,41 +1475,36 @@ class Game {
         this.camDist - zoom*CONFIG.CAM_ZOOM_STEP));
     }
     const camRot = this.input.consumeCamRotate();
-    if(camRot !== 0){
-      this.camAngle -= camRot * CONFIG.CAM_ROTATE_SPEED * dt;
+    const camMode = this.camMode || 'arrows';
+    if(camMode === 'arrows'){
+      if(camRot !== 0){
+        const inv = (this.settings && this.settings.invertCamRot) ? -1 : 1;
+        this.camAngle -= camRot * inv * CONFIG.CAM_ROTATE_SPEED * dt;
+      }
+    } else if(camMode === 'swipe'){
+      const swipe = this.input.consumeCamSwipe();
+      if(swipe !== 0){
+        this.camAngle += swipe * CONFIG.CAM_SWIPE_SENSITIVITY;
+      }
     }
 
     // Local tank input (keyboard/mouse OR touch)
-    if(this.localTank && this.localTank.alive && !this.localTank.dying){
+    if(this.localTank && this.localTank.alive && !this.localTank.dying && !(this.glad && this.glad.ended)){
       let throttle, turn, turretAngle, fire, handbrake;
       
       const touchInput = this.input.getTouchInput();
       
       if(touchInput && touchInput.isTouch){
-        // Camera-relative controls: joystick direction maps to camera view
-        if(this.localTank){
-          const mThrottle = touchInput.throttle;
-          const mTurn = touchInput.turn;
-          const moveMag = Math.sqrt(mThrottle*mThrottle + mTurn*mTurn);
-          const dz = 0.15;
-          if(moveMag > dz){
-            const joyAngle = Math.atan2(mTurn, mThrottle);
-            const camFwdHeading = (this.camAngle || Math.PI) + Math.PI;
-            const worldMoveHeading = camFwdHeading + joyAngle;
-            let diff = worldMoveHeading - this.localTank.heading;
-            while(diff > Math.PI) diff -= Math.PI*2;
-            while(diff < -Math.PI) diff += Math.PI*2;
-            // Clamp turn to prevent tank hull shaking from overshoot
-            // Use a moderate multiplier (2) to avoid oscillation
-            throttle = moveMag;
-            turn = Math.max(-1, Math.min(1, -diff * 2));
-          } else {
-            throttle = 0;
-            turn = 0;
-          }
+        // Tank-relative controls (WASD-like): joystick maps directly to tank body
+        const mThrottle = touchInput.throttle;
+        const mTurn = touchInput.turn;
+        const moveMag = Math.sqrt(mThrottle*mThrottle + mTurn*mTurn);
+        if(moveMag > 0.15){
+          throttle = mThrottle;
+          turn = mTurn;
         } else {
-          throttle = touchInput.throttle;
-          turn = touchInput.turn;
+          throttle = 0;
+          turn = 0;
         }
 
         // Turret: camera-relative aim
@@ -964,6 +1533,14 @@ class Game {
       } else if(this.mode==='freeroam' && !NakamaNet.isHost){
         NakamaNet.sendMatchData({t: 'input', input});
       }
+    }
+
+    // Super ability activation (PC key / mobile button already wired via #super-btn)
+    if(this.localTank && this.localTank.alive && !this.localTank.dying && !(this.glad && this.glad.ended)){
+      const superPressed = this.input.consumePressed('super');
+      if(superPressed && !this.localTank.superState) this.localTank.activateSuper();
+      else if(superPressed && this.localTank.superState === 'targeting') this.localTank.cancelSuper();
+      this._updateSupers(dt);
     }
 
     // Update all tanks
@@ -1013,6 +1590,9 @@ class Game {
     }
     this.explosions.forEach(e=> e.update(dt));
     this.explosions = this.explosions.filter(e=>{ if(e.dead){e.detach(); return false;} return true; });
+    // Shell casings (physics-driven, self-lifetime)
+    this.casings.forEach(c=> c.update(dt, this.world, this));
+    this.casings = this.casings.filter(c=>{ if(c.dead){c.detach(); return false;} return true; });
     // Muzzle flash sprites
     if(this._muzzleFlashes){
       this._muzzleFlashes.forEach(p=>{
@@ -1029,6 +1609,15 @@ class Game {
       this._muzzleFlashes = this._muzzleFlashes.filter(p=>{
         if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
         return true;
+      });
+    }
+    // Muzzle lights (pooled — fade out after each shot)
+    if(this._muzzleLights){
+      this._muzzleLights.forEach(l=>{
+        if(!l.active) return;
+        const k = (l.life -= dt) / l.maxLife;
+        l.light.intensity = k <= 0 ? 0 : 26 * k;
+        if(k <= 0) l.active = false;
       });
     }
     // Helix video overlay
@@ -1097,6 +1686,23 @@ class Game {
         return true;
       });
     }
+    // Destruction / burst particles
+    if(this._bursts){
+      this._bursts.forEach(p=>{
+        p.life -= dt;
+        p.sprite.position.x += p.vx * dt;
+        p.sprite.position.z += p.vz * dt;
+        p.sprite.position.y += p.vy * dt;
+        p.vy -= p.gravity * dt;
+        const k = 1 - p.life / p.maxLife;
+        p.sprite.scale.x = p.sprite.scale.y = p.baseScale * (1 + k * p.grow);
+        p.sprite.material.opacity = Math.max(0, (p.life / p.maxLife) * p.fade);
+      });
+      this._bursts = this._bursts.filter(p=>{
+        if(p.life <= 0){ this.scene.remove(p.sprite); /* shared VFX tex */ p.sprite.material.dispose(); return false; }
+        return true;
+      });
+    }
     // Exhaust / drift smoke particles
     if(this._exhaustParts){
       this._exhaustParts.forEach(p=>{
@@ -1161,19 +1767,27 @@ class Game {
     // Bullet trails
     this.trailManager.update(dt, this.camera);
 
-    // Camera (orbits around tank)
+    // Camera (orbits around tank; auto mode locks behind hull front)
     if(this.localTank && this.localTank.alive && !this.localTank.dying){
       const t = this.localTank;
+      if((this.camMode || 'arrows') === 'auto'){
+        this.camAngle = t.heading + Math.PI;
+      }
       const angle = this.camAngle;
       const camTarget = new THREE.Vector3(
         t.x + Math.sin(angle) * this.camDist,
         this.camDist * 1.43 + 1.2,
         t.z + Math.cos(angle) * this.camDist);
+      // Never let the camera cross a border wall (keeps walls out of view)
+      const camLim = (this.world && this.world.half || 75) - 8;
+      camTarget.x = Math.max(-camLim, Math.min(camLim, camTarget.x));
+      camTarget.z = Math.max(-camLim, Math.min(camLim, camTarget.z));
       this.camera.position.lerp(camTarget, CONFIG.CAM_LERP);
       this.camera.lookAt(t.x, 1.2, t.z);
       if(this._shake > 0){
         this._shake = Math.max(0, this._shake - dt*2.5);
-        const s = this._shake;
+        const shScale = (this.settings && typeof this.settings.screenShake === 'number') ? this.settings.screenShake / 100 : 1;
+        const s = this._shake * shScale;
         this.camera.position.x += (Math.random()-0.5)*s;
         this.camera.position.y += (Math.random()-0.5)*s;
         this.camera.position.z += (Math.random()-0.5)*s;
@@ -1196,7 +1810,7 @@ class Game {
       this._netSendAcc += dt;
       if(this._netSendAcc > 0.05){ // ~20Hz
         this._netSendAcc = 0;
-        Net.broadcast({time:this.time, tanks:this.tanks.map(t=>t.snapshot()), projs:this.projectiles.filter(p=>!p.dead).map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,dx:p.dir.x,dz:p.dir.z,type:p.type,life:p.life}))});
+        Net.broadcast({time:this.time, glad:this.glad ? this._gladSnapshot() : null, tanks:this.tanks.map(t=>t.snapshot()), projs:this.projectiles.filter(p=>!p.dead).map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,dx:p.dir.x,dz:p.dir.z,type:p.type,life:p.life}))});
       }
     } else if(this.mode==='freeroam' && NakamaNet.isHost){
       this._netSendAcc += dt;
@@ -1248,7 +1862,7 @@ class Game {
       // Ricochet prediction — circle-ray intersection for exact entry point
       for(const enemy of this.tanks){
         if(enemy === t || !enemy.alive || !enemy.def.armor) continue;
-        const rad = Math.max(enemy.def.body.w, enemy.def.body.l)/2 + 0.4;
+        const rad = (Math.max(enemy.def.body.w, enemy.def.body.l)/2 + 0.4) * (enemy.hitScale || 1);
         const edx = startX - enemy.x, edz = startZ - enemy.z;
         const b = 2 * (edx * dir.x + edz * dir.z);
         const c = edx*edx + edz*edz - rad*rad;
@@ -1743,11 +2357,374 @@ class Game {
   }
 
   /* ===========================================================
+     SUPERS
+     =========================================================== */
+  _groundPoint(ndcX, ndcY){
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+    const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+    const hit = new THREE.Vector3();
+    return ray.ray.intersectPlane(plane, hit) ? hit : null;
+  }
+
+  _makeGroundRing(x, z, r, color, opacity){
+    const grp = new THREE.Group();
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.18, r + 0.18, 48),
+      new THREE.MeshBasicMaterial({ color, transparent:true, opacity: opacity || 0.8, side:THREE.DoubleSide, depthWrite:false })
+    );
+    ring.rotation.x = -Math.PI/2;
+    const fill = new THREE.Mesh(
+      new THREE.CircleGeometry(r * 0.92, 48),
+      new THREE.MeshBasicMaterial({ color, transparent:true, opacity: 0.22, depthWrite:false })
+    );
+    fill.rotation.x = -Math.PI/2;
+    fill.position.y = 0.02;
+    grp.add(ring);
+    grp.add(fill);
+    grp.position.set(x, 0.04, z);
+    this.scene.add(grp);
+    return grp;
+  }
+
+  _updateSupers(dt){
+    const t = this.localTank;
+    if(!t || !t.hasSuper()) return;
+    const d = t.def;
+    const st = t.superState;
+    if(st === 'targeting' && this._lastSuperState !== 'targeting'){
+      this._superMousePrev = this.input.mouse.down;
+    }
+    this._lastSuperState = st;
+
+    // --- Airstrike: waiting for ground selection ---
+    if(st === 'targeting'){
+      if((this.input.keys['Escape'] || this.input.keys['ContextMenu']) && !this._superEscPrev){
+        this._superEscPrev = true;
+        t.cancelSuper();
+      } else if(!this.input.keys['Escape'] && !this.input.keys['ContextMenu']){
+        this._superEscPrev = false;
+      }
+      let picked = null;
+      const click = this.input.consumePressed('fire') || (this.input.mouse.down && !this._superMousePrev);
+      this._superMousePrev = this.input.mouse.down;
+      const tap = this.input.consumeTap();
+      if(tap){ picked = this._groundPoint(tap.ndcX, tap.ndcY); }
+      else if(click){ picked = this._groundPoint(this.input.mouse.ndcX, this.input.mouse.ndcY); }
+      if(picked){
+        const r = d.airstrikeRadius || 4;
+        t.superTarget = { x: picked.x, z: picked.z };
+        t.superState = 'strike';
+        t.superTimer = d.airstrikeDelay || 3;
+        t.superCdLeft = t.superCdTotal;
+        if(t._strikeRing) this.scene.remove(t._strikeRing);
+        t._strikeRing = this._makeGroundRing(picked.x, picked.z, r, 0xffffff, 0.9);
+        this._superWarned = false;
+      }
+    } else if(st === 'strike'){
+      t.superTimer -= dt;
+      const total = d.airstrikeDelay || 3;
+      const remain = t.superTimer;
+      if(t._strikeRing){
+        const ring = t._strikeRing;
+        if(remain <= 1 && !this._superWarned){
+          this._superWarned = true;
+          ring.children.forEach(c => {
+            if(c.material){ c.material.color.set(0xff4422); c.material.opacity = c.material.opacity > 0.5 ? 0.85 : 0.25; }
+          });
+        }
+        ring.scale.setScalar(1.15 - 0.15 * (remain / total));
+      }
+      if(t.superTimer <= 0){
+        if(t._strikeRing){ this.scene.remove(t._strikeRing); t._strikeRing = null; }
+        this._dropStrikeBombs(t);
+        t.superState = 'done';
+        t.superTimer = 0;
+      }
+    }
+
+    // --- Sturmratte: panzer drop marker ---
+    else if(st === 'panzer_drop'){
+      t.superTimer -= dt;
+      if(!this._panzerRing){
+        this._panzerRing = [];
+        for(const side of [-1, 1]){
+          const a = t.heading + Math.PI/2 * side;
+          const ox = Math.sin(a) * 3.2, oz = Math.cos(a) * 3.2;
+          const ring = this._makeGroundRing(t.x + ox, t.z + oz, 1.6, 0x88ccff, 0.7);
+          this._panzerRing.push({ mesh: ring, side });
+        }
+      } else {
+        this._panzerRing.forEach(p => {
+          const a = t.heading + Math.PI/2 * p.side;
+          p.mesh.position.set(t.x + Math.sin(a) * 3.2, 0.04, t.z + Math.cos(a) * 3.2);
+        });
+      }
+      if(t.superTimer <= 0){
+        this._panzerRing.forEach(p => this.scene.remove(p.mesh));
+        this._panzerRing = null;
+        this._spawnPanzers(t);
+        t.superState = 'done';
+        t.superTimer = 0;
+      }
+    }
+
+    // --- Helix: oil fill then burn ---
+    else if(st === 'oil_fill'){
+      t.superTimer -= dt;
+      this._oilPuddleTimer = (this._oilPuddleTimer || 0) - dt;
+      if(this._oilPuddleTimer <= 0){
+        this._oilPuddleTimer = 0.12;
+        this._spawnOilPuddle(t);
+      }
+      (this._oilPuddles || []).forEach(p => {
+        if(p.cur < p.sc){
+          p.cur = Math.min(p.sc, p.cur + p.sc * dt * 3);
+          p.mesh.scale.setScalar(p.cur);
+        }
+      });
+      if(t.superTimer <= 0){
+        t.superState = 'oil_burn';
+        t.superTimer = d.oilBurn || 1;
+        this._oilBurnTimer = 0;
+        (this._oilPuddles || []).forEach(p => {
+          p.burning = true;
+          if(p.mesh.material) p.mesh.material.dispose();
+          p.mesh.material = new THREE.MeshBasicMaterial({ map: VFX.getTex('fire'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+          p.mesh.scale.setScalar(p.cur * 1.25);
+        });
+        this.spawnExplosion(t.x, 0.4, t.z, 0xff6600, 6);
+      }
+    }
+    else if(st === 'oil_burn'){
+      t.superTimer -= dt;
+      this._oilBurnTimer = (this._oilBurnTimer || 0) - dt;
+      (this._oilPuddles || []).forEach(p => {
+        const fl = 0.7 + 0.3 * Math.sin(this.time * 30 + p.phase) * Math.sin(this.time * 11 + p.phase * 2);
+        p.mesh.scale.setScalar(p.cur * 1.25 * fl);
+        if(p.mesh.material) p.mesh.material.opacity = 0.75 + 0.25 * Math.sin(this.time * 23 + p.phase);
+      });
+      if(this._oilBurnTimer <= 0){
+        this._oilBurnTimer = d.oilTick || 0.25;
+        for(const o of this.tanks){
+          if(!o.alive || o === t || o.allyId === t.id || t.allyId === o.id) continue;
+          for(const p of (this._oilPuddles || [])){
+            const pr = p.cur * 1.15;
+            const ddx = o.x - p.x, ddz = o.z - p.z;
+            if(ddx*ddx + ddz*ddz < pr*pr){
+              o.takeDamage(d.oilDamage || 4, t, this);
+              this.spawnDamageLabel(o.x, o.def.turret.h + o.def.body.h + 3.6, o.z, d.oilDamage || 4);
+              break;
+            }
+          }
+        }
+      }
+      if(t.superTimer <= 0){
+        (this._oilPuddles || []).forEach(p => {
+          this.scene.remove(p.mesh);
+          if(p.mesh.material) p.mesh.material.dispose();
+          p.mesh.geometry.dispose();
+        });
+        this._oilPuddles = [];
+        t.superState = 'done';
+        t.superTimer = 0;
+      }
+    }
+
+    // --- Update falling strike bombs ---
+    if(this._strikeBombs && this._strikeBombs.length){
+      this._strikeBombs.forEach(b => {
+        b.y -= (b.fallSpeed || 60) * dt;
+        b.mesh.position.set(b.x, b.y, b.z);
+        b.mesh.rotation.x += 3 * dt;
+        b.mesh.rotation.z += 2 * dt;
+        if(b.y <= 0.5 && !b.hit){
+          b.hit = true;
+          this.spawnExplosion(b.x, 1.2, b.z, 0xffaa33, 10);
+          const rad = b.radius, dmg = b.damage;
+          for(const o of this.tanks){
+            if(!o.alive || o === b.owner) continue;
+            const ddx = o.x - b.x, ddz = o.z - b.z;
+            if(ddx*ddx + ddz*ddz < rad*rad){
+              o.takeDamage(dmg, b.owner, this);
+              this.spawnDamageLabel(o.x, o.def.turret.h + o.def.body.h + 3.6, o.z, dmg);
+            }
+          }
+        }
+      });
+      this._strikeBombs = this._strikeBombs.filter(b => {
+        if(b.hit && b.y <= -2){
+          this.scene.remove(b.mesh);
+          b.mesh.geometry.dispose();
+          b.mesh.material.dispose();
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  _dropStrikeBombs(t){
+    const d = t.def;
+    const cx = t.superTarget.x, cz = t.superTarget.z;
+    const r = d.airstrikeRadius || 4;
+    if(!this._strikeBombs) this._strikeBombs = [];
+    for(let i = 0; i < (d.airstrikeBombs || 3); i++){
+      const a = Math.random() * Math.PI * 2;
+      const off = Math.random() * r * 0.7;
+      const geo = new THREE.SphereGeometry(0.28, 10, 10);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x333338, roughness: 0.6, metalness: 0.4 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      const x = cx + Math.cos(a) * off, z = cz + Math.sin(a) * off;
+      const y = 46 + Math.random() * 4;
+      mesh.position.set(x, y, z);
+      this.scene.add(mesh);
+      this._strikeBombs.push({ mesh, x, z, y, hit:false, owner:t, radius:r, damage:d.airstrikeDamage || 60, fallSpeed: 55 + Math.random()*15 });
+    }
+  }
+
+  _deployBush(t){
+    const d = t.def;
+    const max = d.bushMax || 3;
+    while(t.myBushes.length >= max){
+      const oldest = t.myBushes.shift();
+      this.world.removePlayerBush(oldest);
+    }
+    const a = Math.random() * Math.PI * 2;
+    const entry = this.world.addPlayerBush(t.x + Math.cos(a) * 1.2, t.z + Math.sin(a) * 1.2);
+    t.myBushes.push(entry);
+    this.spawnExplosion(t.x, 0.5, t.z, 0x55aa55, 4);
+  }
+
+  _spawnPanzers(t){
+    for(const side of [-1, 1]){
+      const a = t.heading + Math.PI/2 * side;
+      const ox = Math.sin(a) * 3.2, oz = Math.cos(a) * 3.2;
+      const def = TANKS.panzer;
+      const p = new Tank(def, {
+        id:'panzer-' + t.id + '-' + side + '-' + Math.random().toString(36).slice(2,6),
+        name: side < 0 ? 'Panzer 1' : 'Panzer 2',
+        x: t.x + ox, z: t.z + oz,
+        heading: t.heading,
+        physicsWorld: this.physicsWorld,
+      });
+      p.allyId = t.id;
+      p.isPanzer = true;
+      p.brain = new PanzerBrain(p, t);
+      this._finalizeTank(p);
+      this.tanks.push(p);
+      this.spawnExplosion(p.x, 0.6, p.z, 0x8899aa, 6);
+    }
+  }
+
+  _spawnOilPuddle(t){
+    if(!this._oilPuddles) this._oilPuddles = [];
+    const rearA = t.heading + Math.PI;
+    const off = 1.6 + Math.random() * 1.4;
+    const x = t.x + Math.sin(rearA) * off + (Math.random() - 0.5) * 0.9;
+    const z = t.z + Math.cos(rearA) * off + (Math.random() - 0.5) * 0.9;
+    const sc = 1.1 + Math.random() * 1.1;
+    const geo = new THREE.PlaneGeometry(2.2, 2.2);
+    const mat = new THREE.MeshBasicMaterial({ map: VFX.getTex('oil'), transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI/2;
+    mesh.rotation.z = Math.random() * Math.PI;
+    mesh.scale.setScalar(0.3);
+    mesh.position.set(x, 0.07, z);
+    this.scene.add(mesh);
+    this._oilPuddles.push({ mesh, x, z, sc, cur: 0.3, phase: Math.random() * 6.28, burning: false });
+    if(this._oilPuddles.length > 30){
+      const old = this._oilPuddles.shift();
+      this.scene.remove(old.mesh);
+      old.mesh.geometry.dispose();
+      if(old.mesh.material) old.mesh.material.dispose();
+    }
+  }
+
+  _updateSuperSlot(){
+    const wrap = document.getElementById('super-wrap');
+    const btn = document.getElementById('super-btn');
+    const hint = document.getElementById('super-hint');
+    const t = this.localTank;
+    if(!wrap || !btn) return;
+    const has = !!(t && t.hasSuper());
+    wrap.classList.toggle('hidden', !has);
+    if(!has || !t) return;
+    if(!btn._wired){
+      btn._wired = true;
+      btn.onclick = () => { Audio && Audio.click && Audio.click(); if(this.localTank) this.localTank.activateSuper(); };
+    }
+    const info = t.superInfo();
+    const icons = { airstrike:'✈', cloak:'👻', bush:'🌿', panzers:'⚙', oil:'🔥' };
+    btn.querySelector('.super-icon').textContent = icons[info.type] || '★';
+    const label = btn.querySelector('.super-label');
+    const frac = info.cdTotal > 0 ? Math.min(1, info.cd / info.cdTotal) : 0;
+    btn.style.setProperty('--cd', frac.toFixed(3));
+    btn.classList.toggle('ready', info.ready && !info.state);
+    btn.classList.toggle('active', !!info.state);
+    if(info.state === 'targeting'){
+      label.textContent = 'TARGET';
+    } else if(info.state && info.timer > 0){
+      label.textContent = Math.ceil(info.timer) + 's';
+    } else if(info.ready){
+      label.textContent = 'READY';
+    } else {
+      label.textContent = Math.ceil(info.cd) + 's';
+    }
+    if(hint){
+      if(info.state === 'targeting'){
+        hint.classList.remove('hidden');
+        hint.textContent = 'Click / tap the ground to pick the strike point  (F / right-click to cancel)';
+      } else {
+        hint.classList.add('hidden');
+      }
+    }
+  }
+
+  /* ===========================================================
      COMBAT HOOKS
      =========================================================== */
+  ejectShell(tank){
+    // World position of the model's "shell" port (tracks turret rotation)
+    tank.root.updateMatrixWorld(true);
+    const p = new THREE.Vector3();
+    let fallbackPos = false;
+    if(tank._shellNode){
+      tank._shellNode.getWorldPosition(p);
+    } else {
+      const m = tank.muzzle();
+      p.copy(m.pos);
+      fallbackPos = true;
+    }
+    // Eject backwards/off-axis of the barrel, upward, plus a little of the
+    // tank's own ground speed so it trails naturally.
+    const a = tank.turretAngle + Math.PI + (Math.random() < 0.5 ? 1 : -1) * (Math.PI/2 + (Math.random()*0.4 - 0.2));
+    const gv = tank.getWorldVelocity() || {x:0, z:0};
+    const spd = 5 + Math.random() * 3;
+    const vel = {
+      x: Math.sin(a) * spd * 0.6 + gv.x * 0.35,
+      y: 5 + Math.random() * 2.5,
+      z: Math.cos(a) * spd * 0.6 + gv.z * 0.35,
+    };
+    if(fallbackPos) vel.y += 0.5;
+    // Cap concurrent casings: keep the scene and physics cheap under rapid fire.
+    if(this.casings.length >= 18){
+      const oldest = this.casings.shift();
+      if(oldest) oldest.detach();
+    }
+    const casing = new ShellCasing(p, vel, this.physicsWorld);
+    casing.attach(this.scene);
+    this.casings.push(casing);
+  }
+
   spawnShot(tank){
     const {pos, dir} = tank.muzzle();
     const y = pos.y;
+    // Gunshot sound: full volume from the local tank, quieter from others
+    if(window.Audio && Audio.click) Audio.click('gun', tank === this.localTank ? 1 : 0.5);
+    // Fancy-only: light recoil kick when the player's own tank fires
+    if(this.isFancy && tank === this.localTank) this.addShake(0.12);
     // In client/freeroam mode, host sends projectiles via snapshots
     if(this.mode !== 'client' && this.mode !== 'freeroam'){
       const p = tank.def.shellType==='flame'
@@ -1799,15 +2776,23 @@ class Game {
   }
 
   _muzzleFlash(pos, dir){
+    if(this.settings && this.settings.muzzleFx === false) return;
     // Directional gun flash (stretched along barrel)
     const flareTex = VFX.getTex('flare');
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
     flash.position.set(pos.x, pos.y + 0.15, pos.z);
-    flash.scale.set(2.0, 2.0, 1);
+    flash.scale.set(this.isFancy ? 3.0 : 2.0, this.isFancy ? 3.0 : 2.0, 1);
     this.scene.add(flash);
     const flashLife = 0.12;
     if(!this._muzzleFlashes) this._muzzleFlashes = [];
     this._muzzleFlashes.push({sprite:flash, life:flashLife, maxLife:flashLife});
+
+    // Hot core flash — bright white burst right at the barrel tip
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
+    core.position.set(pos.x, pos.y + 0.15, pos.z);
+    core.scale.set(0.9, 0.9, 1);
+    this.scene.add(core);
+    this._muzzleFlashes.push({sprite:core, life:0.08, maxLife:0.08});
 
     // Shell eject / spark puff (small directional burst)
     const sparkTex = VFX.getTex('smoke');
@@ -1829,6 +2814,8 @@ class Game {
 
     // Muzzle smoke — follows shell path (fancy only)
     if(this.isFancy){
+      // Pooled point light — briefly lights the scene at the barrel
+      this._muzzleLight(pos.x, pos.y + 0.2, pos.z);
       const tex = VFX.getTex('smoke');
       for(let i=0; i<5; i++){
         const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false, opacity:0.5}));
@@ -1854,7 +2841,115 @@ class Game {
     e.attach(this.scene); this.explosions.push(e);
   }
 
+  /* Pooled muzzle light — reused between shots, capped at 6 active */
+  _muzzleLight(x, y, z){
+    if(!this._muzzleLights) this._muzzleLights = [];
+    let l = this._muzzleLights.find(v => !v.active);
+    if(!l){
+      if(this._muzzleLights.length >= 6) return null;
+      const pl = new THREE.PointLight(0xffc07a, 0, 12, 2);
+      this.scene.add(pl);
+      l = {light: pl, active: false, life: 0, maxLife: 0.1};
+      this._muzzleLights.push(l);
+    }
+    l.active = true;
+    l.life = l.maxLife = 0.1;
+    l.light.position.set(x, y, z);
+    l.light.intensity = 26;
+    return l;
+  }
+
+  /* Lightweight sprite bursts — fire/smoke/spark particles, fancy only */
+  spawnBurst(x, y, z, opts){
+    if(!this._bursts) this._bursts = [];
+    const o = opts || {};
+    const count = o.count || 12;
+    const tex = VFX.getTex(o.tex || 'flare');
+    const additive = o.blend !== 'normal';
+    for(let i = 0; i < count; i++){
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: tex, transparent: true, opacity: 1,
+        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+        depthWrite: false
+      }));
+      const a = Math.random() * Math.PI * 2;
+      const sp = (o.speed || 8) * (0.5 + Math.random() * 0.8);
+      s.position.set(x, y + 0.2, z);
+      const sc = (o.size || 1.2) * (0.6 + Math.random() * 0.8);
+      s.scale.set(sc, sc, 1);
+      this.scene.add(s);
+      this._bursts.push({
+        sprite: s,
+        life: (o.life || 0.6) * (0.6 + Math.random() * 0.8),
+        maxLife: o.life || 0.6,
+        vx: Math.cos(a) * sp,
+        vz: Math.sin(a) * sp,
+        vy: (o.rise || 3) * (0.4 + Math.random() * 0.6) + Math.random() * 2,
+        gravity: (o.gravity != null ? o.gravity : 9),
+        baseScale: sc,
+        grow: (o.grow != null ? o.grow : 1.5),
+        fade: (o.fade != null ? o.fade : 1)
+      });
+    }
+  }
+
+  /* Destruction VFX — fireball, sparks, smoke column (fancy only) */
+  _killVfx(tank){
+    if(!this.isFancy) return;
+    this.spawnBurst(tank.x, 1.6, tank.z, {count: 16, tex: 'fire', speed: 10, size: 1.7, life: 0.75, rise: 5, grow: 2.2});
+    this.spawnBurst(tank.x, 1.5, tank.z, {count: 14, tex: 'flare', speed: 15, size: 0.5, life: 0.5, rise: 2, gravity: 16});
+    this.spawnBurst(tank.x, 1.2, tank.z, {count: 8, tex: 'smoke', speed: 2.5, size: 2.1, life: 1.6, rise: 6, grow: 3.2, blend: 'normal', fade: 0.4});
+    if(this.localTank){
+      const d = Math.hypot(this.localTank.x - tank.x, this.localTank.z - tank.z);
+      if(d < 60) this.addShake(1.2 * (1 - d / 60));
+    }
+  }
+
+  _gladAwardClanXP(){
+    const g = this.glad;
+    if(!g || g._client || g.xpAwarded || this.mode !== 'sp' || !this.localTank) return;
+    g.xpAwarded = true;
+    const pl = (g.winner === this.localTank) ? 1 : (this.localTank.placement || 0);
+    const xp = (typeof CLAN_GLAD_XP !== 'undefined' && CLAN_GLAD_XP[pl]) ? CLAN_GLAD_XP[pl] : 0;
+    if(!xp) return;
+    addClanXP(xp);
+    Menu.toast('+' + xp + ' Clan XP (#' + pl + ' place)');
+    if(pl === 1){
+      const s = Menu.settings;
+      s.clanWeekWins = (s.clanWeekWins || 0) + 1;
+      saveSettings(s);
+      if(!s.clanWeekWinsBonus && s.clanWeekWins >= (typeof CLAN_WIN_BONUS_COUNT !== 'undefined' ? CLAN_WIN_BONUS_COUNT : 10)){
+        s.clanWeekWinsBonus = true;
+        saveSettings(s);
+        addClanXP(typeof CLAN_WIN_BONUS_XP !== 'undefined' ? CLAN_WIN_BONUS_XP : 2000);
+        Menu.toast('10 wins this week! +2000 Clan XP bonus');
+      }
+    }
+  }
+
   onTankKilled(tank, byTank){
+    this._killVfx(tank);
+    if(this.glad && !tank.isDummy){
+      const g = this.glad;
+      const aliveNow = this.tanks.filter(t => t.alive && !t.dying && !t.isDummy).length;
+      tank.placement = aliveNow + 1;
+      if(byTank && byTank.alive && !byTank.dying && !byTank.isDummy){
+        byTank.applyPower(g.cfg.power.kill, this);
+        if(byTank === this.localTank) Menu.toast('Kill! +' + g.cfg.power.kill + ' power');
+      }
+      if(tank === this.localTank && !g.ended){
+        this._gladShowResult(true);
+      }
+      if(!g.ended && aliveNow === 1){
+        g.winner = this.tanks.find(t => t.alive && !t.dying && !t.isDummy) || null;
+        g.ended = true;
+        this._gladAwardClanXP();
+        this._gladShowResult(false);
+      }
+      this.spawnExplosion(tank.x, 1.4, tank.z, 0xff5b3b, 16);
+      this.spawnExplosion(tank.x, 2.0, tank.z, 0xffaa33, 10);
+      return;
+    }
     this.spawnExplosion(tank.x, 1.4, tank.z, 0xff5b3b, 16);
     this.spawnExplosion(tank.x, 2.0, tank.z, 0xffaa33, 10);
     if(this.localTank){
@@ -1871,12 +2966,18 @@ class Game {
       if(roll < 0.10) s.coins += 5;  // 10% for +15
       else if(roll < 0.15) s.coins += 15; // 5% for +25
       if(roll < 0.01) s.gems = (s.gems || 0) + 1; // 1% for 1 gem
+
       saveSettings(s);
       Menu.toast('+10 coins' + (roll < 0.15 ? ' (+bonus!)' : '') + (roll < 0.01 ? ' +1 gem!' : ''));
     }
   }
 
   onLocalDeath(){
+    if(this.glad){
+      this._gladShowResult(true);
+      Menu.toast('Eliminated! You placed #' + (this.localTank ? (this.localTank.placement || '?') : '?'));
+      return;
+    }
     this.running = false;
     Menu.toast('Your tank was destroyed');
     setTimeout(()=> this.leaveToMenu(), 600);
@@ -1906,6 +3007,27 @@ class Game {
   _updateHUD(){
     if(!this.localTank) return;
     const t = this.localTank;
+    // FPS counter (updates ~4x per second)
+    const fpsEl = document.getElementById('fps-counter');
+    if(fpsEl){
+      const show = this.settings && this.settings.showFps;
+      if(fpsEl._shown !== !!show){
+        fpsEl._shown = !!show;
+        fpsEl.classList.toggle('hidden', !show);
+      }
+      if(show){
+        if(this._fpsAcc === undefined) this._fpsAcc = 0;
+        if(this._fpsPrev === undefined) this._fpsPrev = performance.now();
+        this._fpsAcc++;
+        const now = performance.now();
+        const fps = Math.round(1000 / Math.max(1, now - this._fpsPrev));
+        this._fpsPrev = now;
+        if(this._fpsAcc >= 8){
+          this._fpsAcc = 0;
+          if(fpsEl.textContent !== String(fps)) fpsEl.textContent = fps + ' FPS';
+        }
+      }
+    }
     document.getElementById('speed-val').textContent = Math.max(0, Math.round(Math.abs(t.speed) * U_TO_KMH));
     const hpBar = document.getElementById('hp-bar');
     const pct = Math.max(0, t.hp/t.maxHp);
@@ -1936,18 +3058,68 @@ class Game {
       }
     }
     
-    // Flamethrower heat bar
+    // Flamethrower heat bar (shown inside the reload indicator slot)
     const heatWrap = document.getElementById('heat-wrap');
     const heatBar = document.getElementById('heat-bar');
     const heatText = document.getElementById('heat-text');
     if(heatWrap && heatBar && heatText){
+      heatWrap.classList.add('hidden');
+    }
+
+    // Reload indicator: vertical bar + % time left to reload (+ magazine pips).
+    // Flame tanks get their heat bar drawn in this same slot instead.
+    const ri = document.getElementById('reload-indicator');
+    if(ri){
+      const rctx = ri.getContext('2d');
+      rctx.clearRect(0, 0, ri.width, ri.height);
+      const w = ri.width, h = ri.height;
+      const barW = 10, barH = h - 30;
+      const bx = w/2 - barW/2, by = 14;
+      const rr = (x, y, bw, bh, rad) => {
+        rctx.beginPath();
+        if(rctx.roundRect) rctx.roundRect(x, y, bw, bh, rad);
+        else rctx.rect(x, y, bw, bh);
+        rctx.fill();
+      };
       if(t.def.shellType === 'flame'){
-        heatWrap.classList.remove('hidden');
-        const pct = t.heat / 1000;
-        heatBar.style.height = (pct * 100) + '%';
-        heatText.textContent = t.overheated ? 'OVERHEATED' : Math.round(pct * 100) + '%';
+        const pct = Math.min(1, Math.max(0, t.heat / 1000));
+        rctx.fillStyle = 'rgba(0,0,0,0.55)';
+        rr(bx, by, barW, barH, 5);
+        const fh = Math.max(2, barH * pct);
+        const grad = rctx.createLinearGradient(0, by + barH, 0, by);
+        grad.addColorStop(0, '#ffb12b');
+        grad.addColorStop(1, pct > 0.75 ? '#ff3b30' : '#ff6a00');
+        rctx.fillStyle = grad;
+        rr(bx, by + barH - fh, barW, fh, 5);
+        rctx.fillStyle = t.overheated ? '#ff3b30' : '#fff';
+        rctx.font = 'bold 13px Segoe UI, sans-serif';
+        rctx.textAlign = 'center';
+        rctx.textBaseline = 'bottom';
+        rctx.fillText(t.overheated ? 'HOT!' : Math.round(pct * 100) + '%', w/2, h - 2);
       } else {
-        heatWrap.classList.add('hidden');
+      const info = t.reloadInfo ? t.reloadInfo() : null;
+      if(info && info.active && info.total > 0){
+        const pct = Math.min(1, Math.max(0, info.left / info.total));
+        rctx.fillStyle = 'rgba(0,0,0,0.55)';
+        rr(bx, by, barW, barH, 5);
+        const loaded = 1 - pct;
+        const fh = Math.max(2, barH * loaded);
+        rctx.fillStyle = '#ffb12b';
+        rr(bx, by + barH - fh, barW, fh, 5);
+        rctx.fillStyle = '#fff';
+        rctx.font = 'bold 13px Segoe UI, sans-serif';
+        rctx.textAlign = 'center';
+        rctx.textBaseline = 'bottom';
+        rctx.fillText(Math.ceil(pct * 100) + '%', w/2, h - 2);
+        if(info.magSize > 0){
+          const n = info.magSize, m = Math.max(0, info.mag);
+          const pw = 5, gap = 3, totalW = n * pw + (n - 1) * gap;
+          for(let i = 0; i < n; i++){
+            rctx.fillStyle = i < m ? '#ffb12b' : 'rgba(255,255,255,0.25)';
+            rr(w/2 - totalW/2 + i * (pw + gap), 4, pw, pw, 2);
+          }
+        }
+      }
       }
     }
 
@@ -1956,6 +3128,31 @@ class Game {
       .sort((a,b)=> b.damageDealt - a.damageDealt).slice(0,5);
     const lb = document.getElementById('lb-list');
     lb.innerHTML = sorted.map((o,i)=> `<li><span class="lname">${o.name}</span><span class="ldmg">${Math.round(o.damageDealt)}</span></li>`).join('');
+
+    // GLADIATOR HUD: power counter, alive counter, zone/airdrop status
+    if(this.glad){
+      const pe = document.getElementById('glad-power');
+      if(pe) pe.textContent = 'PWR ' + (this.localTank.power || 0) + ' (+' + Math.round((this.localTank.powerMult ? (this.localTank.powerMult() - 1) * 100 : 0)) + '%)';
+      const le = document.getElementById('glad-left');
+      if(le) le.textContent = 'Alive: ' + (this.glad.alive != null ? this.glad.alive : '-');
+      const be = document.getElementById('glad-banner');
+      if(be){
+        const g = this.glad;
+        let txt = '';
+        if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's';
+        else txt = 'Zone closes in ' + Math.ceil(g.phaseTimer) + 's';
+        if(g.airdrop){
+          if(!g.airdrop.landed) txt += '  |  Airdrop in ' + Math.ceil(g.airdrop.countdown) + 's';
+          else{
+            const holdT = this.localTank._gladHoldTime || 0;
+            if(holdT > 0) txt += '  |  Hold in circle ' + Math.max(0, Math.ceil(g.airdrop.hold - holdT)) + 's';
+            else txt += '  |  Airdrop landed - stand in blue circle';
+          }
+        }
+        be.textContent = txt;
+        be.classList.remove('hidden');
+      }
+    }
 
     // In-game portrait warning
     const pw = document.getElementById('portrait-warning');
@@ -1969,6 +3166,8 @@ class Game {
         pw.classList.add('hidden');
       }
     }
+
+    this._updateSuperSlot();
   }
 
   /* ---------- Big map ---------- */
@@ -1982,6 +3181,39 @@ class Game {
     cv.width = cv.height = S;
     const ctx = cv.getContext('2d');
     this.world.renderToCanvas(ctx, S, S);
+    // GLADIATOR zone + airdrop markers on the big map
+    if(this.glad){
+      const g = this.glad;
+      const drawZone = (h, color, width) => {
+        const [x1, y1] = this.world.worldToMap(-h, -h, S);
+        const [x2, y2] = this.world.worldToMap(h, h, S);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      };
+      if(g.phase !== 'grace'){
+        drawZone(Math.max(0, g.safeHalf), '#ff3030', 6);
+        const [cx, cy] = this.world.worldToMap(0, 0, S);
+        ctx.strokeStyle = '#ff3030';
+        ctx.lineWidth = 8;
+        const xr = 16;
+        ctx.beginPath();
+        ctx.moveTo(cx - xr, cy - xr); ctx.lineTo(cx + xr, cy + xr);
+        ctx.moveTo(cx - xr, cy + xr); ctx.lineTo(cx + xr, cy - xr);
+        ctx.stroke();
+      }
+      if(g.airdrop){
+        const [ax, ay] = this.world.worldToMap(g.airdrop.x, g.airdrop.z, S);
+        ctx.fillStyle = g.airdrop.landed ? '#00eeff' : 'rgba(0,230,255,0.55)';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#003d5c';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('DROP', ax, ay - 14);
+      }
+    }
     if(this.localTank){
       const [px,py] = this.world.worldToMap(this.localTank.x, this.localTank.z, S);
       ctx.save(); ctx.translate(px,py); ctx.rotate(-this.localTank.heading);
@@ -2008,6 +3240,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   try {
     game = new Game();
     game.init();
+    if(location.hash.indexOf('__dbg') >= 0) window.__game = game;
   } catch(e){
     console.error('BOOTSTRAP ERROR:', e, e.stack);
   }

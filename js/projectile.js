@@ -1,5 +1,5 @@
 /* ============================================================
-   projectile.js â€” Shells + Helix flamethrower particles
+   projectile.js — Shells + Helix flamethrower particles
    - Shell: travels, blocked by walls; flies OVER lakes (per spec)
    - Flame: short-lived particles, DPS at close range
    ============================================================ */
@@ -17,7 +17,7 @@ class Shell {
     this._baseSpeed = def.shellSpeed;
     this._inheritX = iv.x;
     this._inheritZ = iv.z;
-    this.damage = def.damage;
+    this.damage = Math.round((def.damage||34) * (owner && owner.powerMult ? owner.powerMult() : 1));
     this.life = def.shellRange / def.shellSpeed;
     this.dead = false;
     this.type = 'shell';
@@ -37,9 +37,11 @@ class Shell {
         .setGravityScale(0)
         .setCcdEnabled(true);
       this._physBody = this._physWorld.createRigidBody(desc);
-      var col = RAPIER.ColliderDesc.ball(this.radius)
-        .setUserData({type:'shell', shell:this});
-      this._physWorld.createCollider(col, this._physBody);
+      var col = this._physWorld.createCollider(RAPIER.ColliderDesc.ball(this.radius), this._physBody);
+      if(col && typeof col.setActiveEvents === 'function'){
+        col.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      }
+      col.userData = {type:'shell', shell:this};
       var vx = this.dir.x * this.speed + this._inheritX;
       var vz = this.dir.z * this.speed + this._inheritZ;
       this._physBody.setLinvel({x: vx, y: 0, z: vz}, true);
@@ -180,12 +182,16 @@ class Shell {
     // orient trail
     this.mesh.lookAt(this.x + this.dir.x, this.y, this.z + this.dir.z);
 
+    // Gladiator destructible blue boxes
+    if(game && game._gladBoxHit && game.glad && game._gladBoxHit(this)){ this.dead = true; return; }
+
     // Tank hit fallback (skip if already handled by Rapier collision events)
     for(const t of game.tanks){
       if(!t.alive || this.dead || this._hitByPhysics) continue;
       if(t === this.owner && this.life > (this.owner.def.shellRange/this.speed) - 0.15) continue;
+      if(this.owner.allyId && (t.id === this.owner.allyId || t.allyId === this.owner.id)) continue;
       const dx = t.x - this.x, dz = t.z - this.z;
-      const rad = Math.max(t.def.body.w, t.def.body.l)/2 + this.radius;
+      const rad = (Math.max(t.def.body.w, t.def.body.l)/2 + this.radius) * (t.hitScale || 1);
       if(dx*dx + dz*dz < rad*rad){
         const armor = t.def.armor;
         if(armor && this._tryRicochet(t, game)){ continue; }
@@ -206,7 +212,7 @@ class FlameCone {
     this.x = pos.x; this.y = pos.y; this.z = pos.z;
     this.dir = dir.clone().normalize();
     this.range = 25;
-    this.damage = def.damage;
+    this.damage = Math.round((def.damage||34) * (owner && owner.powerMult ? owner.powerMult() : 1));
     this.life = 0.22;
     this.dead = false;
     this.type = 'flame';
@@ -248,6 +254,7 @@ class FlameCone {
     const tanHalf = 0.15;
     for(const t of game.tanks){
       if(!t.alive || t === this.owner) continue;
+      if(this.owner.allyId && (t.id === this.owner.allyId || t.allyId === this.owner.id)) continue;
       const dx = t.x - this.x, dz = t.z - this.z;
       const dist = Math.hypot(dx, dz);
       if(dist > this.range) continue;
@@ -264,8 +271,7 @@ class FlameCone {
   }
 }
 
-/* Visual-only explosion */
-class Explosion {
+/* Visual-only explosion */class Explosion {
   constructor(x,y,z,color,count){
     this.x=x;this.y=y;this.z=z;this.life=0.5;this.maxLife=0.5;this.dead=false;
     this.group=new THREE.Group(); this.group.position.set(x,y,z);
@@ -310,5 +316,98 @@ class Explosion {
       }
     });
     if(this.life<=0) this.dead=true;
+  }
+}
+
+/* ============================================================
+   ShellCasing � yellow metallic fired-case that pops out of the
+   tank's "shell" port, launched with a real Rapier rigidbody, then
+   the tank fires the actual projectile ~1s later.
+   ============================================================ */
+class ShellCasing {
+  constructor(pos, vel, physicsWorld){
+    this.x = pos.x; this.y = pos.y; this.z = pos.z;
+    this.life = 5; this.maxLife = 5; this.dead = false;
+    this._physWorld = physicsWorld || null;
+    this._physBody = null;
+    // Manual-ballistic fallback (no physics world / Rapier missing)
+    this._fallVX = vel.x || 0; this._fallVY = vel.y || 0; this._fallVZ = vel.z || 0;
+    this._initPhysBody(vel);
+    this._build();
+  }
+
+  _initPhysBody(vel){
+    if(!this._physWorld || typeof RAPIER === 'undefined') return;
+    try {
+      const desc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(this.x, this.y, this.z)
+        .setCcdEnabled(true)
+        .setLinearDamping(0.3)
+        .setAngularDamping(1.0);
+      this._physBody = this._physWorld.createRigidBody(desc);
+      const col = RAPIER.ColliderDesc.cylinder(0.09, 0.07)
+        .setDensity(3)
+        .setRestitution(0.25)
+        .setFriction(0.7);
+      this._physWorld.createCollider(col, this._physBody);
+      this._physBody.setLinvel({x: vel.x || 0, y: vel.y || 0, z: vel.z || 0}, true);
+      this._physBody.setAngvel({x:(Math.random()-0.5)*18, y:(Math.random()-0.5)*10, z:(Math.random()-0.5)*18}, true);
+    } catch(e){ this._physBody = null; }
+  }
+
+  static _initShared(){
+    if(!ShellCasing._sharedGeo) ShellCasing._sharedGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.18, 8);
+    if(!ShellCasing._sharedMat) ShellCasing._sharedMat = new THREE.MeshStandardMaterial({color:0xe8b02a, metalness:0.85, roughness:0.35, emissive:0x6a4a00, emissiveIntensity:0.5});
+  }
+  _build(){
+    ShellCasing._initShared();
+    this.mesh = new THREE.Mesh(ShellCasing._sharedGeo, ShellCasing._sharedMat);
+    this.mesh.position.set(this.x, this.y, this.z);
+    this.mesh.castShadow = true;
+  }
+
+  attach(scene){ scene.add(this.mesh); this.scene = scene; }
+  detach(){
+    this._removePhysBody();
+    if(this.scene){ this.scene.remove(this.mesh); this.scene = null; }
+    if(this.mesh && this.mesh.geometry !== ShellCasing._sharedGeo){
+      this.mesh.geometry.dispose();
+      this.mesh.material.dispose();
+    }
+  }
+  _removePhysBody(){
+    if(this._physBody && this._physWorld){
+      try { this._physWorld.removeRigidBody(this._physBody); } catch(e){}
+      this._physBody = null;
+    }
+  }
+
+  update(dt, world, game){
+    if(this.dead) return;
+    this.life -= dt;
+    if(this.life <= 0){ this.dead = true; return; }
+
+    if(this._physBody){
+      try {
+        const t = this._physBody.translation();
+        this.x = t.x; this.y = t.y; this.z = t.z;
+        const q = this._physBody.rotation();
+        this.mesh.quaternion.set(q.x, q.y, q.z, q.w);
+      } catch(e){}
+    } else {
+      this._fallVY -= 18 * dt;
+      this.x += this._fallVX * dt;
+      this.y += this._fallVY * dt;
+      this.z += this._fallVZ * dt;
+      if(this.y <= 0.12 && this._fallVY < 0){
+        this.y = 0.12;
+        this._fallVY *= -0.3;
+        this._fallVX *= 0.5; this._fallVZ *= 0.5;
+        if(Math.abs(this._fallVY) < 0.8) this._fallVY = 0;
+      }
+    }
+    this.mesh.position.set(this.x, this.y, this.z);
+    // Shrink out during the last moments (keep shared material untouched)
+    if(this.life < 0.4) this.mesh.scale.setScalar(Math.max(0.01, this.life / 0.4));
   }
 }

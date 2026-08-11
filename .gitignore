@@ -2,3 +2,5 @@ node_modules/
 uploads/
 *.log
 *.err
+.wrangler/
+clan-api-worker/.wrangler/

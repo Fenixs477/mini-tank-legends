@@ -18,5 +18,14 @@
     "multer": "^2.2.0",
     "peer": "^1.0.2",
     "three": "^0.185.1"
-  }
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fenixs477/mini-tank-legends.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fenixs477/mini-tank-legends/issues"
+  },
+  "homepage": "https://github.com/Fenixs477/mini-tank-legends#readme"
 }

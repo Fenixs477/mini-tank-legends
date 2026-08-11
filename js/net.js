@@ -1,5 +1,5 @@
 /* ============================================================
-   net.js â€” Fully working Peer-to-Peer multiplayer using PeerJS.
+   net.js — Fully working Peer-to-Peer multiplayer using PeerJS.
    Host = authority. Clients connect to host; host relays snapshots.
    - Host advertises a public room OR a hidden 6-char code.
    - Public rooms discovered via a shared "lobby" peer-id pattern.
@@ -78,7 +78,7 @@ const Net = {
 
       this.peer.on('open', id=>{
         this.myPeerId = id;
-        this._status('Waiting for playersâ€¦', 'on');
+        this._status('Waiting for players…', 'on');
         if(isPublic) this._announcePublic(code).catch(()=>{});
         ok(id);
       });
@@ -124,6 +124,11 @@ const Net = {
         if(this.onPlayerJoin) this.onPlayerJoin(conn.metadata);
       }
       else if(msg.t==='input' && this.onInput) this.onInput(conn.peer, msg.input);
+      else if(msg.t==='ping'){
+        // Client RTT probe: echo straight back, record host-side latency
+        conn._rtt = performance.now() - msg.ts;
+        try{ conn.send({t:'pong', ts:msg.ts}); }catch(e){}
+      }
       else if(msg.t==='leave'){ this._dropClient(conn.peer); }
     });
     conn.on('close', ()=>{ this._dropClient(conn.peer); });
@@ -183,6 +188,7 @@ const Net = {
           this.hostConn = conn;
           this._wireHost(conn);
           this._status('Connected to host', 'on');
+          this._startPingLoop();
           ok();
         });
         conn.on('error', ()=> fail(new Error('Could not connect to that room.')));
@@ -218,6 +224,10 @@ const Net = {
       else if(msg.t==='state'){
         if(this.onState) this.onState(msg.s);
       }
+      else if(msg.t==='pong'){
+        // Round-trip over the actual data channel (PeerJS socket ping ≠ game latency)
+        this._lastPing = performance.now() - msg.ts;
+      }
       else if(msg.t==='reject'){
         alert('Rejected: '+(msg.reason||'unknown'));
         this.disconnect();
@@ -234,6 +244,30 @@ const Net = {
     if(this.hostConn && this.hostConn.open){
       try{ this.hostConn.send({t:'input', input}); }catch(e){}
     }
+  },
+
+  /* Client-side ping loop: one tiny message per second over the data channel */
+  _startPingLoop(){
+    this._stopPingLoop();
+    this._lastPing = null;
+    this._pingTimer = setInterval(()=>{
+      if(this.hostConn && this.hostConn.open){
+        try{ this.hostConn.send({t:'ping', ts:performance.now()}); }catch(e){}
+      }
+    }, 1000);
+  },
+  _stopPingLoop(){
+    if(this._pingTimer){ clearInterval(this._pingTimer); this._pingTimer = null; }
+  },
+
+  /* Host-side average RTT across all connected clients (0 when none) */
+  hostAvgPing(){
+    let total = 0, n = 0;
+    for(const id in this.conns){
+      const c = this.conns[id];
+      if(c && c._rtt != null){ total += c._rtt; n++; }
+    }
+    return n ? Math.round(total / n) : 0;
   },
 
   /* PUBLIC ROOM DISCOVERY */
@@ -301,11 +335,133 @@ const Net = {
     });
   },
 
+  /* ---------- CLAN LOBBY (shared clan registry across devices) ----------
+     Works like the public-room lobby: one online device hosts the clan
+     lobby peer, every device with a clan registers it there, and any
+     device can query the full list (search + join by code). */
+  clanLobbyId(){ return CONFIG.PEER_PREFIX + 'clan-lobby'; },
+
+  /* Try to become the clan lobby host; if the id is taken, register
+     our clan with the existing lobby instead. */
+  async announceClan(clan){
+    if(!clan || !clan.code) return;
+    const summary = {
+      name: clan.name,
+      code: clan.code,
+      isHidden: !!clan.isHidden,
+      owner: clan.owner || '',
+      members: clan.members || [],
+      chat: (clan.chat || []).slice(-20)
+    };
+    try{
+      if(this._clanLobbyPeer && !this._clanLobbyPeer.destroyed){
+        if(!this._clanLobbyData) this._clanLobbyData = {};
+        this._clanLobbyData[clan.code] = summary;
+        return;
+      }
+    }catch(e){}
+    const tryLobby = new Peer(this.clanLobbyId(), this._peerOpts());
+    await new Promise(res=>{
+      let settled=false;
+      const done=()=>{ if(!settled){settled=true; res();} };
+      tryLobby.on('open', ()=>{
+        this._clanLobbyPeer = tryLobby;
+        this._clanLobbyData = {};
+        this._clanLobbyData[clan.code] = summary;
+        tryLobby.on('connection', conn=>{
+          conn.on('open', ()=>{
+            conn.send({t:'clans', clans:this._clanLobbyData||{}});
+            conn.on('data', m=>{
+              if(m.t==='upsert'){
+                this._clanLobbyData = this._clanLobbyData||{};
+                this._clanLobbyData[m.clan.code] = m.clan;
+              } else if(m.t==='remove'){
+                if(this._clanLobbyData) delete this._clanLobbyData[m.code];
+              }
+            });
+          });
+          done();
+        });
+      });
+      tryLobby.on('error', err=>{
+        if(err.type === 'unavailable-id'){
+          // Someone else hosts the lobby: register our clan with them
+          this._registerClanExisting(summary).finally(done);
+        } else {
+          try{ tryLobby.destroy(); }catch(e){}
+          done();
+        }
+      });
+    });
+  },
+
+  async _registerClanExisting(clan){
+    const tmp = new Peer(this._peerOpts());
+    await new Promise(res=>{
+      let settled=false; const done=()=>{ if(!settled){settled=true;res();} };
+      setTimeout(done, 4000);
+      tmp.on('open', ()=>{
+        const conn = tmp.connect(this.clanLobbyId(), {reliable:true});
+        conn.on('open', ()=>{ conn.send({t:'upsert', clan}); done(); });
+        conn.on('error', done);
+      });
+      tmp.on('error', done);
+    });
+    try{ tmp.destroy(); }catch(e){}
+  },
+
+  /* Query the shared clan lobby for all registered clans. */
+  async fetchClans(){
+    return new Promise(resolve=>{
+      const tmp = new Peer(this._peerOpts());
+      const done = ()=>{ try{ tmp.destroy(); }catch(e){} };
+      const to = setTimeout(()=>{ resolve([]); done(); }, 4500);
+      tmp.on('open', ()=>{
+        const conn = tmp.connect(this.clanLobbyId(), {reliable:true});
+        conn.on('open', ()=>{
+          conn.on('data', m=>{
+            if(m.t==='clans'){
+              clearTimeout(to);
+              resolve(Object.values(m.clans||{}));
+              done();
+            }
+          });
+        });
+        conn.on('error', ()=>{ clearTimeout(to); resolve([]); done(); });
+      });
+      tmp.on('error', ()=>{ clearTimeout(to); resolve([]); done(); });
+    });
+  },
+
+  /* Tell the lobby to remove a dissolved clan (owner left). */
+  async removeClan(code){
+    if(!code) return;
+    try{
+      if(this._clanLobbyPeer && !this._clanLobbyPeer.destroyed && this._clanLobbyData){
+        delete this._clanLobbyData[code];
+        return;
+      }
+    }catch(e){}
+    const tmp = new Peer(this._peerOpts());
+    await new Promise(res=>{
+      let settled=false; const done=()=>{ if(!settled){settled=true;res();} };
+      setTimeout(done, 3500);
+      tmp.on('open', ()=>{
+        const conn = tmp.connect(this.clanLobbyId(), {reliable:true});
+        conn.on('open', ()=>{ conn.send({t:'remove', code}); done(); });
+        conn.on('error', done);
+      });
+      tmp.on('error', done);
+    });
+    try{ tmp.destroy(); }catch(e){}
+  },
+
   disconnect(){
+    this._stopPingLoop();
     try{ for(const id in this.conns) this.conns[id].close(); }catch(e){}
     try{ if(this.hostConn) this.hostConn.close(); }catch(e){}
     try{ if(this.peer) this.peer.destroy(); }catch(e){}
-    this.peer=null; this.role=null; this.conns={}; this.hostConn=null;
+    this.peer=null; this.role=null; this.conns={}; this.hostConn=null; this._lastPing=null;
     this._status();
   },
 };

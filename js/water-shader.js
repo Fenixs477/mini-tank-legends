@@ -51,13 +51,13 @@ class WaterShader {
       }
 
       void main(){
-        /* â€” underwater depth currents (slow) â€” */
+        /* — underwater depth currents (slow) — */
         vec2 depthUV = vWorldPos.xz * 0.08 + vec2(uTime * 0.05, uTime * 0.03);
         float depthNoise = noise(depthUV);
         vec3 baseWater = mix(uSurfaceColor, uDeepColor,
                              smoothstep(-0.2, 0.5, depthNoise));
 
-        /* â€” shore edge with heavy noise distortion â€” */
+        /* — shore edge with heavy noise distortion — */
         vec2 centerOffset = vUv - vec2(0.5);
         float distFromCenter = length(centerOffset) * 2.0;
         float angle = atan(centerOffset.y, centerOffset.x);
@@ -76,23 +76,23 @@ class WaterShader {
         baseWater = mix(baseWater, uAquaColor,
                         smoothstep(0.6, 0.85, shoreEdge));
 
-        /* sharp shoreline foam â€” ragged inner edge toward lake */
+        /* sharp shoreline foam — ragged inner edge toward lake */
         float foamJitter = noise(vWorldPos.xz * 0.8 + sin(uTime * 0.3) * 0.4) * 0.10;
         float foamBreath = sin(uTime * 0.3) * 0.04;
         float shorelineFoam = step(0.93 + foamJitter + foamBreath, shoreEdge);
 
-        /* â€” floating surface foam patches â€” */
+        /* — floating surface foam patches — */
         vec2 surfaceUV = vWorldPos.xz * 0.35 +
                          vec2(sin(uTime * 0.25) * 0.6, sin(uTime * 0.18) * 0.4);
         float surfaceFoam = step(0.75, noise(surfaceUV));
 
-        /* â€” tank contact ring â€” */
+        /* — tank contact ring — */
         float distToTank = distance(vWorldPos.xz, uTankPosition.xz);
         float tankRing = step(distToTank, 2.5) * step(1.0, distToTank);
         float tankNoise = noise(vWorldPos.xz * 0.3 + uTime * 0.05);
         tankRing *= step(0.4, tankNoise);
 
-        /* â€” final assembly â€” */
+        /* — final assembly — */
         vec3 finalColor = mix(baseWater, uFoamColor,
                               max(surfaceFoam * 0.7, shorelineFoam + tankRing));
 

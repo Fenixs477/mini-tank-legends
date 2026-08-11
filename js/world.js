@@ -5,6 +5,7 @@ class World {
     this.trees = [];
     this.bushes = [];
     this.lakes = [];
+    this._customMeshes = [];
     this._waterMaterials = [];
     this._quality = 'default';
     this.size = CONFIG.WORLD_SIZE;
@@ -47,23 +48,35 @@ class World {
     const hemi = new THREE.HemisphereLight(0xdfeaff, 0x6a7040, 0.7);
     this.scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff4dc, 2.0);
-    sun.position.set(80, 160, 40);
+    const half = this.size / 2;
+    const sx = this.size * 0.55, sy = this.size * 1.05, sz = this.size * 0.28;
+    sun.position.set(sx, sy, sz);
     sun.castShadow = true;
-    sun.shadow.mapSize.width = 4096;
-    sun.shadow.mapSize.height = 4096;
+    // 8192 was the 30fps bottleneck: a single 8192x8192 soft-shadow pass
+    // every frame is a monster fill-rate cost. 2048 is plenty for this scale.
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
     sun.shadow.bias = -0.001;
     sun.shadow.normalBias = 0.0005;
-    const d = 120;
+    // The shadow ortho box must cover the whole map, and the far plane must
+    // reach the map corner OPPOSITE the sun (sun-to-corner is ~1.7x the map
+    // half-size) — otherwise distant map areas render without any shadows.
+    const d = this.size * 0.8;
     sun.shadow.camera.left = -d;
     sun.shadow.camera.right = d;
     sun.shadow.camera.top = d;
     sun.shadow.camera.bottom = -d;
-    sun.shadow.camera.near = 0.1;
-    sun.shadow.camera.far = 500;
+    sun.shadow.camera.near = Math.max(1, sy - half * 0.9);
+    sun.shadow.camera.far = Math.ceil(Math.hypot(sx + half, sy, sz + half) + this.size * 0.15);
     sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sunLight = sun;
+    // Fill light from the opposite corner so wall faces pointing away
+    // from the sun are never pitch black
+    const fill = new THREE.DirectionalLight(0xbfd4ff, 0.55);
+    fill.position.set(-this.size * 0.6, this.size * 0.47, -this.size * 0.6);
+    this.scene.add(fill);
     const amb = new THREE.AmbientLight(0x7a7a8a, 0.3);
     this.scene.add(amb);
   }
@@ -183,6 +196,34 @@ class World {
     }
     return 1;
   }
+
+  addPlayerBush(x, z){
+    const bushMat = new THREE.MeshStandardMaterial({ color: 0x2e7a36, roughness: 1, flatShading: true });
+    const grp = new THREE.Group();
+    const cluster = new THREE.Group();
+    const sc = 1.3;
+    const positions = [[0,0,0,1.1],[1.1,0.2,0.3,0.8],[-1.0,0.25,-0.4,0.75],[0.3,0.35,-1.0,0.7],[-0.2,0.15,1.0,0.8]];
+    positions.forEach(p => {
+      const s = new THREE.Mesh(new THREE.IcosahedronGeometry(p[3] * sc, 1), bushMat);
+      s.position.set(p[0] * sc, p[1] * sc + 0.5, p[2] * sc);
+      s.castShadow = true; s.receiveShadow = true;
+      cluster.add(s);
+    });
+    grp.add(cluster);
+    grp.position.set(x, 0, z);
+    this.scene.add(grp);
+    const entry = { x, z, mesh: grp, isPlayerBush: true };
+    this.bushes.push(entry);
+    return entry;
+  }
+
+  removePlayerBush(entry){
+    if(!entry) return;
+    const idx = this.bushes.indexOf(entry);
+    if(idx >= 0) this.bushes.splice(idx, 1);
+    this.scene.remove(entry.mesh);
+    entry.mesh.traverse(o => { if(o.isMesh){ if(o.material) o.material.dispose(); o.geometry.dispose(); } });
+  }
   tryPlaceTrees(){}
 
   update(dt, time, tankPos){
@@ -196,9 +237,41 @@ class World {
 
   loadCustomMapData(data){
     if(!data || !data.objects) return;
+    this._clearCustom();
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6e72, roughness: 0.9, flatShading: true });
     const bushMat = new THREE.MeshStandardMaterial({ color: 0x3a7a38, roughness: 1, flatShading: true });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f8f3f, roughness: 1, flatShading: true });
+    this.spawnPoints = {};
+    this.blueBoxes = [];
     data.objects.forEach(d => {
+      if(d.type === 'spawnpoint'){
+        const key = d.subType || 'player';
+        if(!this.spawnPoints[key]) this.spawnPoints[key] = [];
+        this.spawnPoints[key].push({ x:d.x, z:d.z, ry:d.ry || 0 });
+        return;
+      }
+      if(d.type === 'gladiatorbox'){
+        this.blueBoxes.push({ x:d.x, z:d.z });
+        return;
+      }
+      if(d.type === 'tree'){
+        const grp = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 3.2, 8), trunkMat);
+        const fol = new THREE.Mesh(new THREE.ConeGeometry(2.6, 5.5, 10), leafMat);
+        trunk.position.y = 1.6; trunk.castShadow = trunk.receiveShadow = true;
+        fol.position.y = 4.2; fol.castShadow = fol.receiveShadow = true;
+        grp.add(trunk); grp.add(fol);
+        grp.position.set(d.x, 0, d.z);
+        grp.scale.set(d.sx || 1, d.sy || 1, d.sz || 1);
+        grp.rotation.y = d.ry || 0;
+        this.scene.add(grp);
+        this._customMeshes.push(grp);
+        const tw = 1.7 * (d.sx || 1), td = 1.7 * (d.sz || 1);
+        this.walls.push({ x: d.x, z: d.z, w: tw, d: td, mesh: grp, custom: true });
+        this.bushes.push({ x: d.x, z: d.z, mesh: grp, custom: true });
+        return;
+      }
       let mesh;
       if(d.isModel && d.modelName){
         const geo = new THREE.BoxGeometry(4, 4, 4);
@@ -209,12 +282,13 @@ class World {
         mesh.rotation.y = d.ry;
         mesh.castShadow = mesh.receiveShadow = true;
         this.scene.add(mesh);
+        this._customMeshes.push(mesh);
         if(d.type === 'water'){
           const r = Math.max(d.sx, d.sz) * 3;
-          this.lakes.push({ x: d.x, z: d.z, r });
+          this.lakes.push({ x: d.x, z: d.z, r, custom: true });
         } else {
           const w = 4 * d.sx, dd = 4 * d.sz;
-          this.walls.push({ x: d.x, z: d.z, w, d: dd, mesh });
+          this.walls.push({ x: d.x, z: d.z, w, d: dd, mesh, custom: true });
         }
         const loadModel = (grp) => {
           if(!grp) return;
@@ -224,6 +298,7 @@ class World {
           clone.rotation.y = d.ry;
           clone.traverse(o => { if(o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
           this.scene.add(clone);
+          this._customMeshes.push(clone);
           this.scene.remove(mesh);
           const idx = this.walls.findIndex(w => w.mesh === mesh);
           if(idx >= 0) this.walls[idx].mesh = clone;
@@ -261,27 +336,44 @@ class World {
       mesh.rotation.y = d.ry;
       mesh.castShadow = mesh.receiveShadow = true;
       this.scene.add(mesh);
+      this._customMeshes.push(mesh);
       if(d.type === 'water'){
         const r = Math.max(d.sx, d.sz) * 3;
-        this.lakes.push({ x: d.x, z: d.z, r });
+        this.lakes.push({ x: d.x, z: d.z, r, custom: true });
       } else if(d.type === 'bush'){
-        this.bushes.push({ x: d.x, z: d.z, mesh });
+        this.bushes.push({ x: d.x, z: d.z, mesh, custom: true });
       } else {
         const w = 6 * d.sx, dd = 6 * d.sz;
-        this.walls.push({ x: d.x, z: d.z, w, d: dd, mesh });
+        this.walls.push({ x: d.x, z: d.z, w, d: dd, mesh, custom: true });
       }
     });
   }
 
-  clearCustomMapData(){
+  _clearCustom(){
+    this.walls = this.walls.filter(w => !w.custom);
+    this.bushes = this.bushes.filter(b => !b.custom);
+    this.lakes = this.lakes.filter(l => !l.custom);
     if(this._customMeshes){
       this._customMeshes.forEach(m => { this.scene.remove(m); });
     }
     this._customMeshes = [];
   }
 
+  clearCustomMapData(){
+    this._clearCustom();
+  }
+
   setQuality(quality){
     this._quality = quality || 'default';
+    // Fancy gets full-quality shadows (4096), default uses the balanced 2048 map
+    if(this.sunLight){
+      const s = this._quality === 'fancy' ? 4096 : 2048;
+      if(this.sunLight.shadow.mapSize.width !== s){
+        this.sunLight.shadow.mapSize.set(s, s);
+        this.sunLight.shadow.map = null;
+        this.sunLight.shadow.needsUpdate = true;
+      }
+    }
   }
 
   renderToCanvas(ctx, w, h, opts = {}){

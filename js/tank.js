@@ -25,9 +25,26 @@ class Tank {
     this.alive = true; this.respawnAt = 0;
     this.damageDealt = 0; this.kills = 0;
     this.reloadLeft = 0;
+    this.mag = def.magSize || 1;
+    this.magReloadLeft = 0;
+    this._shellShot = null;
+
+    // Super ability state
+    this.superCdLeft = 0;
+    this.superCdTotal = (CONFIG && CONFIG.SUPER_COOLDOWN) || 60;
+    this.superState = null;   // targeting|strike|windup|cloaked|panzer_drop|oil_fill|oil_burn
+    this.superTimer = 0;
+    this.superTarget = null;
+    this.myBushes = [];
+    this.allyId = null;
+    this._cloakedMats = [];
 
     this.heat = 0;
     this.overheated = false;
+
+    // Gladiator power: 1 power = +1% damage, +1% max HP, +1% size
+    this.power = 0;
+    this.hitScale = 1;
 
     this.camoState = null;
     this.camoFactor = 1;
@@ -48,7 +65,7 @@ class Tank {
     this._inWater = false;
 
     this._buildCubeMesh();
-    if(Models && Models.hasModel(def.model||def.id)) this._loadModel();
+    if(Models && this.def.model && Models.hasModel(this.def.model)) this._loadModel();
   }
 
   _createPhysBody(){
@@ -59,14 +76,20 @@ class Tank {
         .setEnabledRotations(false, true, false)
         .setEnabledTranslations(true, false, true)
         .setLinearDamping(0.5)
-        .setAngularDamping(2.0);
+        .setAngularDamping(2.0)
+        .setMass(this.mass);
       this._physBody = this._physWorld.createRigidBody(desc);
       var col = RAPIER.ColliderDesc.cuboid(this.colHalfW, 0.5, this.colHalfL)
         .setFriction(0.8)
         .setRestitution(0.05)
         .setDensity(this.mass / (this.colHalfW * 2 * this.colHalfL * 2))
-        .setUserData({type:'tank', tank:this});
+        .setSolverGroups(1)
+        .setCollisionGroups(1);
       this._physCollider = this._physWorld.createCollider(col, this._physBody);
+      if(this._physCollider && typeof this._physCollider.setActiveEvents === 'function'){
+        this._physCollider.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
+      }
+      this._physCollider.userData = {type:'tank', tank:this};
     } catch(e){ this._physBody = null; }
   }
 
@@ -158,12 +181,55 @@ class Tank {
   }
 
   _loadModel(){
-    Models.load(this.def.model||this.def.id).then(grp=>{
+    if(!this.def.model) return; // cube model unless explicitly requested
+    Models.load(this.def.model).then(grp=>{
       if(!grp) return;
       this._clearGroup(this.bodyGroup);
       this._clearGroup(this.turretGroup);
       const scale = this.def.modelScale || 1.0;
       grp.scale.setScalar(scale);
+
+      // --- Named-group rig: the model carries "hull" / "turret" /
+      //     "gun" / "shell" groups so parts are found by name ---
+      const findNamed = (root, name) => {
+        const t = String(name).toLowerCase();
+        let out = null;
+        root.traverse(o => { if(!out && o.name && String(o.name).toLowerCase() === t) out = o; });
+        return out;
+      };
+      const hullG = findNamed(grp, 'hull');
+      const turretG = findNamed(grp, 'turret');
+      const shellG = findNamed(grp, 'shell') || findNamed(grp, 'gun');
+      if(hullG && turretG && hullG !== turretG){
+        this._attachNamedModel(grp, hullG, turretG, shellG, scale);
+        return;
+      }
+
+      // --- Named-empty rig: models like ghost.glb carry "firing" (muzzle),
+      //     "shell_ejection" (casing port) and "attachment" (cosmetic, unused)
+      //     empties instead of hull/turret groups. Align the whole model so the
+      //     barrel faces the game's +Z forward, then wire muzzle + shell markers.
+      const firingG = findNamed(grp, 'firing');
+      const ejectG = findNamed(grp, 'shell_ejection') || findNamed(grp, 'shell');
+      if(firingG){
+        grp.updateMatrixWorld(true);
+        const fp = new THREE.Vector3();
+        firingG.getWorldPosition(fp);
+        // Rotate about Y so the firing azimuth sweeps to +Z (game forward).
+        grp.rotation.y = -Math.atan2(fp.x, fp.z);
+        grp.updateMatrixWorld(true);
+      }
+      // Center the model on its x/z bounds so the tank pivot sits at the
+      // geometric center (the game steers about its origin), and rest the
+      // lowest point on the ground plane.
+      {
+        const gb = new THREE.Box3().setFromObject(grp);
+        const gc = gb.getCenter(new THREE.Vector3());
+        grp.position.x -= gc.x;
+        grp.position.z -= gc.z;
+        grp.position.y -= gb.min.y;
+        grp.updateMatrixWorld(true);
+      }
 
       let minY = Infinity, maxY = -Infinity;
       const meshes = [];
@@ -194,8 +260,9 @@ class Tank {
         }
       });
 
-      bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent); });
-      turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent); });
+      const outlineT = 0.04 / scale;
+      bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
+      turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
 
       this.bodyGroup.add(bodyParts);
       this.turretGroup.add(turretParts);
@@ -203,9 +270,121 @@ class Tank {
       this.barrelEnd = new THREE.Object3D();
       this.barrelEnd.position.set(0, t.h*0.6, t.l + this.def.barrelLen);
       this.turretGroup.add(this.barrelEnd);
+
+      // Named-empty markers: place the muzzle at the "firing" empty and the
+      // casing port at "shell_ejection" so they ride the turret rotation.
+      this.root.updateMatrixWorld(true);
+      if(firingG){
+        grp.updateMatrixWorld(true);
+        const wp = new THREE.Vector3();
+        firingG.getWorldPosition(wp);
+        this.barrelEnd.position.copy(this.turretGroup.worldToLocal(wp));
+      }
+      if(ejectG){
+        grp.updateMatrixWorld(true);
+        const wp2 = new THREE.Vector3();
+        ejectG.getWorldPosition(wp2);
+        this._shellNode = new THREE.Object3D();
+        this._shellNode.position.copy(this.turretGroup.worldToLocal(wp2));
+        this.turretGroup.add(this._shellNode);
+      }
       this._addOverlays(t.h);
       this._syncTransform();
     });
+  }
+
+  _attachNamedModel(grp, hullG, turretG, shellG, scale){
+    grp.updateMatrixWorld(true);
+    // Center the model on its own bounds: x/z centered so the tank
+    // pivot sits at the model center, y resting on the ground plane
+    const bb = new THREE.Box3().setFromObject(grp);
+    const c = bb.getCenter(new THREE.Vector3());
+    grp.position.set(grp.position.x - c.x, grp.position.y - bb.min.y, grp.position.z - c.z);
+    // The game aims turrets along +Z. The coolbuddy model is authored with
+    // the whole tank's toward/back sides swapped relative to the game, so
+    // for def.modelFlipY we invert BOTH the hull AND the turret visuals
+    // (front↔back for each, flipped in place about its own pivot) so the
+    // barrel and the hull's front both face the game's +Z forward while the
+    // turret rotation still works. Other models keep the auto whole-model flip.
+    let flippedTurret = false;
+    if(this.def.modelFlipY && turretG && hullG){
+      // Turret: flip its children 180° INSIDE the pivot so syncTransform's
+      //   rotation.y = turretAngle still aims the barrel correctly.
+      const flipT = new THREE.Group();
+      flipT.rotation.y = Math.PI;
+      turretG.children.slice().forEach(ch => flipT.add(ch));
+      turretG.add(flipT);
+      // Hull: flip its children 180° in place about the hull's own center
+      const flipH = new THREE.Group();
+      flipH.rotation.y = Math.PI;
+      hullG.children.slice().forEach(ch => flipH.add(ch));
+      hullG.add(flipH);
+      flippedTurret = true;
+    } else if(shellG){
+      grp.updateMatrixWorld(true);
+      const p = new THREE.Vector3();
+      shellG.getWorldPosition(p);
+      if(p.z < 0) grp.rotation.y = Math.PI;
+    }
+    grp.updateMatrixWorld(true);
+
+    const bodyParts = new THREE.Group();
+    const turretParts = new THREE.Group();
+    // Recolor only untextured materials: textured models keep the
+    // authored paint job; clone so hull/turret colors never conflict
+    const tint = (g, col) => g.traverse(o => {
+      if(!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const colored = mats.map(m => {
+        const c = m.clone();
+        if(!c.map) c.color.set(col);
+        else c.alphaTest = Math.max(c.alphaTest || 0, 0.5);
+        return c;
+      });
+      o.material = Array.isArray(o.material) ? colored : colored[0];
+    });
+    tint(hullG, this.color);
+    tint(turretG, this.def.turretColor);
+    bodyParts.attach(hullG);
+    turretParts.attach(turretG);
+    // Outlines are inflated in authored units, but the model is scaled
+    // ~9x in world units: shrink the inflation so the rim stays thin
+    const outlineT = 0.04 / (scale || 1);
+    bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
+    turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
+    this.bodyGroup.add(bodyParts);
+    this.turretGroup.add(turretParts);
+
+    // The turret group rotates about its own authored pivot node
+    this._modelTurretPivot = turretG;
+    // Shell-casing eject node (marked in the model: "shell")
+    this._shellNode = shellG || null;
+    // Muzzle spawn point: just past the marked gun muzzle (pivot-local)
+    this.root.updateMatrixWorld(true);
+    this.barrelEnd = new THREE.Object3D();
+    const t = this.def.turret;
+    if(shellG && flippedTurret){
+      // Muzzle just past the front-most extent of the (now flipped) turret
+      // so shells spawn right at the barrel tip. Computed on the turret's
+      // own bounds so it works at any modelScale without hardcoding.
+      const bb = new THREE.Box3().setFromObject(turretG);
+      const off = (this.def.muzzleZOff != null ? this.def.muzzleZOff : 0.6);
+      const muzzle = new THREE.Vector3(
+        (bb.min.x + bb.max.x) / 2,
+        (bb.min.y + bb.max.y) / 2,
+        bb.max.z + off
+      );
+      const inv = new THREE.Matrix4().getInverse(turretG.matrixWorld);
+      muzzle.applyMatrix4(inv);
+      this.barrelEnd.position.copy(muzzle);
+    } else {
+      this.barrelEnd.position.set(0, t.h*0.6, t.l + this.def.barrelLen);
+    }
+    turretG.add(this.barrelEnd);
+    this._addOverlays(t.h);
+    this._syncTransform();
   }
 
   _clearGroup(g){
@@ -217,18 +396,21 @@ class Tank {
   }
 
   _addOverlays(turretH){
-    if(this.hpSprite && this.hpSprite.parent === this.root) return;
+    if(this._overlayGroup && this.hpSprite && this.hpSprite.parent === this._overlayGroup) return;
+    this._overlayGroup = new THREE.Group();
     this.hpSprite = this._makeHpSprite();
     this.hpSprite.userData.isOverlay = true;
     this.hpSprite.renderOrder = 999;
     this.hpSprite.position.y = turretH + 2.4;
-    this.root.add(this.hpSprite);
+    this._overlayGroup.add(this.hpSprite);
 
     this._drownBar = this._makeDrownBar();
     this._drownBar.userData.isOverlay = true;
     this._drownBar.renderOrder = 999;
     this._drownBar.position.y = turretH + 1.5;
-    this.root.add(this._drownBar);
+    this._overlayGroup.add(this._drownBar);
+    this.root.add(this._overlayGroup);
+    this._applyPowerScale();
   }
 
   _makeHpSprite(){
@@ -356,6 +538,18 @@ class Tank {
     }
     if(!this.alive) return;
 
+    if(this.netDriven){
+      // Position/heading come from host snapshots (interpolated every frame);
+      // skip local movement integration so snapshots don't fight the sim.
+      if(world){
+        this.camoState = world.hidingIn(this.x, this.z);
+        this.camoFactor = world.camoFactor(this.x, this.z);
+      }
+      this._applyCamoVisual();
+      this._syncTransform();
+      return;
+    }
+
     if(this._physBody){
       this._readPhysicsState();
     }
@@ -365,6 +559,10 @@ class Tank {
 
     this.camoState = world.hidingIn(this.x, this.z);
     this.camoFactor = world.camoFactor(this.x, this.z);
+    if(this.superState === 'cloaked'){
+      this.camoFactor = 0;
+      this.camoState = 'cloak';
+    }
     this._applyCamoVisual();
 
     this.drifting = false;
@@ -466,6 +664,41 @@ class Tank {
 
     if(this.reloadLeft > 0) this.reloadLeft -= dt;
 
+    // Delayed shot: a casing was ejected moments ago; fire the real shell.
+    if(this._shellShot != null){
+      this._shellShot -= dt;
+      if(this._shellShot <= 0){
+        this._shellShot = null;
+        if(game) game.spawnShot(this);
+      }
+    }
+
+    if(this.superCdLeft > 0) this.superCdLeft -= dt;
+
+    if(this.magReloadLeft > 0){
+      this.magReloadLeft -= dt;
+      if(this.magReloadLeft <= 0){
+        this.magReloadLeft = 0;
+        this.mag = d.magSize || 1;
+        this.reloadLeft = 0;
+      }
+    }
+
+    if(this.superState === 'windup'){
+      this.superTimer -= dt;
+      if(this.superTimer <= 0){
+        this.superState = 'cloaked';
+        this.superTimer = d.cloakMax || 10;
+        this._applyCloakVisual(true);
+      }
+    } else if(this.superState === 'cloaked'){
+      this.superTimer -= dt;
+      if(this.superTimer <= 0){
+        this.superTimer = 0;
+        this.endCloak();
+      }
+    }
+
     if(d.shellType === 'flame'){
       if(inp.fire && !this.overheated){
         this.heat += (1000 / 7.5) * dt;
@@ -493,10 +726,105 @@ class Tank {
 
     this._syncTransform();
 
-    if(inp.fire && this.reloadLeft <= 0 && !this.overheated){
+    if(inp.fire && this.reloadLeft <= 0 && this.magReloadLeft <= 0 && !this.overheated && (this.mag > 0 || !d.magSize)){
       this.reloadLeft = d.reload;
-      if(game) game.spawnShot(this);
+      if(d.magSize){
+        this.mag--;
+        if(this.mag <= 0) this.magReloadLeft = d.magReload || d.reload;
+      }
+      if(this.superState === 'cloaked') this.endCloak();
+      if(d.ejectShell && this._shellNode && game){
+        // Eject a physical shell casing from the "shell" port now, then
+        // actually fire the projectile from the muzzle after shellDelay.
+        game.ejectShell(this);
+        this._shellShot = (d.shellDelay != null ? d.shellDelay : 1.0);
+      } else {
+        if(game) game.spawnShot(this);
+      }
     }
+  }
+
+  reloadInfo(){
+    const d = this.def;
+    if(this.magReloadLeft > 0) return { active:true, total:d.magReload||d.reload, left:Math.max(0,this.magReloadLeft), mag:0, magSize:d.magSize||0 };
+    if(this.reloadLeft > 0 || d.magSize) return { active:this.reloadLeft > 0, total:d.reload, left:Math.max(0,this.reloadLeft), mag:this.mag, magSize:d.magSize||0 };
+    return { active:false, total:d.reload, left:0, mag:1, magSize:0 };
+  }
+
+  /* ---------- Super abilities ---------- */
+
+  hasSuper(){ return !!this.def.superType; }
+
+  activateSuper(){
+    if(!this.hasSuper() || this.superCdLeft > 0 || this.superState) return false;
+    const t = this.def.superType;
+    if(t === 'airstrike'){
+      this.superState = 'targeting';
+      this.superTarget = null;
+    } else if(t === 'cloak'){
+      this.superState = 'windup';
+      this.superTimer = this.def.cloakWindup || 3;
+      this.superCdLeft = this.superCdTotal;
+    } else if(t === 'bush'){
+      this.superState = 'done';
+      this.superCdLeft = this.superCdTotal;
+      if(this._onBushSuper) this._onBushSuper();
+    } else if(t === 'panzers'){
+      this.superState = 'panzer_drop';
+      this.superTimer = this.def.panzerDelay || 8;
+      this.superCdLeft = this.superCdTotal;
+    } else if(t === 'oil'){
+      this.superState = 'oil_fill';
+      this.superTimer = this.def.oilFill || 4;
+      this.superCdLeft = this.superCdTotal;
+    } else {
+      this.superState = 'done';
+      this.superCdLeft = this.superCdTotal;
+    }
+    return true;
+  }
+
+  cancelSuper(){
+    if(this.superState === 'targeting'){
+      this.superState = 'done';
+      this.superTarget = null;
+    }
+  }
+
+  endCloak(){
+    if(this.superState !== 'cloaked') return;
+    this.superState = 'done';
+    this._applyCloakVisual(false);
+  }
+
+  superInfo(){
+    return {
+      type: this.def.superType || null,
+      ready: this.superCdLeft <= 0,
+      cdLeft: Math.max(0, this.superCdLeft),
+      cdTotal: this.superCdTotal,
+      state: this.superState,
+      timer: Math.max(0, this.superTimer),
+      cd: Math.max(0, this.superCdLeft),
+    };
+  }
+
+  _applyCloakVisual(on){
+    if(on) this._cloakedMats = [];
+    const mats = this._cloakedMats;
+    if(on && this.root && mats.length === 0){
+      this.root.traverse(o => {
+        if(o.isMesh && o.material && !o.userData.isOutline){
+          mats.push(o.material);
+        }
+      });
+    }
+    mats.forEach(m => {
+      if(Array.isArray(m)) return;
+      m.transparent = !!on;
+      m.opacity = on ? 0.25 : 1;
+      m.depthWrite = !on;
+    });
   }
 
   _applyCamoVisual(){
@@ -508,7 +836,29 @@ class Tank {
   _ramCheck(game){
     for(const o of game.tanks){
       if(o===this || !o.alive || o.dying) continue;
-      if(this._physBody && o._physBody) continue;
+      if(this.allyId && (o.id === this.allyId || o.allyId === this.id)) continue;
+      
+      // Physics-based collision handling - let RAPIER handle pushing
+      if(this._physBody && o._physBody){
+        // Calculate relative velocity for damage
+        try {
+          const v1 = this._physBody.linvel();
+          const v2 = o._physBody.linvel();
+          const relSpeed = Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.z - v2.z, 2));
+          
+          if(relSpeed > 6){
+            const heavier = this.mass >= o.mass ? this : o;
+            const lighter = heavier === this ? o : this;
+            const massRatio = heavier.mass / Math.max(1, lighter.mass);
+            const baseDmg = relSpeed * 0.15 * massRatio;
+            lighter.takeDamage(Math.min(25, baseDmg), heavier, game);
+            heavier.takeDamage(Math.min(12, baseDmg / massRatio), lighter, game);
+          }
+        } catch(e){}
+        continue;
+      }
+      
+      // Fallback manual collision for non-physics tanks
       const dx = o.x - this.x, dz = o.z - this.z;
       const overlapX = (this.colHalfW + o.colHalfW) - Math.abs(dx);
       const overlapZ = (this.colHalfL + o.colHalfL) - Math.abs(dz);
@@ -579,8 +929,14 @@ class Tank {
     }
     this.root.position.set(this.x, 0, this.z);
     this.bodyGroup.rotation.y = this.heading;
-    this.turretGroup.rotation.y = this.turretAngle;
-    this.turretGroup.position.y = this.def.body.h + 0.45;
+    if(this._modelTurretPivot){
+      this.turretGroup.rotation.y = 0;
+      this.turretGroup.position.y = 0;
+      this._modelTurretPivot.rotation.y = this.turretAngle;
+    } else {
+      this.turretGroup.rotation.y = this.turretAngle;
+      this.turretGroup.position.y = this.def.body.h + 0.45;
+    }
     if(this.drifting){
       this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, -0.18, 0.25);
       this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0.06, 0.25);
@@ -655,6 +1011,7 @@ class Tank {
     if(!this.alive || this.dying) return;
     this.hp -= amount;
     if(fromTank && fromTank !== this) fromTank.damageDealt += amount;
+    if(this.superState === 'cloaked') this.endCloak();
     if(accumulate && game){
       game._accumFlameDamage(this, amount);
     } else if(game && game.spawnDamageLabel){
@@ -669,6 +1026,42 @@ class Tank {
   }
   heal(amount){ this.hp = Math.min(this.maxHp, this.hp + amount); this._drawHp(); }
 
+  /* ---------- Gladiator power ---------- */
+  powerMult(){ return 1 + (this.power || 0) / 100; }
+
+  applyPower(n, game){
+    if(!n || !this.alive) return;
+    const oldMax = this.maxHp;
+    this.power = (this.power || 0) + n;
+    this.maxHp = Math.round(this.def.hp * this.powerMult());
+    this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - oldMax));
+    this.hitScale = this.powerMult();
+    this._applyPowerScale();
+    this._drawHp();
+    if(game && game.onPowerGained) game.onPowerGained(this, n);
+  }
+
+  setPowerFromSnapshot(pw){
+    if(pw == null || pw === this.power) return;
+    const oldMax = this.maxHp;
+    this.power = pw;
+    this.maxHp = Math.round(this.def.hp * this.powerMult());
+    if(this.alive && !this.dying) this.hp = Math.min(this.maxHp, this.hp + Math.max(0, this.maxHp - oldMax));
+    this.hitScale = this.powerMult();
+    this._applyPowerScale();
+    this._drawHp();
+  }
+
+  _applyPowerScale(){
+    if(!this.root) return;
+    const s = this.hitScale || 1;
+    this.root.scale.set(s, s, s);
+    if(this._overlayGroup){
+      const inv = 1 / s;
+      this._overlayGroup.scale.set(inv, inv, inv);
+    }
+  }
+
   _startDeath(game, killer){
     this.dying = true; this.deathT = 0;
     this.removeAt = (game? game.time : 0) + 48;
@@ -682,6 +1075,14 @@ class Tank {
     this._turretVel = new THREE.Vector3(
       (Math.random()-0.5)*4, 14 + Math.random()*4, (Math.random()-0.5)*4);
     this._turretSpin = new THREE.Vector3((Math.random()-0.5)*4,(Math.random()-0.5)*6,(Math.random()-0.5)*4);
+    // Fancy graphics: launch the turret harder so its fly-off is dramatic
+    if(game && game.isFancy){
+      this._turretVel.y += 6;
+      this._turretVel.x *= 1.8;
+      this._turretVel.z *= 1.8;
+      this._turretSpin.x *= 2;
+      this._turretSpin.z *= 2;
+    }
 
     if(this.bodyMat){ this.bodyMat.color.setHex(0x141414); this.bodyMat.emissive=new THREE.Color(0x3a1500); this.bodyMat.emissiveIntensity=0.6; }
     if(this.turretMat){ this.turretMat.color.setHex(0x1a1a1a); this.turretMat.emissive=new THREE.Color(0x2a1000); this.turretMat.emissiveIntensity=0.5; }
@@ -752,8 +1153,9 @@ class Tank {
       this._turretVel.y -= 22*dt;
       this.turretGroup.rotation.x += this._turretSpin.x*dt;
       this.turretGroup.rotation.z += this._turretSpin.z*dt;
-      if(this.turretGroup.position.y <= this.def.body.h+0.45 && this._turretVel.y<0){
-        this.turretGroup.position.y = this.def.body.h+0.45;
+      const baseY = this._modelTurretPivot ? 0 : this.def.body.h+0.45;
+      if(this.turretGroup.position.y <= baseY && this._turretVel.y<0){
+        this.turretGroup.position.y = baseY;
         this._turretVel.y *= -0.3;
         this._turretVel.x *= 0.5; this._turretVel.z *= 0.5;
         if(Math.abs(this._turretVel.y)<1){ this._turretVel=null; }
@@ -845,29 +1247,74 @@ class Tank {
       id:this.id, x:this.x, z:this.z, h:this.heading, t:this.turretAngle,
       sp:this.speed, hp:this.hp, alive:this.alive, dying:this.dying,
       dd:this.damageDealt, k:this.kills, tank:this.def.id, name:this.name, col:this.color,
+      cam:this.camoFactor, ally:this.allyId, pw:this.power, pl:this.placement||0, gt:this._gladHoldTime||0,
     };
   }
   applySnapshot(s){
     this.x=s.x; this.z=s.z; this.heading=s.h; this.turretAngle=s.t;
     this.speed=s.sp; this.hp=s.hp; this.alive=s.alive;
     this.damageDealt=s.dd; this.kills=s.k;
+    if(s.cam != null) this.camoFactor = s.cam;
+    if(s.ally != null) this.allyId = s.ally;
+    if(s.pl != null) this.placement = s.pl;
+    if(s.pw != null) this.setPowerFromSnapshot(s.pw);
+    if(s.gt != null) this._gladHoldTime = s.gt;
     this.root.visible=this.alive; this._syncTransform(); this._drawHp();
   }
-  applyPartialSnapshot(s){
-    this.x += (s.x - this.x)*0.3;
-    this.z += (s.z - this.z)*0.3;
-    this.heading = s.h; this.turretAngle = s.t;
-    this.hp = s.hp; this.alive=s.alive; this.dying=s.dying||false;
-    this.damageDealt=s.dd; this.kills=s.k;
-    this.root.visible=this.alive; this._syncTransform(); this._drawHp();
-    if(this._physBody && this.alive && !this.dying){
-      try {
-        this._physBody.setLinvel({x: 0, y: 0, z: 0}, true);
-        this._physBody.setAngvel({x: 0, y: 0, z: 0}, true);
-        var half = this.heading * 0.5;
-        this._physBody.setRotation({x: 0, y: Math.sin(half), z: 0, w: Math.cos(half)}, true);
-        this._physBody.setTranslation({x: this.x, y: 0.9, z: this.z}, true);
-      } catch(e){}
+  /* Network-driven tanks: movement follows interpolated host snapshots */
+  beginNetDriven(){
+    this.netDriven = true;
+    this._netSmooth = null;
+  }
+  applyNetSnapshot(s){
+    const wasAlive = this.alive;
+    // Causal state applies instantly; only movement is interpolated.
+    this.hp = s.hp;
+    this.alive = !!s.alive;
+    this.dying = !!s.dying;
+    this.damageDealt = s.dd;
+    this.kills = s.k;
+    if(s.cam != null) this.camoFactor = s.cam;
+    if(s.ally != null) this.allyId = s.ally;
+    if(s.pl != null) this.placement = s.pl;
+    if(s.pw != null) this.setPowerFromSnapshot(s.pw);
+    if(s.gt != null) this._gladHoldTime = s.gt;
+    this.root.visible = this.alive;
+    this._drawHp();
+
+    const now = performance.now();
+    const sm = this._netSmooth;
+    const bigJump = Math.hypot(s.x - this.x, s.z - this.z) > 4.5;
+    const stateFlip = wasAlive !== this.alive || !this.alive;
+    if(!sm || bigJump || stateFlip){
+      // First snapshot / teleport / respawn: snap directly.
+      this.x = s.x; this.z = s.z;
+      this.heading = s.h; this.turretAngle = s.t;
+      this._netSmooth = {
+        p0x:s.x, p0z:s.z, p0h:s.h, p0t:s.t,
+        p1x:s.x, p1z:s.z, p1h:s.h, p1t:s.t,
+        t0:now, t1:now + 150
+      };
+      this._syncTransform();
+      return;
     }
+    // Buffer previous rendered state -> new target; lerp over the snapshot window.
+    sm.p0x = this.x; sm.p0z = this.z;
+    sm.p0h = this.heading; sm.p0t = this.turretAngle;
+    sm.p1x = s.x; sm.p1z = s.z;
+    sm.p1h = s.h; sm.p1t = s.t;
+    sm.t0 = now; sm.t1 = now + 150;
+  }
+  _netSmoothTick(){
+    const sm = this._netSmooth;
+    if(!sm) return;
+    const span = sm.t1 - sm.t0;
+    let k = span > 0 ? (performance.now() - sm.t0) / span : 1;
+    if(k > 1) k = 1;
+    this.x = sm.p0x + (sm.p1x - sm.p0x) * k;
+    this.z = sm.p0z + (sm.p1z - sm.p0z) * k;
+    this.heading = sm.p0h + _angDiff(sm.p1h, sm.p0h) * k;
+    this.turretAngle = sm.p0t + _angDiff(sm.p1t, sm.p0t) * k;
+    this._syncTransform();
   }
 }

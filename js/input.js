@@ -1,5 +1,5 @@
 /* ============================================================
-   input.js â€” keyboard + mouse + wheel + TOUCH (mobile dual joystick),
+   input.js — keyboard + mouse + wheel + TOUCH (mobile dual joystick),
    with rebindable keybinds.
    ============================================================ */
 
@@ -52,7 +52,7 @@ class TouchJoystick {
     this.outer.className = 'joystick-outer';
     this.container.appendChild(this.outer);
 
-    // Inner knob â€” size relative to container
+    // Inner knob — size relative to container
     this.knob = document.createElement('div');
     this.knob.className = 'joystick-knob';
     const knobSize = Math.round(joySize * 0.38);
@@ -103,7 +103,7 @@ class TouchJoystick {
           this.armed = false;
 
           // Lock all touchmove to this document while joystick is
-          // active â€” necessary for iOS standalone (home screen) mode
+          // active — necessary for iOS standalone (home screen) mode
           document.addEventListener('touchmove', preventDocMove, {passive: false});
         }
       }
@@ -231,6 +231,75 @@ class Input {
 
     window.addEventListener('blur', ()=>{ this.keys={}; this.mouse.down=false; this._camRotateTouch=0; });
 
+    // Camera swipe (one-finger drag to rotate camera in swipe mode)
+    this._camSwipeId = null;
+    this._camSwipeLastX = 0;
+    this._camSwipeAccum = 0;
+    const isControlSurface = (target) => {
+      return !!(target && target.closest && target.closest('.joystick-container, .cam-rotate-btns, #cam-rotate-btns, .hud, #hud'));
+    };
+    document.addEventListener('touchstart', (e) => {
+      if(this._camSwipeId === null){
+        for(let t of e.changedTouches){
+          if(!isControlSurface(e.target)){
+            this._camSwipeId = t.identifier;
+            this._camSwipeLastX = t.clientX;
+            this._camSwipeAccum = 0;
+            break;
+          }
+        }
+      }
+    }, {passive: true});
+    document.addEventListener('touchmove', (e) => {
+      if(this._camSwipeId === null) return;
+      for(let t of e.changedTouches){
+        if(t.identifier === this._camSwipeId){
+          this._camSwipeAccum += t.clientX - this._camSwipeLastX;
+          this._camSwipeLastX = t.clientX;
+        }
+      }
+    }, {passive: true});
+    document.addEventListener('touchend', (e) => {
+      for(let t of e.changedTouches){
+        if(t.identifier === this._camSwipeId){
+          this._camSwipeId = null;
+          this._camSwipeAccum = 0;
+        }
+      }
+    }, {passive: true});
+    document.addEventListener('touchcancel', (e) => {
+      for(let t of e.changedTouches){
+        if(t.identifier === this._camSwipeId){
+          this._camSwipeId = null;
+          this._camSwipeAccum = 0;
+        }
+      }
+    }, {passive: true});
+    // Tap on free space (super targeting on touch)
+    document.addEventListener('touchstart', (e) => {
+      if(isControlSurface(e.target)) return;
+      if(e.touches.length > 1) return;
+      this._recordTap(e);
+    }, {passive: true});
+    // Mouse drag (desktop testing / desktop swipe mode)
+    this._camSwipeMouseDown = false;
+    this._camSwipeMouseLastX = 0;
+    document.addEventListener('mousedown', (e) => {
+      if(e.button !== 0) return;
+      if(isControlSurface(e.target)) return;
+      this._camSwipeMouseDown = true;
+      this._camSwipeMouseLastX = e.clientX;
+    });
+    document.addEventListener('mousemove', (e) => {
+      if(!this._camSwipeMouseDown) return;
+      this._camSwipeAccum += e.clientX - this._camSwipeMouseLastX;
+      this._camSwipeMouseLastX = e.clientX;
+    });
+    document.addEventListener('mouseup', (e) => {
+      if(e.button === 0) this._camSwipeMouseDown = false;
+    });
+    this.resetCamSwipe = () => { this._camSwipeAccum = 0; };
+
     // Prevent iOS in standalone mode (home screen) from intercepting
     // the first touch as a system gesture
     document.addEventListener('touchstart', (e) => {
@@ -243,11 +312,16 @@ class Input {
       return null;
     };
     document.addEventListener('touchstart', (e) => {
-      if(e.touches.length === 2){
-        this._pinchTouchIds = [e.touches[0].identifier, e.touches[1].identifier];
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        this._pinchDist = Math.hypot(dx, dy);
+      if(e.touches.length === 2 && (this.settings.pinchZoom !== false)){
+        const t0 = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+        const t1 = document.elementFromPoint(e.touches[1].clientX, e.touches[1].clientY);
+        // Both fingers must be on free space — never on the joysticks
+        if(!isControlSurface(t0) && !isControlSurface(t1)){
+          this._pinchTouchIds = [e.touches[0].identifier, e.touches[1].identifier];
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          this._pinchDist = Math.hypot(dx, dy);
+        }
       }
     }, {passive: true});
     document.addEventListener('touchmove', (e) => {
@@ -306,7 +380,7 @@ class Input {
         camBtns = document.createElement('div');
         camBtns.id = 'cam-rotate-btns';
         camBtns.className = 'cam-rotate-btns joystick-hidden';
-        camBtns.innerHTML = '<button class="cam-rot-btn" id="cam-rot-left" aria-label="Rotate camera left">â—€</button><button class="cam-rot-btn" id="cam-rot-right" aria-label="Rotate camera right">â–¶</button>';
+        camBtns.innerHTML = '<button class="cam-rot-btn" id="cam-rot-left" aria-label="Rotate camera left">◀</button><button class="cam-rot-btn" id="cam-rot-right" aria-label="Rotate camera right">▶</button>';
         document.body.appendChild(camBtns);
       }
       const leftBtn = document.getElementById('cam-rot-left');
@@ -341,14 +415,23 @@ class Input {
     return val || touch;
   }
 
+  consumeCamSwipe(){
+    const a = this._camSwipeAccum || 0;
+    this._camSwipeAccum = 0;
+    return a;
+  }
+
   setJoysticksVisible(visible){
     const moveEl = document.getElementById('joystick-move');
     const turretEl = document.getElementById('joystick-turret');
     if(moveEl) moveEl.classList.toggle('joystick-hidden', !visible);
     if(turretEl) turretEl.classList.toggle('joystick-hidden', !visible);
-    // Camera rotate buttons for mobile
+    // Camera rotate buttons follow the camera mode (mobile or desktop)
     const camBtns = document.getElementById('cam-rotate-btns');
-    if(camBtns) camBtns.classList.toggle('joystick-hidden', !visible);
+    if(camBtns){
+      const arrowsMode = (this.settings && this.settings.camMode || 'arrows') === 'arrows';
+      camBtns.classList.toggle('joystick-hidden', !(visible && arrowsMode));
+    }
   }
 
   consumeWheel(){
@@ -378,6 +461,38 @@ class Input {
     return !!this.keys[k];
   }
 
+  /* Edge-triggered press (true for one frame when the bind goes down) */
+  consumePressed(action){
+    const down = this.pressed(action);
+    const was = this._edgePrev && this._edgePrev[action];
+    if(!this._edgePrev) this._edgePrev = {};
+    this._edgePrev[action] = down;
+    return down && !was;
+  }
+
+  /* Record one-finger tap on free space (used for super targeting on touch) */
+  _recordTap(e){
+    const t = e.changedTouches && e.changedTouches[0];
+    if(!t) return;
+    const c = document.querySelector('#game-root canvas');
+    let ndcX = 0, ndcY = 0;
+    if(c){
+      const r = c.getBoundingClientRect();
+      ndcX = ((t.clientX - r.left) / r.width) * 2 - 1;
+      ndcY = -((t.clientY - r.top) / r.height) * 2 + 1;
+    }
+    this._tap = { x: t.clientX, y: t.clientY, ndcX, ndcY, time: performance.now() };
+  }
+  consumeTap(){
+    if(this._tap && (performance.now() - this._tap.time) < 600){
+      const tap = this._tap;
+      this._tap = null;
+      return tap;
+    }
+    this._tap = null;
+    return null;
+  }
+
   consumeZoom(){
     let z = this.consumeWheel();
     if(this.keys[this.binds.zoomIn] ) z += 1;
@@ -398,10 +513,10 @@ class Input {
     const move = this._moveJoystick ? this._moveJoystick.getValue() : {x:0, y:0, firing:false};
     const turret = this._turretJoystick ? this._turretJoystick.getValue() : {x:0, y:0, firing:false};
 
-    // Movement: joystick up (negative y) = backward, joystick down (positive y) = forward
-    // joystick left (negative x) = turn left, joystick right (positive x) = turn right
-    const throttle = move.y;
-    const turn = move.x;
+    // Movement: joystick up (negative y) = forward (like W), joystick down (positive y) = backward (like S)
+    // joystick left (negative x) = turn hull left (like A), joystick right (positive x) = turn hull right (like D)
+    const throttle = -move.y;
+    const turn = -move.x;
 
     // Turret:
     // - turret.relAngle follows drag direction relative to joystick up

@@ -94,13 +94,13 @@ var Editor123 = {
 
         { value: 'settings', label: 'Settings' }, { value: 'codes', label: 'Codes' },
 
-        { value: 'preview', label: 'Preview Tank' }, { value: 'back', label: 'â† Back' },
+        { value: 'preview', label: 'Preview Tank' }, { value: 'back', label: '← Back' },
 
     ],
 
 
 
-    /* â”€â”€â”€â”€â”€â”€ LIFECYCLE â”€â”€â”€â”€â”€â”€ */
+    /* ────── LIFECYCLE ────── */
 
     open: function () {
 
@@ -142,8 +142,6 @@ var Editor123 = {
 
     _buildOverlay: function () {
 
-        console.log('editor123._buildOverlay');
-
         var ex = document.getElementById('editor123-overlay');
 
         if (ex) ex.remove();
@@ -158,13 +156,11 @@ var Editor123 = {
 
         document.body.appendChild(d);
 
-        console.log('editor123._buildOverlay done, overlay appended');
-
     },
 
 
 
-    /* â”€â”€â”€â”€â”€â”€ LAUNCHER â”€â”€â”€â”€â”€â”€ */
+    /* ────── LAUNCHER ────── */
 
     _renderLauncher: function () {
 
@@ -184,7 +180,7 @@ var Editor123 = {
 
             '<div class="e123-launcher-btn" data-mode="menus" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
 
-            '<div style="font-size:44px;margin-bottom:10px">ðŸŽ¨</div>' +
+            '<div style="font-size:44px;margin-bottom:10px">🎨</div>' +
 
             '<div style="font-size:17px;font-weight:700">Edit Menus</div>' +
 
@@ -216,7 +212,7 @@ var Editor123 = {
 
             '</div>' +
 
-            '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">â† Back to Menu</div></div>';
+            '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">← Back to Menu</div></div>';
 
         c.querySelectorAll('.e123-launcher-btn').forEach(function (b) {
 
@@ -248,11 +244,11 @@ var Editor123 = {
 
 
 
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    /* ═══════════════════════════
 
        MENU EDITOR
 
-       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+       ═══════════════════════════ */
 
     _renderMenuList: function () {
 
@@ -276,7 +272,7 @@ var Editor123 = {
 
         });
 
-        h += '<div id="e123-m-back" style="margin-top:12px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">â† Back</div></div>' +
+        h += '<div id="e123-m-back" style="margin-top:12px;padding:9px;background:#2a2f36;border-radius:8px;cursor:pointer;text-align:center;color:#888;font-size:12px">← Back</div></div>' +
 
             '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">' +
 
@@ -324,21 +320,21 @@ var Editor123 = {
 
         tb.innerHTML =
 
-            '<span style="color:#ffb12b;font-weight:600;font-size:13px">ðŸŽ¨ ' + name + '</span>' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:13px">🎨 ' + name + '</span>' +
 
             '<span style="color:#555;font-size:10px;margin:0 8px">|</span>' +
 
-            '<span class="e123-tbtn" id="e-img">ðŸ–¼ï¸ Image</span>' +
+            '<span class="e123-tbtn" id="e-img">🖼️ Image</span>' +
 
-            '<span class="e123-tbtn" id="e-btn">âž• Button</span>' +
+            '<span class="e123-tbtn" id="e-btn">➕ Button</span>' +
 
-            '<span class="e123-tbtn" id="e-cmt">ðŸ’¬ Note</span>' +
+            '<span class="e123-tbtn" id="e-cmt">💬 Note</span>' +
 
-            '<span class="e123-tbtn" id="e-del" style="color:#c66">ðŸ—‘ï¸ Delete</span>' +
+            '<span class="e123-tbtn" id="e-del" style="color:#c66">🗑️ Delete</span>' +
 
             '<div style="flex:1"></div>' +
 
-            '<span class="e123-tbtn" id="e-save">ðŸ’¾ Save</span>';
+            '<span class="e123-tbtn" id="e-save">💾 Save</span>';
 
 
 
@@ -636,7 +632,7 @@ var Editor123 = {
 
             ctx.fillStyle = '#666'; ctx.font = '10px Segoe UI';
 
-            ctx.fillText('Drag Â· Dbl-click edit Â· Delete remove', w - 214, 66);
+            ctx.fillText('Drag · Dbl-click edit · Delete remove', w - 214, 66);
 
             ctx.fillText('(Background shows the actual menu)', w - 214, 82);
 
@@ -686,7 +682,7 @@ var Editor123 = {
 
                 ctx.fillStyle = '#ffb12b'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
 
-                ctx.fillText('âž¤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
+                ctx.fillText('➤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
 
             }
 
@@ -700,7 +696,7 @@ var Editor123 = {
 
             ctx.fillStyle = '#8f8'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
 
-            ctx.fillText('ðŸ’¬ ' + (el.text || 'note'), el.x + 10, el.y + 8);
+            ctx.fillText('💬 ' + (el.text || 'note'), el.x + 10, el.y + 8);
 
             ctx.fillStyle = '#888'; ctx.font = 'italic 10px Segoe UI';
 
@@ -714,11 +710,11 @@ var Editor123 = {
 
 
 
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    /* ═══════════════════════════
 
        3D WORLD EDITOR (physics + hierarchy + realistic lighting)
 
-       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+       ═══════════════════════════ */
 
     _render3DEditor: function () {
 
@@ -798,7 +794,7 @@ var Editor123 = {
 
             '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
 
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ“¦ LIBRARY</h3>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📦 LIBRARY</h3>' +
 
             '<div style="font-size:10px;color:#666;margin-top:2px"><span id="e-lib-count">' + this._mapLib.length + '</span> models <span id="e-lib-sel-count" style="color:#ffb12b;display:none"></span></div></div>' +
 
@@ -808,13 +804,13 @@ var Editor123 = {
 
             '<div style="padding:6px;border-top:1px solid #252a32">' +
 
-            '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">ðŸ“¥ Import GLB / FBX</span>' +
+            '<span class="e123-tbtn e-pri" id="e-imp" style="display:block;text-align:center;font-size:11px;padding:5px">📥 Import GLB / FBX</span>' +
 
-            '<span class="e123-tbtn" id="e-imp-server" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px">ðŸŒ From Server</span>' +
+            '<span class="e123-tbtn" id="e-imp-server" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px">🌐 From Server</span>' +
 
-            '<span class="e123-tbtn" id="e-del-lib" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px;color:#c66">ðŸ—‘ï¸ Remove</span></div>' +
+            '<span class="e123-tbtn" id="e-del-lib" style="display:block;text-align:center;font-size:11px;padding:5px;margin-top:3px;color:#c66">🗑️ Remove</span></div>' +
 
-            '<div id="e123-map-back" style="padding:8px;background:#2a2f36;text-align:center;cursor:pointer;color:#888;font-size:11px">â† Back</div></div>' +
+            '<div id="e123-map-back" style="padding:8px;background:#2a2f36;text-align:center;cursor:pointer;color:#888;font-size:11px">← Back</div></div>' +
 
 
 
@@ -824,79 +820,81 @@ var Editor123 = {
 
             '<div style="padding:4px 10px;background:#1a1e24;border-bottom:1px solid #252a32;display:flex;align-items:center;gap:6px;flex-shrink:0;font-size:11px">' +
 
-            '<span style="color:#ffb12b;font-weight:600;font-size:12px">ðŸŒ Viewport</span>' +
+            '<span style="color:#ffb12b;font-weight:600;font-size:12px">🌍 Viewport</span>' +
 
             '<span class="e123-tbtn e-pri" id="e-add-btn" style="font-size:11px;font-weight:700">+ Add</span>' +
 
             '<span style="color:#666"><span id="e-obj-cnt">' + this._mapObjs.length + '</span> objs</span>' +
 
-            '<span id="e-placing-indicator" style="color:#8f8;display:none">ðŸ”µ Placing...</span>' +
+            '<span id="e-placing-indicator" style="color:#8f8;display:none">🔵 Placing...</span>' +
 
             '<span style="color:#444">|</span>' +
 
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">âŸ· Move</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="translate" style="font-size:10px;font-weight:600">⟷ Move</span>' +
 
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">â†» Rot</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="rotate" style="font-size:10px">↻ Rot</span>' +
 
-            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">â‡” Scale</span>' +
+            '<span class="e123-tbtn e123-gizmo-btn" data-gizmo="scale" style="font-size:10px">⇔ Scale</span>' +
 
             '<span style="color:#444">|</span>' +
 
-            '<span class="e123-tbtn" id="e-snap-btn" style="font-size:10px">ðŸ§² Snap</span>' +
+            '<span class="e123-tbtn" id="e-snap-btn" style="font-size:10px">🧲 Snap</span>' +
 
-            '<span class="e123-tbtn" id="e-scatter-btn" style="font-size:10px">ðŸŒ± Scatter</span>' +
+            '<span class="e123-tbtn" id="e-scatter-btn" style="font-size:10px">🌱 Scatter</span>' +
 
-            '<span class="e123-tbtn" id="e-rand-btn" style="font-size:10px">ðŸŽ² Rand</span>' +
+            '<span class="e123-tbtn" id="e-rand-btn" style="font-size:10px">🎲 Rand</span>' +
 
-            '<span class="e123-tbtn" id="e-scene-settings-btn" style="font-size:10px">âš™ï¸ Scene</span>' +
+            '<span class="e123-tbtn" id="e-scene-settings-btn" style="font-size:10px">⚙️ Scene</span>' +
 
             '<div style="flex:1"></div>' +
 
-            '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">â–¶ Sim</span>' +
+            '<span class="e123-tbtn" id="e-simulate" style="font-size:10px">▶ Sim</span>' +
 
-            '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">ðŸ—‘ï¸ Clear</span>' +
+            '<span class="e123-tbtn" id="e-clear-3d" style="color:#c66;font-size:10px">🗑️ Clear</span>' +
 
-            '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">ðŸ’¾ Save</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-3d" style="font-size:10px">💾 Save</span>' +
 
-            '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">âœ• Deselect</span>' +
+            '<span class="e123-tbtn" id="e-gamemodes-btn" style="font-size:10px;color:#ff9a2a">🎮 GAMEMODES</span>' +
 
-            '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">ðŸŽ® Save to Game</span>' +
+            '<span class="e123-tbtn" id="e-deselect-btn" style="font-size:10px;color:#ffb12b">✕ Deselect</span>' +
 
-            '<span class="e123-tbtn" id="e-export-map" style="font-size:10px">ðŸ“‹ Export Map Code</span>' +
+            '<span class="e123-tbtn e-pri" id="e-save-game" style="font-size:10px">🎮 Save to Game</span>' +
 
-            '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">âŒ¨ï¸</span></div>' +
+            '<span class="e123-tbtn" id="e-export-map" style="font-size:10px">📋 Export Map Code</span>' +
+
+            '<span id="e-shortcuts-toggle" style="font-size:10px;color:#666;cursor:pointer;padding:0 4px" title="Keyboard shortcuts">⌨️</span></div>' +
 
             '<div id="e-shortcuts-panel" style="display:none;position:absolute;top:32px;right:8px;background:#1a1e24;border:1px solid #2a2f36;border-radius:6px;padding:8px 12px;font-size:10px;color:#aaa;z-index:50;line-height:1.6;white-space:nowrap">' +
 
             '<b style="color:#ffb12b">Scene Shortcuts</b><br>' +
 
-            'Ctrl+Click â€” Toggle multi-select<br>' +
+            'Ctrl+Click — Toggle multi-select<br>' +
 
-            'Ctrl+A â€” Select all objects<br>' +
+            'Ctrl+A — Select all objects<br>' +
 
-            'Ctrl+C â€” Copy selected<br>' +
+            'Ctrl+C — Copy selected<br>' +
 
-            'Ctrl+V â€” Paste<br>' +
+            'Ctrl+V — Paste<br>' +
 
-            'Ctrl+D â€” Duplicate<br>' +
+            'Ctrl+D — Duplicate<br>' +
 
-            'Delete â€” Delete selected<br>' +
+            'Delete — Delete selected<br>' +
 
-            'ESC â€” Deselect<br>' +
+            'ESC — Deselect<br>' +
 
-            'G â€” Toggle snap-to-grid<br>' +
+            'G — Toggle snap-to-grid<br>' +
 
-            'R â€” Randomize rotation<br>' +
+            'R — Randomize rotation<br>' +
 
-            'F â€” Focus on selected<br>' +
+            'F — Focus on selected<br>' +
 
             '<b style="color:#ffb12b;margin-top:4px;display:inline-block">Library Shortcuts</b><br>' +
 
-            'Ctrl+Click â€” Toggle multi-select<br>' +
+            'Ctrl+Click — Toggle multi-select<br>' +
 
-            'Ctrl+A â€” Select all models<br>' +
+            'Ctrl+A — Select all models<br>' +
 
-            'Delete â€” Remove selected</div>' +
+            'Delete — Remove selected</div>' +
 
             '<div id="e-view-3d" style="flex:1;position:relative;overflow:hidden;background:#111;min-height:300px"></div></div>' +
 
@@ -908,19 +906,19 @@ var Editor123 = {
 
             '<div style="padding:10px 12px;border-bottom:1px solid #252a32">' +
 
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ“‹ HIERARCHY</h3>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">📋 HIERARCHY</h3>' +
 
             '<div style="font-size:10px;color:#666;margin-top:2px">Scene objects</div></div>' +
 
             '<div id="e-hierarchy" style="flex:1;overflow-y:auto;padding:6px">' +
 
-            '<div style="padding:5px 8px;color:#555;font-size:11px;border-left:2px solid #3a4;margin-bottom:2px">ðŸŒ Ground</div>' +
+            '<div style="padding:5px 8px;color:#555;font-size:11px;border-left:2px solid #3a4;margin-bottom:2px">🌍 Ground</div>' +
 
             '</div>' +
 
             '<div style="border-top:1px solid #252a32;padding:10px 12px">' +
 
-            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">ðŸ” INSPECTOR</h3></div>' +
+            '<h3 style="margin:0;color:#ffb12b;font-size:13px;letter-spacing:.3px">🔍 INSPECTOR</h3></div>' +
 
             '<div id="e-inspector" style="flex:0 0 auto;max-height:260px;overflow-y:auto;padding:6px 12px 12px;font-size:12px">' +
 
@@ -1020,9 +1018,21 @@ var Editor123 = {
 
         addItem('Ground', 'Ground Plane', function () { self._spawnBuiltin('ground', 'ground', 'Ground Plane'); });
 
-        addItem('Tools', 'ðŸŒ¿ Grass Painter', function () { self._showGrassPainter(); });
+        addItem('Spawn Points', 'Player Spawn', function () { self._spawnSpawnPoint('player', 'Player Spawn'); });
 
-        addItem('Tools', 'ðŸŽ¨ Paint Terrain', function () { self._showPaintTool(); });
+        addItem('Spawn Points', 'Gladiator Spawn', function () { self._spawnSpawnPoint('gladiator', 'Gladiator Spawn'); });
+
+        addItem('Spawn Points', 'Blue Box (Gladiator)', function () { self._spawnSpawnPoint('gladiatorbox', 'Blue Box'); });
+
+        addItem('Spawn Points', 'Platform King Spawn', function () { self._spawnSpawnPoint('platform-king', 'Platform King Spawn'); });
+
+        addItem('Spawn Points', 'AFK Dummy Spawn', function () { self._spawnSpawnPoint('afk-dummy', 'AFK Dummy Spawn'); });
+
+        addItem('Spawn Points', 'Attack Dummy Spawn', function () { self._spawnSpawnPoint('attack-dummy', 'Attack Dummy Spawn'); });
+
+        addItem('Tools', '🌿 Grass Painter', function () { self._showGrassPainter(); });
+
+        addItem('Tools', '🎨 Paint Terrain', function () { self._showPaintTool(); });
 
         var cats = {};
 
@@ -1030,7 +1040,7 @@ var Editor123 = {
 
         var html = '';
 
-        var catIcons = { Primitives: 'âœ¨', '2D Shapes': 'ðŸ“', Image: 'ðŸ–¼ï¸', Light: 'ðŸ’¡', Sound: 'ðŸ”Š', Water: 'ðŸŒŠ', Ground: 'ðŸ”ï¸', Tools: 'ðŸ”§' };
+        var catIcons = { Primitives: '✨', '2D Shapes': '📐', Image: '🖼️', Light: '💡', Sound: '🔊', Water: '🌊', Ground: '🏔️', 'Spawn Points': '📍', Tools: '🔧' };
 
         Object.keys(cats).forEach(function (cat) {
 
@@ -1144,6 +1154,38 @@ var Editor123 = {
 
 
 
+    _spawnSpawnPoint: function (spawnType, name) {
+        var obj = {
+            kind: 'spawnpoint',
+            subType: spawnType,
+            name: name,
+            x: 0, z: 0, y: 0.5, rot: 0, scale: 1,
+            color: this._getSpawnPointColor(spawnType),
+            type: 'spawnpoint'
+        };
+        this._mapObjs.push(obj);
+        var idx = this._mapObjs.length - 1;
+        this._selectObject(idx, false);
+        this._updCnt();
+        this._rebuildScene();
+        this._renderHierarchy();
+        this.toast('Added: ' + name);
+    },
+
+    _getSpawnPointColor: function (spawnType) {
+        switch (spawnType) {
+            case 'player': return 0x00ff00;
+            case 'gladiator': return 0xff0000;
+            case 'gladiatorbox': return 0x2299ff;
+            case 'platform-king': return 0xffa500;
+            case 'afk-dummy': return 0x808080;
+            case 'attack-dummy': return 0xff00ff;
+            default: return 0xffffff;
+        }
+    },
+
+
+
     _showPaintTool: function () {
 
         var self = this;
@@ -1166,7 +1208,7 @@ var Editor123 = {
 
         div.innerHTML =
 
-            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">ðŸŽ¨ Paint Terrain</div>' +
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🎨 Paint Terrain</div>' +
 
             '<label style="color:#aaa;display:block;margin:4px 0">Color:</label>' +
 
@@ -1204,7 +1246,7 @@ var Editor123 = {
 
             self._paintMode = true;
 
-            self.toast('Paint mode active â€” click objects to color them');
+            self.toast('Paint mode active — click objects to color them');
 
         };
 
@@ -1220,7 +1262,7 @@ var Editor123 = {
 
         self._paintMode = true;
 
-        self.toast('Paint mode active â€” click objects to color them');
+        self.toast('Paint mode active — click objects to color them');
 
     },
 
@@ -1242,7 +1284,7 @@ var Editor123 = {
 
         div.innerHTML =
 
-            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">ðŸŒ¿ 3D Grass Painter</div>' +
+            '<div style="color:#ffb12b;font-weight:600;margin-bottom:6px">🌿 3D Grass Painter</div>' +
 
             '<div style="color:#888;font-size:10px;margin-bottom:8px">Instanced 3D blades with wind sway &amp; gradient</div>' +
 
@@ -1272,7 +1314,7 @@ var Editor123 = {
 
             '<details style="margin-top:8px;background:#1e232a;border-radius:6px;padding:4px">' +
 
-            '<summary style="cursor:pointer;color:#ffb12b;font-weight:600;font-size:11px;padding:4px">ðŸŒ¬ï¸ Wind &amp; Shader</summary>' +
+            '<summary style="cursor:pointer;color:#ffb12b;font-weight:600;font-size:11px;padding:4px">🌬️ Wind &amp; Shader</summary>' +
 
             '<div style="padding:6px 4px">' +
 
@@ -1288,9 +1330,9 @@ var Editor123 = {
 
             '<div style="margin-top:6px;display:flex;gap:4px">' +
 
-            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">ðŸŒ± Paint</span>' +
+            '<span class="e123-tbtn e-pri" id="e-grass-paint" style="flex:1;text-align:center">🌱 Paint</span>' +
 
-            '<span class="e123-tbtn" id="e-grass-erase" style="flex:1;text-align:center;color:#f88">ðŸ§¹ Erase</span>' +
+            '<span class="e123-tbtn" id="e-grass-erase" style="flex:1;text-align:center;color:#f88">🧹 Erase</span>' +
 
             '<span class="e123-tbtn" id="e-grass-close" style="flex:1;text-align:center">Close</span></div>' +
 
@@ -1366,7 +1408,7 @@ var Editor123 = {
 
             self._grassEraseMode = false;
 
-            self.toast('3D grass paint active â€” click ground to stamp blades');
+            self.toast('3D grass paint active — click ground to stamp blades');
 
         };
 
@@ -1380,7 +1422,7 @@ var Editor123 = {
 
             if (self._grassBrushCircle) self._grassBrushCircle.scale.setScalar(self._grassBrushSize);
 
-            self.toast('Grass erase active â€” click/hold to remove blades');
+            self.toast('Grass erase active — click/hold to remove blades');
 
         };
 
@@ -1402,7 +1444,7 @@ var Editor123 = {
 
         // NOTE: _currentTool stays 'select' until user clicks Paint or Erase
 
-        self.toast('Grass painter panel open â€” configure settings, then click ðŸŒ± Paint');
+        self.toast('Grass painter panel open — configure settings, then click 🌱 Paint');
 
     },
 
@@ -1640,7 +1682,7 @@ var Editor123 = {
 
 
 
-        this.toast('Erased ' + removed + ' blade(s) â€” ' + this._grassCount + ' remaining');
+        this.toast('Erased ' + removed + ' blade(s) — ' + this._grassCount + ' remaining');
 
     },
 
@@ -1960,7 +2002,7 @@ var Editor123 = {
 
             item.style.cssText = 'padding:6px 8px;background:' + (selected ? 'rgba(255,177,43,0.12)' : '#22272e') + ';border-radius:5px;margin-bottom:3px;cursor:pointer;border:1.5px solid ' + (selected ? '#ffb12b' : 'transparent') + ';display:flex;align-items:center;gap:6px';
 
-            item.innerHTML = '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">ðŸ“¦</div>' +
+            item.innerHTML = '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
 
                 '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (m.name || 'Model') + '</div>' +
 
@@ -2000,7 +2042,7 @@ var Editor123 = {
 
                     if (self._mapPlacing !== false && self._mapLib[self._mapPlacing]) {
 
-                        ind.style.display = ''; ind.textContent = 'ðŸ”µ Placing: ' + self._mapLib[self._mapPlacing].name + (self._mapPlacingMulti.length > 1 ? ' (+' + (self._mapPlacingMulti.length - 1) + ')' : '');
+                        ind.style.display = ''; ind.textContent = '🔵 Placing: ' + self._mapLib[self._mapPlacing].name + (self._mapPlacingMulti.length > 1 ? ' (+' + (self._mapPlacingMulti.length - 1) + ')' : '');
 
                     } else {
 
@@ -2066,7 +2108,7 @@ var Editor123 = {
 
                 var isParent = children[i] && children[i].length > 0;
 
-                var icon = (o.kind === 'ground') ? 'ðŸ”ï¸' : (o.kind === 'light') ? 'ðŸ’¡' : (o.kind === 'sound') ? 'ðŸ”Š' : (o.kind === 'water') ? 'ðŸŒŠ' : (isParent ? 'ðŸ“' : 'ðŸ“¦');
+                var icon = (o.kind === 'ground') ? '🏔️' : (o.kind === 'light') ? '💡' : (o.kind === 'sound') ? '🔊' : (o.kind === 'water') ? '🌊' : (isParent ? '📁' : '📦');
 
                 html += '<div class="e123-h-item" data-idx="' + i + '" style="padding:4px 8px 4px ' + (8 + indent) + 'px;font-size:11px;cursor:pointer;border-left:2px solid ' + (sel ? '#ffb12b' : '#444') + ';background:' + (sel ? 'rgba(255,177,43,0.1)' : 'transparent') + ';margin-bottom:1px;border-radius:0 4px 4px 0;display:flex;align-items:center;gap:4px">' +
 
@@ -2108,13 +2150,13 @@ var Editor123 = {
 
                 menu.innerHTML =
 
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">ðŸ—‘ï¸ Delete (' + count + ')</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">🗑️ Delete (' + count + ')</div>' +
 
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">â¬†ï¸ Parent to selected</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬆️ Parent to selected</div>' +
 
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">â¬‡ï¸ Unparent</div>' +
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">⬇️ Unparent</div>' +
 
-                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">âœï¸ Rename</div>';
+                    '<div class="e123-ctx-item" style="padding:6px 14px;cursor:pointer;color:#ddd">✏️ Rename</div>';
 
                 document.body.appendChild(menu);
 
@@ -2354,9 +2396,9 @@ var Editor123 = {
 
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-ih" type="number" step="0.1" min="0.1" value="' + ((obj.planeH || 2).toFixed(1)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
 
-                '<span class="e123-tbtn" id="e-insp-reimg" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸ–¼ï¸ Import New Image</span>';
+                '<span class="e123-tbtn" id="e-insp-reimg" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🖼️ Import New Image</span>';
 
-            if (obj.imgWidth) html += '<div style="color:#666;font-size:9px;margin-top:2px">Original: ' + obj.imgWidth + 'Ã—' + obj.imgHeight + 'px</div>';
+            if (obj.imgWidth) html += '<div style="color:#666;font-size:9px;margin-top:2px">Original: ' + obj.imgWidth + '×' + obj.imgHeight + 'px</div>';
 
         } else if (kind === 'light') {
 
@@ -2384,7 +2426,7 @@ var Editor123 = {
 
                 '<label style="color:#888;font-size:10px">Range <input id="e-insp-sr" type="number" step="1" min="0" value="' + ((obj.range || 15).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
 
-                '<span class="e123-tbtn" id="e-insp-snd" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸ”Š Import Audio File</span>';
+                '<span class="e123-tbtn" id="e-insp-snd" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🔊 Import Audio File</span>';
 
         } else if (kind === 'water') {
 
@@ -2394,7 +2436,7 @@ var Editor123 = {
 
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-wh" type="number" step="1" min="1" value="' + ((obj.planeH || 20).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
 
-                '<div style="color:#3af;font-size:10px">ðŸŒŠ Uses stylized water shader</div>';
+                '<div style="color:#3af;font-size:10px">🌊 Uses stylized water shader</div>';
 
         } else if (kind === 'ground') {
 
@@ -2404,9 +2446,9 @@ var Editor123 = {
 
                 '<label style="color:#888;font-size:10px">Height <input id="e-insp-gh" type="number" step="1" min="1" value="' + ((obj.planeH || 40).toFixed(0)) + '" style="width:100%;background:#181c22;border:1px solid #2a2f36;border-radius:4px;color:#eee;padding:2px 4px;font-size:11px"></label></div>' +
 
-                '<div style="color:#888;font-size:9px">ðŸ”ï¸ Ground plane â€” use +Add to create more</div>' +
+                '<div style="color:#888;font-size:9px">🏔️ Ground plane — use +Add to create more</div>' +
 
-                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">ðŸŒ¿ Copy grass color to ground</span>';
+                '<span class="e123-tbtn" id="e-insp-copy-grass-color" style="display:block;text-align:center;font-size:10px;padding:4px;margin-top:4px">🌿 Copy grass color to ground</span>';
 
         } else if (kind === 'primitive' || kind === 'shape2d') {
 
@@ -2614,7 +2656,7 @@ var Editor123 = {
 
                 obj.color = parseInt(this.value.slice(1), 16);
 
-                // Update material color directly â€” do NOT rebuild scene (preserves position/rot/scale)
+                // Update material color directly — do NOT rebuild scene (preserves position/rot/scale)
 
                 var cm = self._mapModels[self._mapSelObj];
 
@@ -2636,7 +2678,7 @@ var Editor123 = {
 
                                     mat.uniforms.uColor.value.copy(hex);
 
-                                // NodeMaterial / TSL â€” colorNode or standard color.set
+                                // NodeMaterial / TSL — colorNode or standard color.set
 
                                 } else if (mat.colorNode && typeof mat.colorNode.assign === 'function') {
 
@@ -2749,6 +2791,25 @@ var Editor123 = {
             if (kind === 'light' || kind === 'sound' || kind === 'image' || kind === 'shape2d' ||
 
                 kind === 'grass3d' || kind === 'grass' || kind === 'ground') return;
+
+            // Spawn points & blue boxes export as game entities (type + subType),
+            // so world.loadCustomMapData can collect them for each gamemode.
+
+            if (kind === 'spawnpoint') {
+
+                gameObjects.push({
+
+                    x: o.x, z: o.z, y: 0.5, ry: o.rot || 0,
+
+                    type: (o.subType === 'gladiatorbox' ? 'gladiatorbox' : 'spawnpoint'),
+
+                    subType: o.subType || 'player',
+
+                });
+
+                return;
+
+            }
 
             // Map editor primitive sub-types to game kinds
 
@@ -2920,13 +2981,13 @@ var Editor123 = {
 
         };
 
-        document.getElementById('e-save-3d').onclick = function () { self._saveMap(); self.toast('Saved ' + self._mapObjs.length + ' objects'); };
+        document.getElementById('e-save-3d').onclick = function () { self._saveMapWithGamemode(); };
 
         document.getElementById('e-simulate').onclick = function () {
 
             self._physSimulating = !self._physSimulating;
 
-            this.textContent = self._physSimulating ? 'â¸ Pause' : 'â–¶ Sim';
+            this.textContent = self._physSimulating ? '⏸ Pause' : '▶ Sim';
 
             self._rebuildScene();
 
@@ -2952,6 +3013,10 @@ var Editor123 = {
 
         document.getElementById('e-save-game').onclick = function () { self._saveToGame(); };
 
+        // GAMEMODES button: assign which gamemode this map is for (with spawn validation)
+
+        document.getElementById('e-gamemodes-btn').onclick = function () { self._saveMapWithGamemode(); };
+
         // Export Map Code
 
         document.getElementById('e-export-map').onclick = function () {
@@ -2964,7 +3029,7 @@ var Editor123 = {
 
                 if (kind === 'light' || kind === 'sound' || kind === 'image' || kind === 'shape2d' ||
 
-                    kind === 'grass3d' || kind === 'grass' || kind === 'ground') return;
+                    kind === 'grass3d' || kind === 'grass' || kind === 'ground' || kind === 'spawnpoint') return;
 
                 var gKind = 'cube';
 
@@ -3364,13 +3429,13 @@ var Editor123 = {
 
             if (ev.value) {
 
-                // Drag started â€” show badge near gizmo screen position
+                // Drag started — show badge near gizmo screen position
 
                 rotBadge.style.display = 'block';
 
             } else {
 
-                // Drag ended â€” hide badge
+                // Drag ended — hide badge
 
                 rotBadge.style.display = 'none';
 
@@ -3538,7 +3603,7 @@ var Editor123 = {
 
 
 
-        // Input router â€” tool state is managed by _currentTool ('select' | 'grass_painter')
+        // Input router — tool state is managed by _currentTool ('select' | 'grass_painter')
 
         var raycaster = new THREE.Raycaster();
 
@@ -3820,7 +3885,7 @@ var Editor123 = {
 
 
 
-                // Grass shader uTime (global InstancedMesh â€” not in _mapModels)
+                // Grass shader uTime (global InstancedMesh — not in _mapModels)
 
                 if (self._grassMesh && self._grassMesh.material && self._grassMesh.material.uniforms && self._grassMesh.material.uniforms.uTime) {
 
@@ -3850,7 +3915,7 @@ var Editor123 = {
 
 
 
-                // Brush circle visual (no painting â€” painting is handled by click handler)
+                // Brush circle visual (no painting — painting is handled by click handler)
 
                 if (self._grassBrushCircle) {
 
@@ -4192,13 +4257,44 @@ var Editor123 = {
 
                     mesh = new THREE.Mesh(groundGeo, gMat);
 
-                    if (!self._mapGround) self._mapGround = mesh;
+                    this._mapGround = mesh;
 
                 }
 
+            } else if (kind === 'spawnpoint') {
+
+                // Render spawn point as a colored cylinder with indicator
+                var spawnMat = new THREE.MeshStandardMaterial({ 
+                    color: baseColor, 
+                    roughness: 0.3, 
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.7
+                });
+
+                var spawnGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.2, 16);
+                spawnGeo.translate(0, 0.6, 0);
+                mesh = new THREE.Mesh(spawnGeo, spawnMat);
+
+                // Add a ring indicator at the base
+                var ringGeo = new THREE.RingGeometry(0.4, 0.5, 32);
+                ringGeo.rotateX(-Math.PI / 2);
+                var ringMat = new THREE.MeshBasicMaterial({ 
+                    color: baseColor, 
+                    transparent: true, 
+                    opacity: 0.5,
+                    side: THREE.DoubleSide
+                });
+                var ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                ringMesh.position.y = 0.05;
+                ringMesh.userData.editorObjIdx = idx;
+                ringMesh.userData._isSpawnIndicator = true;
+                self._mapScene.add(ringMesh);
+                self._mapModels.push(ringMesh);
+
             } else if (kind === 'grass3d') {
 
-                // Single global InstancedMesh â€” managed by _ensureGrassMesh / _spawnGrass.
+                // Single global InstancedMesh — managed by _ensureGrassMesh / _spawnGrass.
 
                 // Push null placeholder to keep _mapModels & _physBodies parallel to _mapObjs.
 
@@ -4210,7 +4306,7 @@ var Editor123 = {
 
             } else if (kind === 'grass') {
 
-                // Legacy 2D grass (Points-based) â€” kept for old saves
+                // Legacy 2D grass (Points-based) — kept for old saves
 
                 var grassTex = null;
 
@@ -4316,9 +4412,9 @@ var Editor123 = {
 
 
 
-                // Physics (skip lights, water, grass)
+                // Physics (skip lights, water, grass, spawnpoints)
 
-                if (self._physics && !isLight && !isWater && kind !== 'grass' && kind !== 'grass3d') {
+                if (self._physics && !isLight && !isWater && kind !== 'grass' && kind !== 'grass3d' && kind !== 'spawnpoint') {
 
                     var desc = self._physSimulating
 
@@ -4488,8 +4584,6 @@ var Editor123 = {
 
                             }
 
-                            console.log('Model "' + (libItem.name || '') + '" size:', sz.x.toFixed(2), sz.y.toFixed(2), sz.z.toFixed(2), 'pos:', group.position.x.toFixed(2), group.position.y.toFixed(2), group.position.z.toFixed(2));
-
                             self._highlightSelected();
 
                         });
@@ -4560,7 +4654,7 @@ var Editor123 = {
 
         }
 
-        // Ground sanity check â€” force visible, correct position, valid material
+        // Ground sanity check — force visible, correct position, valid material
 
         for (var gi = 0; gi < this._mapObjs.length; gi++) {
 
@@ -4680,7 +4774,7 @@ var Editor123 = {
 
                 var html = models.map(function (m, i) {
 
-                    return '<div class="e123-srv-item" data-idx="' + i + '" style="padding:8px 12px;background:#22272e;border-radius:6px;margin-bottom:4px;cursor:pointer">ðŸ“¦ ' + m.name + '</div>';
+                    return '<div class="e123-srv-item" data-idx="' + i + '" style="padding:8px 12px;background:#22272e;border-radius:6px;margin-bottom:4px;cursor:pointer">📦 ' + m.name + '</div>';
 
                 }).join('');
 
@@ -4818,7 +4912,7 @@ var Editor123 = {
 
                 self.toast('Processing ' + modelFiles.length + ' file(s)...');
 
-                // Sequential processing â€” one file at a time with setTimeout yield
+                // Sequential processing — one file at a time with setTimeout yield
 
                 // to keep the UI responsive during a batch of 150+ files.
 
@@ -4834,7 +4928,7 @@ var Editor123 = {
 
                         try { self._saveLib(self._mapLib); } catch (e) {
 
-                            console.warn('localStorage quota exceeded â€” models kept in memory only');
+                            console.warn('localStorage quota exceeded — models kept in memory only');
 
                         }
 
@@ -4976,7 +5070,7 @@ var Editor123 = {
 
         item.innerHTML =
 
-            '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">ðŸ“¦</div>' +
+            '<div style="width:28px;height:28px;background:#181c22;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📦</div>' +
 
             '<div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;color:#ddd;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
 
@@ -5008,13 +5102,13 @@ var Editor123 = {
 
                 ind.style.display = '';
 
-                ind.textContent = 'ðŸ”µ Placing: ' + assetName;
+                ind.textContent = '🔵 Placing: ' + assetName;
 
             }
 
             self._renderLibList();
 
-            self.toast('Selected: ' + assetName + ' â€” click ground to place');
+            self.toast('Selected: ' + assetName + ' — click ground to place');
 
         };
 
@@ -5444,7 +5538,7 @@ var Editor123 = {
 
             }
 
-            // G â€” Toggle snap
+            // G — Toggle snap
 
             if (key === 'KeyG' && !ctrl) {
 
@@ -5456,7 +5550,7 @@ var Editor123 = {
 
             }
 
-            // R â€” Randomize rotation/scale
+            // R — Randomize rotation/scale
 
             if (key === 'KeyR' && !ctrl) {
 
@@ -5468,7 +5562,7 @@ var Editor123 = {
 
             }
 
-            // F â€” Focus on selected
+            // F — Focus on selected
 
             if (key === 'KeyF' && !ctrl && self._mapSelObj != null && self._mapModels[self._mapSelObj]) {
 
@@ -5560,11 +5654,11 @@ var Editor123 = {
 
 
 
-    /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    /* ═══════════════════════════
 
        PERSISTENCE
 
-       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+       ═══════════════════════════ */
 
     _saveElem: function () {
 
@@ -5696,7 +5790,7 @@ var Editor123 = {
 
         if (sizeBytes > 4 * 1024 * 1024) {
 
-            console.warn('Library data ~' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB â€” may exceed localStorage quota');
+            console.warn('Library data ~' + (sizeBytes / 1024 / 1024).toFixed(1) + 'MB — may exceed localStorage quota');
 
         }
 
@@ -5714,9 +5808,145 @@ var Editor123 = {
 
     },
 
-    _loadMap: function () { try { return JSON.parse(localStorage.getItem('tankparty_editor123_map') || '[]'); } catch (e) { return []; } },
+    _loadMap: function () {
+        try {
+            var raw = JSON.parse(localStorage.getItem('tankparty_editor123_map') || '[]');
+            // Maps saved via the GAMEMODES flow are wrapped as {objects, gamemode}
+            if (raw && !Array.isArray(raw) && Array.isArray(raw.objects)) {
+                this._editorGamemode = raw.gamemode || 'sandbox';
+                return raw.objects;
+            }
+            return raw;
+        } catch (e) { return []; }
+    },
 
     _saveMap: function () { try { localStorage.setItem('tankparty_editor123_map', JSON.stringify(this._mapObjs)); } catch (e) { console.error('Save map failed:', e); this.toast('Error saving map: ' + e.message); } },
+
+    _saveMapWithGamemode: function () {
+        var self = this;
+        this._showGamemodeSelector(function (gamemode) {
+            if (!gamemode) return;
+            
+            // Validate spawn points for selected gamemode
+            var validation = self._validateSpawnPoints(gamemode);
+            if (!validation.valid) {
+                alert(validation.message);
+                return;
+            }
+            
+            // Save map with gamemode
+            var mapData = {
+                objects: self._mapObjs,
+                gamemode: gamemode
+            };
+            try {
+                localStorage.setItem('tankparty_editor123_map', JSON.stringify(mapData));
+                self.toast('Saved ' + self._mapObjs.length + ' objects for ' + gamemode);
+            } catch (e) {
+                console.error('Save map failed:', e);
+                self.toast('Error saving map: ' + e.message);
+            }
+        });
+    },
+
+    _showGamemodeSelector: function (callback) {
+        var self = this;
+        var existing = document.getElementById('e-gamemode-selector');
+        if (existing) existing.remove();
+
+        var div = document.createElement('div');
+        div.id = 'e-gamemode-selector';
+        div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:400;background:#1a1e24;border:2px solid #3a3f46;border-radius:12px;padding:20px;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,0.6);min-width:300px';
+        
+        div.innerHTML = 
+            '<div style="color:#ffb12b;font-weight:700;font-size:16px;margin-bottom:15px;text-align:center">Select Gamemode</div>' +
+            '<div style="display:flex;flex-direction:column;gap:8px">' +
+            '<div class="e123-tbtn" data-gamemode="gladiator" style="padding:10px;text-align:center;background:#e74c3c;color:#fff">⚔️ Gladiator (10 spawns)</div>' +
+            '<div class="e123-tbtn" data-gamemode="platform-king" style="padding:10px;text-align:center;background:#f39c12;color:#fff">👑 Platform King (8 spawns)</div>' +
+            '<div class="e123-tbtn" data-gamemode="sandbox" style="padding:10px;text-align:center;background:#3498db;color:#fff">🏗️ Sandbox (1 player + 6 AFK + 1 attack)</div>' +
+            '<div class="e123-tbtn" data-gamemode="multiplayer" style="padding:10px;text-align:center;background:#27ae60;color:#fff">👥 Multiplayer</div>' +
+            '</div>' +
+            '<div class="e123-tbtn" style="margin-top:15px;text-align:center;background:#3a3f46">Cancel</div>';
+        
+        document.body.appendChild(div);
+        
+        div.querySelectorAll('[data-gamemode]').forEach(function (btn) {
+            btn.onclick = function () {
+                div.remove();
+                callback(btn.dataset.gamemode);
+            };
+            btn.onmouseover = function () { this.style.opacity = '0.8'; };
+            btn.onmouseout = function () { this.style.opacity = '1'; };
+        });
+        
+        div.querySelector('.e123-tbtn:not([data-gamemode])').onclick = function () {
+            div.remove();
+            callback(null);
+        };
+    },
+
+    _validateSpawnPoints: function (gamemode) {
+        var spawnPoints = this._mapObjs.filter(function (o) { return o.kind === 'spawnpoint'; });
+        
+        switch (gamemode) {
+            case 'gladiator':
+                var gladiatorSpawns = spawnPoints.filter(function (o) { return o.subType === 'gladiator'; });
+                if (gladiatorSpawns.length !== 10) {
+                    return {
+                        valid: false,
+                        message: 'Gladiator mode requires exactly 10 Gladiator Spawn points. Currently have: ' + gladiatorSpawns.length
+                    };
+                }
+                break;
+                
+            case 'platform-king':
+                var platformSpawns = spawnPoints.filter(function (o) { return o.subType === 'platform-king'; });
+                if (platformSpawns.length !== 8) {
+                    return {
+                        valid: false,
+                        message: 'Platform King mode requires exactly 8 Platform King Spawn points. Currently have: ' + platformSpawns.length
+                    };
+                }
+                break;
+                
+            case 'sandbox':
+                var playerSpawns = spawnPoints.filter(function (o) { return o.subType === 'player'; });
+                var afkSpawns = spawnPoints.filter(function (o) { return o.subType === 'afk-dummy'; });
+                var attackSpawns = spawnPoints.filter(function (o) { return o.subType === 'attack-dummy'; });
+                
+                if (playerSpawns.length !== 1) {
+                    return {
+                        valid: false,
+                        message: 'Sandbox mode requires exactly 1 Player Spawn point. Currently have: ' + playerSpawns.length
+                    };
+                }
+                if (afkSpawns.length !== 6) {
+                    return {
+                        valid: false,
+                        message: 'Sandbox mode requires exactly 6 AFK Dummy Spawn points. Currently have: ' + afkSpawns.length
+                    };
+                }
+                if (attackSpawns.length !== 1) {
+                    return {
+                        valid: false,
+                        message: 'Sandbox mode requires exactly 1 Attack Dummy Spawn point. Currently have: ' + attackSpawns.length
+                    };
+                }
+                break;
+                
+            case 'multiplayer':
+                // Multiplayer doesn't have specific spawn point requirements
+                break;
+                
+            default:
+                return {
+                    valid: false,
+                    message: 'Unknown gamemode: ' + gamemode
+                };
+        }
+        
+        return { valid: true };
+    },
 
 
 
@@ -6068,498 +6298,841 @@ var Editor123 = {
 
 
 
-    /* ==================== CLAN EDITOR ==================== */
+    /* ==================== CLAN EDITOR (v2 - full) ==================== */
 
     _renderClanEditor: function () {
-
         this._mode = 'clan';
-
         var c = document.getElementById('editor123-content');
-
         var html =
-
-            '<div style="width:240px;min-width:240px;background:#1a1e24;padding:16px;overflow-y:auto;border-right:1px solid #252a32">' +
-
-            '<div style="font-size:18px;font-weight:700;color:#ffb12b;margin-bottom:16px">\u{1F465} Clan Editor</div>' +
-
-            '<div style="font-size:12px;color:#888;margin-bottom:20px">Design clan UI elements</div>' +
-
-            '<button class="e123-tbtn e-pri" id="ce-add-badge">Add Badge</button>' +
-
-            '<button class="e123-tbtn" id="ce-add-chat">Add Chat Box</button>' +
-
-            '<button class="e123-tbtn" id="ce-add-member">Add Member List</button>' +
-
-            '<div style="margin-top:20px;font-size:11px;color:#666">Drag to move, resize handles to scale</div>' +
-
+            '<div style="width:260px;min-width:260px;background:#1a1e24;padding:16px;overflow-y:auto;border-right:1px solid #252a32;display:flex;flex-direction:column;gap:6px">' +
+            '<div style="font-size:18px;font-weight:700;color:#ffb12b;margin-bottom:2px">\u{1F465} Clan Editor</div>' +
+            '<div style="font-size:11px;color:#888;margin-bottom:10px">Drag to move \u2022 8-handle resize \u2022 Del</div>' +
+            '<div style="font-size:11px;color:#666;margin-bottom:2px;margin-top:2px">Elements</div>' +
+            '<button class="e123-tbtn e-pri" id="ce-add-badge" style="font-size:12px;padding:7px 10px">\u{1F451} Badge</button>' +
+            '<button class="e123-tbtn" id="ce-add-chat-body" style="font-size:12px;padding:7px 10px">\u{1F4AC} Chat Body</button>' +
+            '<button class="e123-tbtn" id="ce-add-chat-input" style="font-size:12px;padding:7px 10px">\u{2328} Chat Input</button>' +
+            '<button class="e123-tbtn" id="ce-add-chat-send" style="font-size:12px;padding:7px 10px">\u{1F4E8} Send Button</button>' +
+            '<button class="e123-tbtn" id="ce-add-member" style="font-size:12px;padding:7px 10px">\u{1F465} Member List</button>' +
+            '<button class="e123-tbtn" id="ce-add-progress" style="font-size:12px;padding:7px 10px">\u{1F4CA} XP Bar</button>' +
+            '<button class="e123-tbtn" id="ce-add-xpcounter" style="font-size:12px;padding:7px 10px">\u{1F3AF} XP Counter</button>' +
+            '<button class="e123-tbtn" id="ce-add-clancount" style="font-size:12px;padding:7px 10px">\u{1F465}\uFE0F Clan Count</button>' +
+            '<button class="e123-tbtn" id="ce-add-sortbuttons" style="font-size:12px;padding:7px 10px">\u{2195}\uFE0F Sort Buttons</button>' +
+            '<button class="e123-tbtn" id="ce-add-clan-name" style="font-size:12px;padding:7px 10px">\u{1F3DB}\uFE0F Clan Name</button>' +
+            '<button class="e123-tbtn" id="ce-add-time-left" style="font-size:12px;padding:7px 10px">\u{23F3} Time Left</button>' +
+            '<button class="e123-tbtn" id="ce-add-text" style="font-size:12px;padding:7px 10px">\u{1F4DD} Text</button>' +
+            '<button class="e123-tbtn" id="ce-add-image" style="font-size:12px;padding:7px 10px">\u{1F5BC} Import PNG</button>' +
+            '<input type="file" accept="image/png,image/jpeg" id="ce-file-input" style="display:none">' +
+            '<div id="ce-props" style="display:none;margin-top:8px;padding-top:10px;border-top:1px solid #252a32">' +
+            '<div style="font-size:12px;color:#aaa;margin-bottom:6px">Element Properties</div>' +
+            '<label style="font-size:11px;color:#888">Text color</label>' +
+            '<input type="color" id="ce-color-picker" style="width:100%;height:30px;background:transparent;border:1px solid #333;border-radius:4px;padding:2px;margin-bottom:6px;cursor:pointer">' +
+            '<label style="font-size:11px;color:#888">Border color</label>' +
+            '<input type="color" id="ce-border-picker" style="width:100%;height:30px;background:transparent;border:1px solid #333;border-radius:4px;padding:2px;margin-bottom:6px;cursor:pointer">' +
+            '<label style="font-size:11px;color:#888">Border opacity (%)</label>' +
+            '<input type="range" id="ce-border-opacity" min="10" max="100" value="50" style="width:100%;margin-bottom:6px">' +
+            '<label style="font-size:11px;color:#888">Font size</label>' +
+            '<input type="range" id="ce-font-size" min="8" max="72" value="16" style="width:100%;margin-bottom:6px">' +
+            '<label style="font-size:11px;color:#888;display:flex;align-items:center;gap:6px;margin-bottom:4px">' +
+            '<input type="checkbox" id="ce-show-frame" checked style="accent-color:#ffb12b;width:14px;height:14px"> Show frame' +
+            '</label>' +
+            '<label style="font-size:11px;color:#888">Placeholder text</label>' +
+            '<input type="text" id="ce-label-input" style="width:100%;background:#14181e;border:1px solid #333;border-radius:4px;padding:6px 8px;color:#fff;font-size:12px;margin-bottom:4px">' +
+            '<div id="ce-member-extra" style="display:none;margin-top:6px;font-size:11px;color:#666">' +
+            'Sort: <span id="ce-sort-display" style="color:#aaa">Name</span>' +
             '</div>' +
-
+            '<div id="ce-text-extra" style="display:none;margin-top:6px">' +
+            '<label style="font-size:11px;color:#888;margin-bottom:4px;display:block">Style</label>' +
+            '<div style="display:flex;gap:6px;margin-bottom:4px">' +
+            '<button class="e123-tbtn" id="ce-text-bold" style="font-size:11px;padding:5px 10px;flex:1;border:2px solid #252a32;font-weight:700">B</button>' +
+            '<button class="e123-tbtn" id="ce-text-italic" style="font-size:11px;padding:5px 10px;flex:1;border:2px solid #252a32;font-style:italic">I</button>' +
+            '</div>' +
+            '</div>' +
+            '<div id="ce-sortbuttons-extra" style="display:none;margin-top:6px">' +
+            '<label style="font-size:11px;color:#888;margin-bottom:4px;display:block">Sort by</label>' +
+            '<div style="display:flex;gap:6px;margin-bottom:4px">' +
+            '<button class="e123-tbtn" id="ce-sb-name" style="font-size:11px;padding:5px 12px;flex:1;border:2px solid #252a32">Name</button>' +
+            '<button class="e123-tbtn" id="ce-sb-xp" style="font-size:11px;padding:5px 12px;flex:1;border:2px solid #252a32">XP</button>' +
+            '</div>' +
+            '</div>' +
+            '<div id="ce-progress-extra" style="display:none;margin-top:6px">' +
+            '<label style="font-size:11px;color:#888">Fill %</label>' +
+            '<input type="range" id="ce-progress-fill" min="0" max="100" value="65" style="width:100%;margin-bottom:6px">' +
+            '<label style="font-size:11px;color:#888">Fill color</label>' +
+            '<input type="color" id="ce-fill-picker" style="width:100%;height:30px;background:transparent;border:1px solid #333;border-radius:4px;padding:2px;margin-bottom:4px;cursor:pointer">' +
+            '</div>' +
+            '</div>' +
+            '<div id="ce-delete-hint" style="margin-top:6px;display:none">' +
+            '<div style="font-size:11px;color:#555">Press <b>Del</b> to remove selected</div>' +
+            '</div>' +
+            '</div>' +
             '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden">' +
-
-            '<div style="padding:12px 16px;background:#1e232a;border-bottom:1px solid #252a32;display:flex;justify-content:space-between;align-items:center">' +
-
+            '<div style="padding:10px 14px;background:#1e232a;border-bottom:1px solid #252a32;display:flex;justify-content:space-between;align-items:center">' +
             '<span style="font-size:13px;font-weight:600;color:#ddd">Clan UI Preview</span>' +
-
-            '<div style="display:flex;gap:8px">' +
-
-            '<button class="e123-tbtn" id="ce-save">Save Layout</button>' +
-
-            '<button class="e123-tbtn" id="ce-back">← Back</button>' +
-
+            '<div style="display:flex;gap:6px">' +
+            '<button class="e123-tbtn" id="ce-export" style="font-size:11px;padding:6px 10px">\u{1F4E4} Export</button>' +
+            '<button class="e123-tbtn" id="ce-save" style="font-size:11px;padding:6px 10px">Save</button>' +
+            '<button class="e123-tbtn" id="ce-back" style="font-size:11px;padding:6px 10px">\u2190 Back</button>' +
             '</div></div>' +
-
             '<div id="ce-canvas-host" style="flex:1;background:#14181e;position:relative;overflow:hidden"></div>' +
-
             '</div>';
-
         c.innerHTML = html;
 
-
-
+        var host = document.getElementById('ce-canvas-host');
+        this._clanHostW = host.clientWidth || 800;
+        this._clanHostH = host.clientHeight || 600;
+        this._clanDpr = window.devicePixelRatio || 1;
         this._clanCanvas = document.createElement('canvas');
-
-        this._clanCanvas.width = 800;
-
-        this._clanCanvas.height = 600;
-
-        this._clanCanvas.style.width = '100%';
-
-        this._clanCanvas.style.height = '100%';
-
+        this._clanCanvas.width = this._clanHostW * this._clanDpr;
+        this._clanCanvas.height = this._clanHostH * this._clanDpr;
+        this._clanCanvas.style.width = this._clanHostW + 'px';
+        this._clanCanvas.style.height = this._clanHostH + 'px';
         this._clanCtx = this._clanCanvas.getContext('2d');
-
-        document.getElementById('ce-canvas-host').appendChild(this._clanCanvas);
-
-
+        host.appendChild(this._clanCanvas);
 
         this._clanElements = this._loadClanLayout();
-
+        this._clanSortBy = 'name';
         this._clanSelected = null;
-
         this._clanDragMode = null;
-
         this._clanDragStart = null;
-
         this._clanDragElm = null;
-
-
+        this._clanDragHandleType = null;
+        this._clanImages = {};
+        var self = this;
+        this._clanElements.forEach(function (el) {
+            if (el.type === 'image' && el.imageData) {
+                var img = new Image();
+                img.onload = function () { self._clanImages[el.imageData] = img; };
+                img.src = el.imageData;
+            }
+        });
 
         this._wireClanEditor();
-
         this._clanLoop = this._clanLoop.bind(this);
-
         requestAnimationFrame(this._clanLoop);
-
     },
-
-
 
     _clanLoop: function () {
-
         if (this._mode !== 'clan') return;
-
         var ctx = this._clanCtx;
-
-        var w = this._clanCanvas.width;
-
-        var h = this._clanCanvas.height;
-
+        var dpr = this._clanDpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var w = this._clanHostW;
+        var h = this._clanHostH;
         ctx.clearRect(0, 0, w, h);
-
         ctx.fillStyle = '#14181e';
-
         ctx.fillRect(0, 0, w, h);
-
         var grid = 30;
-
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
         ctx.lineWidth = 1;
-
         for (var x = 0; x <= w; x += grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-
         for (var y = 0; y <= h; y += grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-
-        this._clanElements.forEach(function (el) { Editor123._drawClanElement(el); });
-
+        var self = this;
+        this._clanElements.forEach(function (el) { if (el.type === 'image') self._drawClanElement(el); });
+        this._clanElements.forEach(function (el) { if (el.type !== 'image') self._drawClanElement(el); });
         requestAnimationFrame(this._clanLoop);
-
     },
 
-
-
     _drawClanElement: function (el) {
-
         var ctx = this._clanCtx;
-
         ctx.save();
+        var dpr = this._clanDpr;
+        var hcol = el.borderColor || 'rgba(255,200,50,0.5)';
+        var col = el.color || '#ffffff';
+        var txtCol = el.placeholderColor || col;
+        var bw = 2;
+        var fs = (el.fontSize || 14) * dpr;
+        var baseFont = fs + 'px Segoe UI';
+        var boldFont = 'bold ' + fs + 'px Segoe UI';
+        var sf = el.showFrame !== false;
+
+        var drawFrame = function () {
+            if (!sf) return;
+            ctx.setLineDash([6 * dpr, 4 * dpr]);
+            ctx.strokeStyle = hcol;
+            ctx.lineWidth = bw * dpr;
+            ctx.strokeRect(el.x, el.y, el.w, el.h);
+            ctx.setLineDash([]);
+        };
 
         if (el.type === 'badge') {
-
-            ctx.fillStyle = el.color || '#ffb12b';
-
+            var r = Math.min(el.w, el.h) / 2;
+            var cx = el.x + el.w / 2, cy = el.y + el.h / 2;
             ctx.beginPath();
-
-            ctx.arc(el.x + el.w / 2, el.y + el.h / 2, Math.min(el.w, el.h) / 2, 0, Math.PI * 2);
-
-            ctx.fill();
-
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-
-            ctx.lineWidth = 2;
-
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.strokeStyle = hcol;
+            ctx.lineWidth = bw * dpr;
             ctx.stroke();
-
-            ctx.fillStyle = '#fff';
-
-            ctx.font = 'bold 12px Segoe UI';
-
+            ctx.fillStyle = txtCol;
+            ctx.font = boldFont;
             ctx.textAlign = 'center';
-
             ctx.textBaseline = 'middle';
+            ctx.fillText(el.label || 'Badge', cx, cy);
 
-            ctx.fillText(el.label || 'Badge', el.x + el.w / 2, el.y + el.h / 2);
-
-        } else if (el.type === 'chat') {
-
-            ctx.fillStyle = 'rgba(42, 47, 56, 0.8)';
-
-            ctx.fillRect(el.x, el.y, el.w, el.h);
-
-            ctx.strokeStyle = el.borderColor || 'rgba(255, 177, 43, 0.3)';
-
-            ctx.lineWidth = 2;
-
-            ctx.strokeRect(el.x, el.y, el.w, el.h);
-
-            ctx.fillStyle = '#fff';
-
-            ctx.font = '13px Segoe UI';
-
+        } else if (el.type === 'chat' || el.type === 'chat-body') {
+            drawFrame();
+            ctx.font = baseFont;
             ctx.textAlign = 'left';
-
             ctx.textBaseline = 'top';
+            var rawMsgs = el.lines || [{name:'Commander', xp:2500, rank:'OWNER', msg:'Hello!', owner:true}];
+            var msgs = (rawMsgs.length && typeof rawMsgs[0] === 'string') ? rawMsgs.map(function(s){
+                var match = s.match(/^(.+?):\s*(.*)/);
+                if (match) return {name:match[1], msg:match[2], xp:Math.round(Math.random()*2000), rank:'', owner:false};
+                return {name:s, msg:'', xp:Math.round(Math.random()*2000), rank:'', owner:false};
+            }) : rawMsgs;
+            for (var ci = 0; ci < msgs.length; ci++) {
+                var m = msgs[ci];
+                var entryH = fs * 2 + 8;
+                var ly = el.y + 10 + ci * entryH;
+                if (ly + entryH < el.y + el.h) {
+                    ctx.fillStyle = m.owner ? '#ff4444' : txtCol;
+                    ctx.globalAlpha = ci === 0 ? 1 : 0.5;
+                    var rankStr = (m.rank && m.rank !== '-') ? '[' + m.rank + '] ' : '';
+                    var line = rankStr + m.name + ' (' + m.xp + ')';
+                    ctx.fillText(line, el.x + 10, ly);
+                    if (m.msg) {
+                        ctx.fillText(': ' + m.msg, el.x + 10, ly + fs + 6);
+                    }
+                }
+            }
+            ctx.globalAlpha = 1;
 
-            ctx.fillText('Chat Box', el.x + 8, el.y + 8);
+        } else if (el.type === 'chat-input') {
+            ctx.setLineDash(sf ? [4 * dpr, 3 * dpr] : []);
+            ctx.strokeStyle = hcol;
+            ctx.lineWidth = bw * dpr;
+            ctx.strokeRect(el.x, el.y, el.w, el.h);
+            ctx.setLineDash([]);
+            ctx.fillStyle = txtCol;
+            ctx.globalAlpha = 0.3;
+            ctx.font = baseFont;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            var ph = el.label || 'Type a message...';
+            ctx.fillText(ph, el.x + 12, el.y + el.h / 2);
+            ctx.globalAlpha = 1;
+            var blink = Math.floor(Date.now() / 530) % 2;
+            if (blink) {
+                ctx.fillStyle = txtCol;
+                ctx.fillRect(el.x + 12 + ctx.measureText(ph).width + 3, el.y + el.h * 0.2, 2 * dpr, el.h * 0.6);
+            }
+
+        } else if (el.type === 'chat-send') {
+            ctx.setLineDash(sf ? [4 * dpr, 4 * dpr] : []);
+            ctx.strokeStyle = hcol;
+            ctx.lineWidth = bw * dpr;
+            ctx.strokeRect(el.x, el.y, el.w, el.h);
+            ctx.setLineDash([]);
+            ctx.fillStyle = txtCol;
+            ctx.font = boldFont;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(el.label || 'Send', el.x + el.w / 2, el.y + el.h / 2);
 
         } else if (el.type === 'member') {
-
-            ctx.fillStyle = 'rgba(42, 47, 56, 0.8)';
-
-            ctx.fillRect(el.x, el.y, el.w, el.h);
-
-            ctx.strokeStyle = el.borderColor || 'rgba(255, 177, 43, 0.3)';
-
-            ctx.lineWidth = 2;
-
-            ctx.strokeRect(el.x, el.y, el.w, el.h);
-
-            ctx.fillStyle = '#fff';
-
-            ctx.font = '13px Segoe UI';
-
+            drawFrame();
+            ctx.font = baseFont;
             ctx.textAlign = 'left';
-
             ctx.textBaseline = 'top';
+            var rawM = el.lines || [{name:'Commander', xp:2500, rank:'OWNER'}, {name:'Captain', xp:1800}, {name:'Recruit', xp:500}];
+            var items = (rawM.length && typeof rawM[0] === 'string') ? rawM.map(function(s,i){ return {name:s, xp:Math.round((rawM.length-i)*500+Math.random()*200)}; }) : rawM.slice();
+            var sortBy = this._clanSortBy || 'name';
+            if (sortBy === 'xp') { items.sort(function(a,b){ return b.xp - a.xp; }); }
+            else { items.sort(function(a,b){ return a.name.localeCompare(b.name); }); }
+            var maxP = el.maxPlayers || 20;
+            for (var mi = 0; mi < Math.min(items.length, maxP); mi++) {
+                var my = el.y + 10 + mi * (fs + 14);
+                if (my + fs + 6 < el.y + el.h) {
+                    var it = items[mi];
+                    ctx.fillStyle = it.owner ? '#ff4444' : txtCol;
+                    var rStr = (it.rank && it.rank !== '-') ? '[' + it.rank + '] ' : '';
+                    var disp = rStr + it.name + ' (' + it.xp + ')';
+                    ctx.globalAlpha = Math.max(0.3, 0.8 - mi * 0.04);
+                    ctx.fillText(disp, el.x + 10, my);
+                }
+            }
+            ctx.globalAlpha = 1;
 
-            ctx.fillText('Member List', el.x + 8, el.y + 8);
+        } else if (el.type === 'progress-bar') {
+            ctx.strokeStyle = hcol;
+            ctx.lineWidth = bw * dpr;
+            ctx.strokeRect(el.x, el.y, el.w, el.h);
+            var pct = Math.max(0, Math.min(100, el.progress || 50));
+            var fillW = (el.w - 4) * (pct / 100);
+            var fillCol = el.fillColor || '#ffb12b';
+            ctx.fillStyle = fillCol;
+            ctx.fillRect(el.x + 2, el.y + 2, fillW, el.h - 4);
+            ctx.fillStyle = txtCol;
+            ctx.font = boldFont;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(Math.round(pct) + '%', el.x + el.w / 2, el.y + el.h / 2);
 
+        } else if (el.type === 'xp-counter') {
+            drawFrame();
+            ctx.fillStyle = txtCol;
+            ctx.font = 'bold ' + ((el.fontSize || 28) * dpr) + 'px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var val = el.value || '5';
+            ctx.fillText(val, el.x + el.w / 2, el.y + el.h * 0.4);
+            ctx.globalAlpha = 0.55;
+            ctx.font = ((el.fontSize || 14) * dpr) + 'px Segoe UI';
+            ctx.fillText(el.label || 'collected', el.x + el.w / 2, el.y + el.h * 0.75);
+            ctx.globalAlpha = 1;
+
+        } else if (el.type === 'clan-count') {
+            drawFrame();
+            ctx.fillStyle = txtCol;
+            ctx.font = boldFont;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var cnt = el.value || '0';
+            ctx.fillText(cnt, el.x + el.w / 2, el.y + el.h / 2);
+
+        } else if (el.type === 'sort-buttons') {
+            drawFrame();
+            var curSort = this._clanSortBy || 'name';
+            var btnPad = 20, bh = fs + 10;
+            var totalW = Math.max(el.w, btnPad + 2);
+            var btnW = (totalW - btnPad) / 2;
+            var by = el.y + (el.h - bh) / 2;
+            ['Name','XP'].forEach(function(label, idx) {
+                var bx = el.x + (idx === 0 ? 10 : 10 + btnW + 4);
+                var isActive = (label.toLowerCase() === curSort);
+                ctx.fillStyle = isActive ? '#ffb12b' : '#252a32';
+                var radius = 4 * dpr;
+                var bw3 = btnW, bh3 = bh;
+                ctx.beginPath();
+                ctx.moveTo(bx + radius, by);
+                ctx.lineTo(bx + bw3 - radius, by);
+                ctx.quadraticCurveTo(bx + bw3, by, bx + bw3, by + radius);
+                ctx.lineTo(bx + bw3, by + bh3 - radius);
+                ctx.quadraticCurveTo(bx + bw3, by + bh3, bx + bw3 - radius, by + bh3);
+                ctx.lineTo(bx + radius, by + bh3);
+                ctx.quadraticCurveTo(bx, by + bh3, bx, by + bh3 - radius);
+                ctx.lineTo(bx, by + radius);
+                ctx.quadraticCurveTo(bx, by, bx + radius, by);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = isActive ? '#14181e' : '#aaa';
+                ctx.font = 'bold ' + (fs * 0.7) + 'px Segoe UI';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, bx + bw3 / 2, by + bh3 / 2);
+            });
+
+        } else if (el.type === 'clan-name') {
+            drawFrame();
+            ctx.fillStyle = txtCol;
+            ctx.font = boldFont;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(el.label || '[Clan Name]', el.x + el.w / 2, el.y + el.h / 2);
+
+        } else if (el.type === 'time-left') {
+            drawFrame();
+            ctx.fillStyle = txtCol;
+            ctx.font = baseFont;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var now = new Date();
+            var dayOfWeek = now.getDay();
+            var daysUntilMonday = (8 - dayOfWeek) % 7 || 7;
+            var nextMonday = new Date(now);
+            nextMonday.setDate(now.getDate() + daysUntilMonday);
+            nextMonday.setHours(0, 0, 0, 0);
+            var msUntilMonday = nextMonday - now;
+            var days = Math.floor(msUntilMonday / 86400000);
+            var hrs = Math.floor((msUntilMonday % 86400000) / 3600000);
+            var mins = Math.floor((msUntilMonday % 3600000) / 60000);
+            ctx.fillText(days + 'd ' + hrs + 'h ' + mins + 'm', el.x + el.w / 2, el.y + el.h / 2);
+
+        } else if (el.type === 'text') {
+            drawFrame();
+            ctx.fillStyle = txtCol;
+            var style = '';
+            if (el.bold) style += 'bold ';
+            if (el.italic) style += 'italic ';
+            ctx.font = style + fs + 'px Segoe UI';
+            ctx.textAlign = el.align || 'center';
+            ctx.textBaseline = 'middle';
+            var tx = el.x;
+            if (ctx.textAlign === 'center') tx = el.x + el.w / 2;
+            else if (ctx.textAlign === 'right') tx = el.x + el.w;
+            ctx.fillText(el.label || 'Text', tx, el.y + el.h / 2);
+
+        } else if (el.type === 'image') {
+            if (el.imageData && this._clanImages[el.imageData]) {
+                var img = this._clanImages[el.imageData];
+                ctx.drawImage(img, el.x, el.y, el.w, el.h);
+                if (sf) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.strokeRect(el.x, el.y, el.w, el.h);
+                }
+            } else {
+                drawFrame();
+                ctx.fillStyle = txtCol;
+                ctx.font = (13 * dpr) + 'px Segoe UI';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(el.label || 'Image', el.x + el.w / 2, el.y + el.h / 2);
+            }
         }
 
         if (el === this._clanSelected) {
-
             ctx.strokeStyle = '#ffb12b';
-
-            ctx.lineWidth = 2;
-
-            ctx.setLineDash([4, 4]);
-
+            ctx.lineWidth = bw * dpr;
+            ctx.setLineDash([4 * dpr, 4 * dpr]);
             ctx.strokeRect(el.x - 2, el.y - 2, el.w + 4, el.h + 4);
-
             ctx.setLineDash([]);
-
-            var hs = 8;
-
+            var hs = 8 * dpr;
             ctx.fillStyle = '#ffb12b';
-
-            [[el.x, el.y], [el.x + el.w, el.y], [el.x, el.y + el.h], [el.x + el.w, el.y + el.h],
-
-             [el.x + el.w / 2, el.y], [el.x + el.w / 2, el.y + el.h], [el.x, el.y + el.h / 2], [el.x + el.w, el.y + el.h / 2]].forEach(function (pos) {
-
-                ctx.fillRect(pos[0] - hs / 2, pos[1] - hs / 2, hs, hs);
-
+            var handles = [
+                { x: el.x, y: el.y },
+                { x: el.x + el.w, y: el.y },
+                { x: el.x, y: el.y + el.h },
+                { x: el.x + el.w, y: el.y + el.h },
+                { x: el.x + el.w / 2, y: el.y },
+                { x: el.x + el.w / 2, y: el.y + el.h },
+                { x: el.x, y: el.y + el.h / 2 },
+                { x: el.x + el.w, y: el.y + el.h / 2 }
+            ];
+            handles.forEach(function (h) {
+                ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs);
             });
-
         }
-
         ctx.restore();
-
     },
 
-
-
     _wireClanEditor: function () {
-
         var canvas = this._clanCanvas;
+        var self = this;
 
         var getPos = function (e) {
-
             var r = canvas.getBoundingClientRect();
-
-            var scaleX = canvas.width / r.width;
-
-            var scaleY = canvas.height / r.height;
-
-            return { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY };
-
+            return { x: e.clientX - r.left, y: e.clientY - r.top };
         };
 
+        var getHandleType = function (pos, el) {
+            if (!el) return null;
+            var hs = 12;
+            var handles = [
+                { x: el.x, y: el.y, type: 'nw' },
+                { x: el.x + el.w, y: el.y, type: 'ne' },
+                { x: el.x, y: el.y + el.h, type: 'sw' },
+                { x: el.x + el.w, y: el.y + el.h, type: 'se' },
+                { x: el.x + el.w / 2, y: el.y, type: 'n' },
+                { x: el.x + el.w / 2, y: el.y + el.h, type: 's' },
+                { x: el.x, y: el.y + el.h / 2, type: 'w' },
+                { x: el.x + el.w, y: el.y + el.h / 2, type: 'e' }
+            ];
+            for (var i = 0; i < handles.length; i++) {
+                var h = handles[i];
+                if (pos.x >= h.x - hs / 2 && pos.x <= h.x + hs / 2 && pos.y >= h.y - hs / 2 && pos.y <= h.y + hs / 2) {
+                    return h.type;
+                }
+            }
+            return null;
+        };
 
+        var updateProps = function () {
+            var el = self._clanSelected;
+            var propsDiv = document.getElementById('ce-props');
+            var delHint = document.getElementById('ce-delete-hint');
+            var progExtra = document.getElementById('ce-progress-extra');
+            var memberExtra = document.getElementById('ce-member-extra');
+            var sortbuttonsExtra = document.getElementById('ce-sortbuttons-extra');
+            var textExtra = document.getElementById('ce-text-extra');
+            if (!el || el.type === 'image') {
+                propsDiv.style.display = 'none';
+                if (progExtra) progExtra.style.display = 'none';
+                if (memberExtra) memberExtra.style.display = 'none';
+                if (sortbuttonsExtra) sortbuttonsExtra.style.display = 'none';
+                if (textExtra) textExtra.style.display = 'none';
+                if (delHint) delHint.style.display = el ? 'block' : 'none';
+                return;
+            }
+            propsDiv.style.display = 'block';
+            if (delHint) delHint.style.display = 'block';
+
+            var colorPicker = document.getElementById('ce-color-picker');
+            var borderPicker = document.getElementById('ce-border-picker');
+            var borderOp = document.getElementById('ce-border-opacity');
+            var labelInput = document.getElementById('ce-label-input');
+            var fillPicker = document.getElementById('ce-fill-picker');
+            var fillSlider = document.getElementById('ce-progress-fill');
+
+            colorPicker.value = rgbToHex(el.color || '#ffffff');
+            var curBorder = el.borderColor || 'rgba(255,200,50,0.5)';
+            var borderHex = '#ffc832';
+            var borderOpacity = 50;
+            var m = curBorder.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+            if (m) {
+                borderHex = rgbToHex('rgb(' + m[1] + ',' + m[2] + ',' + m[3] + ')');
+                borderOpacity = m[4] !== undefined ? Math.round(parseFloat(m[4]) * 100) : 100;
+            }
+            borderPicker.value = borderHex;
+            borderOp.value = borderOpacity;
+            labelInput.value = el.label || '';
+
+            if (el.type === 'progress-bar') {
+                if (progExtra) { progExtra.style.display = 'block';
+                fillSlider.value = el.progress || 50;
+                fillPicker.value = rgbToHex(el.fillColor || '#ffb12b');
+                fillSlider.oninput = function () { el.progress = parseInt(fillSlider.value); self._saveClanLayout(); };
+                fillPicker.onchange = function () { el.fillColor = fillPicker.value; self._saveClanLayout(); }; }
+            } else if (progExtra) { progExtra.style.display = 'none'; }
+
+            var fsSlider = document.getElementById('ce-font-size');
+            if (fsSlider) { fsSlider.value = el.fontSize || 14;
+            fsSlider.oninput = function(){ el.fontSize = parseInt(fsSlider.value); self._saveClanLayout(); }; }
+
+            var frameCheck = document.getElementById('ce-show-frame');
+            if (frameCheck) { frameCheck.checked = el.showFrame !== false;
+            frameCheck.onchange = function(){ el.showFrame = frameCheck.checked; self._saveClanLayout(); }; }
+
+            if (el.type === 'member') {
+                if (memberExtra) { memberExtra.style.display = 'block';
+                var sd = document.getElementById('ce-sort-display');
+                if (sd) sd.textContent = self._clanSortBy === 'xp' ? 'XP' : 'Name'; }
+            } else if (memberExtra) { memberExtra.style.display = 'none'; }
+
+            if (el.type === 'sort-buttons') {
+                if (sortbuttonsExtra) { sortbuttonsExtra.style.display = 'block';
+                var sbn = document.getElementById('ce-sb-name');
+                var sbx = document.getElementById('ce-sb-xp');
+                var cur = self._clanSortBy || 'name';
+                if (sbn) { sbn.style.borderColor = cur !== 'xp' ? '#ffb12b' : '#252a32';
+                sbn.onclick = function(){ self._clanSortBy = 'name'; self._saveClanLayout(); updateProps(); }; }
+                if (sbx) { sbx.style.borderColor = cur === 'xp' ? '#ffb12b' : '#252a32';
+                sbx.onclick = function(){ self._clanSortBy = 'xp'; self._saveClanLayout(); updateProps(); }; } }
+            } else if (sortbuttonsExtra) { sortbuttonsExtra.style.display = 'none'; }
+
+            if (el.type === 'text') {
+                if (textExtra) { textExtra.style.display = 'block';
+                var tb = document.getElementById('ce-text-bold');
+                var ti = document.getElementById('ce-text-italic');
+                if (tb) { tb.style.borderColor = el.bold ? '#ffb12b' : '#252a32';
+                tb.onclick = function(){ el.bold = !el.bold; self._saveClanLayout(); updateProps(); }; }
+                if (ti) { ti.style.borderColor = el.italic ? '#ffb12b' : '#252a32';
+                ti.onclick = function(){ el.italic = !el.italic; self._saveClanLayout(); updateProps(); }; } }
+            } else if (textExtra) { textExtra.style.display = 'none'; }
+
+            colorPicker.onchange = function () {
+                el.color = colorPicker.value;
+                el.placeholderColor = colorPicker.value;
+                self._rebuildBorderColor(el, borderPicker.value, borderOp.value);
+                self._saveClanLayout();
+            };
+            borderPicker.onchange = function () {
+                self._rebuildBorderColor(el, borderPicker.value, borderOp.value);
+                self._saveClanLayout();
+            };
+            borderOp.oninput = function () {
+                self._rebuildBorderColor(el, borderPicker.value, borderOp.value);
+                self._saveClanLayout();
+            };
+            labelInput.oninput = function () {
+                el.label = labelInput.value;
+                self._saveClanLayout();
+            };
+        };
+
+        var rgbToHex = function (rgb) {
+            var d = document.createElement('canvas').getContext('2d');
+            d.fillStyle = rgb;
+            return d.fillStyle;
+        };
 
         canvas.addEventListener('mousedown', function (e) {
-
             if (e.button !== 0) return;
-
             var pos = getPos(e);
-
-            var hit = Editor123._clanHitTest(pos.x, pos.y);
-
+            var hit = self._clanHitTest(pos.x, pos.y);
             if (hit) {
-
-                Editor123._clanSelected = hit;
-
-                Editor123._clanDragMode = 'move';
-
-                Editor123._clanDragStart = { x: pos.x - hit.x, y: pos.y - hit.y };
-
-                Editor123._clanDragElm = hit;
-
-                var handle = Editor123._clanHitHandle(pos.x, pos.y);
-
-                if (handle) Editor123._clanDragMode = 'resize';
-
+                self._clanSelected = hit;
+                self._clanDragMode = 'move';
+                self._clanDragStart = { x: pos.x - hit.x, y: pos.y - hit.y };
+                self._clanDragElm = hit;
+                self._clanDragHandleType = null;
+                var htype = getHandleType(pos, hit);
+                if (htype) {
+                    self._clanDragMode = 'resize';
+                    self._clanDragHandleType = htype;
+                    self._clanDragStart = { x: pos.x, y: pos.y, ow: hit.w, oh: hit.h, ox: hit.x, oy: hit.y };
+                }
+                updateProps();
             } else {
-
-                Editor123._clanSelected = null;
-
-                Editor123._clanDragMode = null;
-
+                self._clanSelected = null;
+                self._clanDragMode = null;
+                self._clanDragHandleType = null;
+                updateProps();
             }
-
         });
-
-
 
         canvas.addEventListener('mousemove', function (e) {
-
-            if (!Editor123._clanDragMode || !Editor123._clanDragElm) return;
-
+            if (!self._clanDragMode || !self._clanDragElm) return;
             var pos = getPos(e);
-
-            if (Editor123._clanDragMode === 'move') {
-
-                Editor123._clanDragElm.x = Math.max(0, pos.x - Editor123._clanDragStart.x);
-
-                Editor123._clanDragElm.y = Math.max(0, pos.y - Editor123._clanDragStart.y);
-
-            } else if (Editor123._clanDragMode === 'resize') {
-
-                var nw = Math.max(20, pos.x - Editor123._clanDragElm.x);
-
-                var nh = Math.max(20, pos.y - Editor123._clanDragElm.y);
-
-                Editor123._clanDragElm.w = nw;
-
-                Editor123._clanDragElm.h = nh;
-
+            var el = self._clanDragElm;
+            if (self._clanDragMode === 'move') {
+                el.x = Math.max(0, pos.x - self._clanDragStart.x);
+                el.y = Math.max(0, pos.y - self._clanDragStart.y);
+            } else if (self._clanDragMode === 'resize') {
+                var dx = pos.x - self._clanDragStart.x;
+                var dy = pos.y - self._clanDragStart.y;
+                var min = 20;
+                var ht = self._clanDragHandleType;
+                if (ht === 'se') { el.w = Math.max(min, self._clanDragStart.ow + dx); el.h = Math.max(min, self._clanDragStart.oh + dy); }
+                else if (ht === 'sw') { el.w = Math.max(min, self._clanDragStart.ow - dx); el.h = Math.max(min, self._clanDragStart.oh + dy); el.x = self._clanDragStart.ox + (self._clanDragStart.ow - el.w); }
+                else if (ht === 'ne') { el.w = Math.max(min, self._clanDragStart.ow + dx); el.h = Math.max(min, self._clanDragStart.oh - dy); el.y = self._clanDragStart.oy + (self._clanDragStart.oh - el.h); }
+                else if (ht === 'nw') { el.w = Math.max(min, self._clanDragStart.ow - dx); el.h = Math.max(min, self._clanDragStart.oh - dy); el.x = self._clanDragStart.ox + (self._clanDragStart.ow - el.w); el.y = self._clanDragStart.oy + (self._clanDragStart.oh - el.h); }
+                else if (ht === 'e') { el.w = Math.max(min, self._clanDragStart.ow + dx); }
+                else if (ht === 'w') { el.w = Math.max(min, self._clanDragStart.ow - dx); el.x = self._clanDragStart.ox + (self._clanDragStart.ow - el.w); }
+                else if (ht === 's') { el.h = Math.max(min, self._clanDragStart.oh + dy); }
+                else if (ht === 'n') { el.h = Math.max(min, self._clanDragStart.oh - dy); el.y = self._clanDragStart.oy + (self._clanDragStart.oh - el.h); }
+                if (el.type === 'badge') { var sz = Math.max(min, (el.w + el.h) / 2); el.w = sz; el.h = sz; }
             }
-
         });
-
-
 
         window.addEventListener('mouseup', function () {
-
-            Editor123._clanDragMode = null;
-
-            Editor123._clanDragElm = null;
-
+            if (self._clanDragElm) self._saveClanLayout();
+            self._clanDragMode = null;
+            self._clanDragElm = null;
+            self._clanDragHandleType = null;
         });
 
-
-
         document.getElementById('ce-add-badge').onclick = function () {
-
-            Editor123._clanElements.push({
-
-                type: 'badge',
-
-                x: 100, y: 100,
-
-                w: 60, h: 60,
-
-                label: 'Badge',
-
-                color: '#ffb12b'
-
-            });
-
-            Editor123._saveClanLayout();
-
-            Editor123.toast('Badge added');
-
+            self._clanElements.push({ type:'badge', x:100, y:100, w:60, h:60, label:'Badge', color:'#ffb12b', borderColor:'rgba(255,200,50,0.5)' });
+            self._saveClanLayout(); Editor123.toast('Badge added');
         };
-
-
-
-        document.getElementById('ce-add-chat').onclick = function () {
-
-            Editor123._clanElements.push({
-
-                type: 'chat',
-
-                x: 100, y: 200,
-
-                w: 300, h: 200,
-
-                borderColor: 'rgba(255, 177, 43, 0.3)'
-
-            });
-
-            Editor123._saveClanLayout();
-
-            Editor123.toast('Chat box added');
-
+        document.getElementById('ce-add-chat-body').onclick = function () {
+            self._clanElements.push({ type:'chat-body', x:80, y:160, w:300, h:200, label:'Chat', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', lines:[{name:'Commander', xp:2500, rank:'OWNER', msg:'Hello everyone!', owner:true},{name:'Captain', xp:1800, msg:'Good game!'}] });
+            self._saveClanLayout(); Editor123.toast('Chat body added');
         };
-
-
-
+        document.getElementById('ce-add-chat-input').onclick = function () {
+            self._clanElements.push({ type:'chat-input', x:80, y:370, w:300, h:44, label:'Type a message...', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)' });
+            self._saveClanLayout(); Editor123.toast('Chat input added');
+        };
+        document.getElementById('ce-add-chat-send').onclick = function () {
+            self._clanElements.push({ type:'chat-send', x:390, y:370, w:70, h:44, label:'Send', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)' });
+            self._saveClanLayout(); Editor123.toast('Send button added');
+        };
         document.getElementById('ce-add-member').onclick = function () {
-
-            Editor123._clanElements.push({
-
-                type: 'member',
-
-                x: 450, y: 200,
-
-                w: 200, h: 200,
-
-                borderColor: 'rgba(255, 177, 43, 0.3)'
-
-            });
-
-            Editor123._saveClanLayout();
-
-            Editor123.toast('Member list added');
-
+            self._clanElements.push({ type:'member', x:440, y:160, w:180, h:240, label:'Members', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', lines:[{name:'Commander', xp:2500, rank:'OWNER'},{name:'Captain', xp:1800},{name:'Recruit', xp:500}], maxPlayers:20 });
+            self._saveClanLayout(); Editor123.toast('Member list added');
         };
-
-
+        document.getElementById('ce-add-progress').onclick = function () {
+            self._clanElements.push({ type:'progress-bar', x:80, y:80, w:300, h:36, color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', fillColor:'#ffb12b', progress:50 });
+            self._saveClanLayout(); Editor123.toast('XP bar added');
+        };
+        document.getElementById('ce-add-xpcounter').onclick = function () {
+            self._clanElements.push({ type:'xp-counter', x:420, y:60, w:120, h:70, label:'collected', value:'5', color:'#ffffff' });
+            self._saveClanLayout(); Editor123.toast('XP counter added');
+        };
+        document.getElementById('ce-add-clancount').onclick = function () {
+            self._clanElements.push({ type:'clan-count', x:80, y:360, w:200, h:44, label:'Members', value:'0', max:20, color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', fontSize:14 });
+            self._saveClanLayout(); Editor123.toast('Clan count added');
+        };
+        document.getElementById('ce-add-sortbuttons').onclick = function () {
+            self._clanElements.push({ type:'sort-buttons', x:80, y:410, w:200, h:32, color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', fontSize:14 });
+            self._saveClanLayout(); Editor123.toast('Sort buttons added');
+        };
+        document.getElementById('ce-add-clan-name').onclick = function () {
+            self._clanElements.push({ type:'clan-name', x:80, y:460, w:200, h:36, label:'[Clan Name]', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', fontSize:16 });
+            self._saveClanLayout(); Editor123.toast('Clan name added');
+        };
+        document.getElementById('ce-add-time-left').onclick = function () {
+            self._clanElements.push({ type:'time-left', x:80, y:510, w:200, h:36, label:'[Time Left]', color:'#ffffff', borderColor:'rgba(255,200,50,0.4)', fontSize:14 });
+            self._saveClanLayout(); Editor123.toast('Time left added');
+        };
+        document.getElementById('ce-add-text').onclick = function () {
+            self._clanElements.push({ type:'text', x:80, y:260, w:200, h:44, label:'Your text', color:'#ffffff', fontSize:16, bold:false, italic:false, align:'center' });
+            self._saveClanLayout(); Editor123.toast('Text added');
+        };
+        document.getElementById('ce-add-image').onclick = function () {
+            document.getElementById('ce-file-input').click();
+        };
+        document.getElementById('ce-file-input').onchange = function (e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (ev) {
+                var dataUrl = ev.target.result;
+                var img = new Image();
+                img.onload = function () {
+                    var w = Math.min(img.width, 200);
+                    var h = Math.min(img.height, 200);
+                    self._clanImages[dataUrl] = img;
+                    self._clanElements.push({ type:'image', x:80, y:300, w:w, h:h, imageData:dataUrl, label:'Image' });
+                    self._saveClanLayout(); Editor123.toast('Image imported');
+                };
+                img.src = dataUrl;
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        };
 
         document.getElementById('ce-save').onclick = function () {
-
-            Editor123._saveClanLayout();
-
-            Editor123.toast('Clan layout saved!');
-
+            self._saveClanLayout();
+            Editor123.toast('Layout saved to localStorage');
         };
 
+        document.getElementById('ce-export').onclick = function () {
+            var code = '// Clan UI Layout — paste into your game\nvar clanLayout = ' + JSON.stringify(self._clanElements, null, 2) + ';\n';
+            try { navigator.clipboard.writeText(code).then(function () { Editor123.toast('Script copied to clipboard!'); }).catch(function () { fallbackCopy(code); }); }
+            catch (e) { fallbackCopy(code); }
+            function fallbackCopy(t) { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); Editor123.toast('Script copied!'); }
+        };
 
+        // "Install to game": download the layout as js/clan-default-layout.js
+        // so the design works on ANY origin (local file, deployed site, etc.)
+        var installBtn = document.createElement('button');
+        installBtn.className = 'e123-tbtn';
+        installBtn.id = 'ce-install';
+        installBtn.style.cssText = 'font-size:11px;padding:6px 10px;background:#27ae60;color:#fff';
+        installBtn.textContent = '\u2B07\uFE0F Install to game';
+        installBtn.onclick = function () {
+            var code =
+                '// Clan UI default layout — embedded in the game so it works on ANY origin\n' +
+                '// (local file, deployed site, any browser). Loaded when no layout is saved\n' +
+                '// in localStorage yet.\n' +
+                'var CLAN_DEFAULT_LAYOUT = ' + JSON.stringify(self._clanElements, null, 2) + ';\n';
+            var blob = new Blob([code], { type: 'text/javascript' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'clan-default-layout.js';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+            Editor123.toast('Downloaded! Save it as js/clan-default-layout.js in your game folder.');
+        };
+        document.getElementById('ce-export').parentElement.appendChild(installBtn);
 
         document.getElementById('ce-back').onclick = function () { Editor123._renderLauncher(); };
 
-
-
         window.addEventListener('keydown', function (e) {
-
             if (Editor123._mode !== 'clan') return;
-
             if (e.code === 'Delete' || e.code === 'Backspace') {
-
                 if (Editor123._clanSelected) {
-
-                    Editor123._clanElements = Editor123._clanElements.filter(function (el) { return el !== Editor123._clanSelected; });
-
+                    var sel = Editor123._clanSelected;
+                    if (sel.type === 'image' && sel.imageData && Editor123._clanImages) {
+                        delete Editor123._clanImages[sel.imageData];
+                    }
+                    Editor123._clanElements = Editor123._clanElements.filter(function (el) { return el !== sel; });
                     Editor123._clanSelected = null;
-
                     Editor123._saveClanLayout();
-
+                    updateProps();
                 }
-
             }
-
-            if (e.code === 'Escape') { Editor123._clanSelected = null; }
-
+            if (e.code === 'Escape') {
+                Editor123._clanSelected = null;
+                updateProps();
+            }
         });
-
     },
 
-
+    _rebuildBorderColor: function (el, hex, opacity) {
+        var o = Math.round(parseInt(opacity)) / 100;
+        var r = parseInt(hex.slice(1, 3), 16);
+        var g = parseInt(hex.slice(3, 5), 16);
+        var b = parseInt(hex.slice(5, 7), 16);
+        el.borderColor = 'rgba(' + r + ',' + g + ',' + b + ',' + o + ')';
+    },
 
     _clanHitTest: function (x, y) {
-
         for (var i = this._clanElements.length - 1; i >= 0; i--) {
-
             var el = this._clanElements[i];
-
             if (x >= el.x && x <= el.x + el.w && y >= el.y && y <= el.y + el.h) return el;
-
         }
-
         return null;
-
     },
-
-
-
-    _clanHitHandle: function (x, y) {
-
-        if (!this._clanSelected) return false;
-
-        var el = this._clanSelected;
-
-        var hs = 10;
-
-        var bx = el.x + el.w, by = el.y + el.h;
-
-        return (x >= bx - hs && x <= bx + hs && y >= by - hs && y <= by + hs);
-
-    },
-
-
 
     _saveClanLayout: function () {
-
         try {
-
-            localStorage.setItem('tankparty_clan_layout', JSON.stringify(this._clanElements));
-
+            var meta = { type:'_meta', sortBy: this._clanSortBy || 'name', version: (typeof CLAN_LAYOUT_VERSION !== 'undefined' ? CLAN_LAYOUT_VERSION : 1) };
+            var data = [meta].concat(this._clanElements.map(function (el) {
+                var copy = {};
+                for (var k in el) {
+                    if (k === 'imageData' && el.type !== 'image') continue;
+                    copy[k] = el[k];
+                }
+                return copy;
+            }));
+            var json = JSON.stringify(data);
+            try {
+                localStorage.setItem('tankparty_clan_layout', json);
+            } catch (e1) {
+                // Quota exceeded (usually a big background image):
+                // store each image under its own key and reference it by key in the layout
+                var stripped = data.map(function (el, i) {
+                    if (el.type === 'image' && el.imageData) {
+                        try {
+                            localStorage.setItem('tankparty_clan_img_' + i, el.imageData);
+                            var c = {};
+                            for (var k in el) { if (k !== 'imageData') c[k] = el[k]; }
+                            c.imageData = 'tankparty_clan_img_' + i;
+                            return c;
+                        } catch (e2) {
+                            var c2 = {};
+                            for (var k2 in el) { if (k2 !== 'imageData') c2[k2] = el[k2]; }
+                            return c2;
+                        }
+                    }
+                    return el;
+                });
+                localStorage.setItem('tankparty_clan_layout', JSON.stringify(stripped));
+                console.warn('Clan layout saved: images stored separately (localStorage quota).');
+            }
         } catch (e) {
-
             console.error('Save clan layout failed:', e);
-
         }
-
     },
 
-
-
     _loadClanLayout: function () {
-
         try {
-
             var data = JSON.parse(localStorage.getItem('tankparty_clan_layout'));
-
-            if (!data) return [];
-
-            return data;
-
+            var els;
+            if (!data) {
+                // Fall back to the embedded default layout so the editor starts
+                // from the installed design instead of an empty canvas
+                if (typeof CLAN_DEFAULT_LAYOUT !== 'undefined' && CLAN_DEFAULT_LAYOUT && CLAN_DEFAULT_LAYOUT.length) {
+                    return JSON.parse(JSON.stringify(CLAN_DEFAULT_LAYOUT));
+                }
+                return [];
+            }
+            if (data.length && data[0].type === '_meta') {
+                this._clanSortBy = data[0].sortBy || 'name';
+                els = data.slice(1);
+            } else {
+                els = data;
+            }
+            // Saved design is older than the installed default: start from the updated default
+            var meta0 = (data.length && data[0].type === '_meta') ? data[0] : null;
+            if (typeof CLAN_LAYOUT_VERSION !== 'undefined' && (!meta0 || (meta0.version || 0) < CLAN_LAYOUT_VERSION)) {
+                if (typeof CLAN_DEFAULT_LAYOUT !== 'undefined' && CLAN_DEFAULT_LAYOUT && CLAN_DEFAULT_LAYOUT.length) {
+                    return JSON.parse(JSON.stringify(CLAN_DEFAULT_LAYOUT));
+                }
+            }
+            // Resolve separately-stored images back into data URLs
+            return els.map(function (el) {
+                if (el && el.type === 'image' && typeof el.imageData === 'string' && el.imageData.indexOf('tankparty_clan_img_') === 0) {
+                    try {
+                        var d = localStorage.getItem(el.imageData);
+                        if (d) {
+                            var c = {};
+                            for (var k in el) { if (k !== 'imageData') c[k] = el[k]; }
+                            c.imageData = d;
+                            return c;
+                        }
+                    } catch (e) {}
+                }
+                return el;
+            });
         } catch (e) {
-
             return [];
-
         }
-
     },
 
 };

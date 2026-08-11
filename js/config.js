@@ -1,6 +1,8 @@
 /* ============================================================
-   config.js â€” game balance + world constants + tank roster
+   config.js — game balance + world constants + tank roster
    ============================================================ */
+
+const TROPHIES = [];
 
 const CONFIG = {
   // Nakama (Heroic Cloud / self-hosted)
@@ -11,15 +13,18 @@ const CONFIG = {
     SERVER_KEY: 'defaultkey',  // your Nakama server key
   },
 
-  // PeerJS â€” STUN + free TURN relay so P2P works behind strict NAT
+  // PeerJS — STUN + free TURN relay so P2P works behind strict NAT
   PEER_ICE: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
   ],
 
+  // Persistent clan registry backend (Cloudflare Worker + KV, always online)
+  CLAN_API_URL: 'https://clan-registry-api.nojus-t.workers.dev',
+
   // World
-  WORLD_SIZE:      150,   // small map
+  WORLD_SIZE:      450,   // 3x bigger open battlefield
   GRID_DIVISIONS:  60,    // ground shader grid lines
   TANK_Y:          1.2,   // all tanks drive at this Y (flat, like the reference)
 
@@ -32,6 +37,7 @@ const CONFIG = {
   CAM_LERP:        0.14,
   CAM_ZOOM_STEP:   2.5,
   CAM_ROTATE_SPEED: 2.0,  // radians per second for keyboard camera orbit
+  CAM_SWIPE_SENSITIVITY: 0.008, // radians per pixel for swipe camera rotate
 
   // Drift / handbrake
   DRIFT_MIN_KMH:   5,    // need at least this speed to drift
@@ -62,8 +68,33 @@ const CONFIG = {
   MODEL_DIR:   'mini_tank_legends_models/',
   MODEL_EXT:   '.gltf',
 
+  // Supers
+  SUPER_COOLDOWN: 60,   // seconds between super uses
+
   // Networking
   PEER_PREFIX:     'tankparty-v1-',
+};
+
+/* ---------- GAMEMODES ---------- */
+const GAMEMODES = {
+  // Gladiator: 10-player free-for-all on one map.
+  // Square safe zone shrinks from the edges toward the center in chunks:
+  // each chunk shows an ORANGE warning band first, which turns RED after
+  // stageTime seconds. Red zone deals redDps HP per second.
+  gladiator: {
+    id:'gladiator', name:'Gladiator', maxTanks:10, botCount:9,
+    spawnSubType:'gladiator', boxSubType:'gladiatorbox',
+    zone:{
+      graceTime:20,   // seconds before first orange band appears
+      stageTime:60,   // orange -> red transition time per chunk
+      chunk:12,       // safe square half-size reduction per stage
+      minHalf:8,      // stop shrinking at this safe half-size
+      finalHalf:0,    // final collapse: whole map turns red
+    },
+    power:{ kill:20, box:5, airdrop:40 },
+    airdrop:{ firstDelay:45, interval:40, countdown:30, holdTime:10 },
+    redDps:10,
+  },
 };
 
 /* ---------- TANK ROSTER ---------- */
@@ -74,15 +105,19 @@ const TANKS = {
     body:{ w:3.0, h:1.0, l:4.4 },
     turret:{ w:1.8, h:0.8, l:2.4 },
     barrelLen:1.6, barrelR:0.16,
+    model:'coolbuddy', modelScale:12.75,
+    modelFlipY:true, muzzleZOff:0.15,
+    ejectShell:true, shellDelay:1.0,
     hp:200, speed:22, turn:1.8,
     turretTurn:2.4,
     damage:34, reload:1.6, shellSpeed:90, shellRange:40,
     accel:18, shellType:'shell',
     mass:30, viewRange:105,
-    model:'coolbuddy', modelScale:1.0,
     armor:{front:10, sides:30, back:10},
     desc:'Balanced all-rounder.',
     friction: 0.88,
+    superType:'airstrike',
+    airstrikeBombs:3, airstrikeDelay:3, airstrikeRadius:4, airstrikeDamage:60,
   },
 
   helix: {
@@ -101,6 +136,8 @@ const TANKS = {
     armor:{front:30, sides:30, back:30},
     desc:'Flamethrower. Devastating up close.',
     friction: 0.85,
+    superType:'oil',
+    oilFill:4, oilBurn:1, oilDamage:4, oilTick:0.25,
   },
 
   striker: {
@@ -118,6 +155,8 @@ const TANKS = {
     armor:{front:30, sides:30, back:30},
     desc:'Glass cannon. Fast, long-range shells.',
     friction: 0.90,
+    superType:'bush',
+    bushMax:3,
   },
 
   ghost: {
@@ -131,10 +170,12 @@ const TANKS = {
     damage:14, reload:0.45, shellSpeed:95, shellRange:35,
     accel:30, shellType:'shell',
     mass:18, viewRange:110,
-    model:'ghost', modelScale:1.0,
+    model:'ghost', modelScale:0.3,
     armor:{front:30, sides:30, back:30},
     desc:'Tiny, fast, hit-and-run.',
     friction: 0.82,
+    superType:'cloak',
+    cloakWindup:3, cloakMax:10,
   },
 
   dummy: {
@@ -165,7 +206,7 @@ const TANKS = {
     damage:0, reload:999, shellSpeed:0, shellRange:0,
     accel:0, shellType:'shell',
     mass:999, viewRange:0,
-    model:'tankdisplay', modelScale:1.0,
+    model:'coolbuddy', modelScale:7.5,
     armor:{front:999, sides:999, back:999},
     desc:'Display tank.',
     friction: 1.0,
@@ -186,10 +227,83 @@ const TANKS = {
     armor:{front:30, sides:30, back:30},
     desc:'Juggernaut. Massive shells, very slow.',
     friction: 0.92,
+    superType:'panzers',
+    panzerDelay:8,
+  },
+
+  rapid: {
+    id:'rapid', name:'Rapid', tier:1, collection:1,
+    color:0x3a9a4a, turretColor:0x55b860,
+    body:{ w:2.8, h:0.95, l:4.0 },
+    turret:{ w:1.6, h:0.75, l:2.0 },
+    barrelLen:1.4, barrelR:0.12,
+    hp:160, speed:24, turn:2.0,
+    turretTurn:2.6,
+    damage:14, reload:0.30, shellSpeed:100, shellRange:42,
+    accel:20, shellType:'shell',
+    mass:26, viewRange:110,
+    model:'coolbuddy', modelScale:8.4,
+    magSize:3, magReload:2.6,
+    armor:{front:10, sides:20, back:10},
+    desc:'Shell magazine. Sprays 3 quick shells, then reloads.',
+    friction: 0.88,
+  },
+
+  blitz: {
+    id:'blitz', name:'Blitz', tier:2, collection:2,
+    color:0xc98a2e, turretColor:0xe0a84a,
+    body:{ w:3.0, h:1.0, l:4.4 },
+    turret:{ w:1.8, h:0.85, l:2.3 },
+    barrelLen:2.0, barrelR:0.15,
+    hp:180, speed:21, turn:1.7,
+    turretTurn:2.8,
+    damage:24, reload:0.26, shellSpeed:140, shellRange:52,
+    accel:18, shellType:'shell',
+    mass:32, viewRange:135,
+    model:'striker', modelScale:1.05,
+    magSize:3, magReload:3.2,
+    armor:{front:20, sides:25, back:15},
+    desc:'Shell magazine. Burst cannon with long reach.',
+    friction: 0.90,
+  },
+
+  vulkan: {
+    id:'vulkan', name:'Vulkan', tier:3, collection:3,
+    color:0xb83a3a, turretColor:0xd85a4a,
+    body:{ w:3.6, h:1.25, l:5.2 },
+    turret:{ w:2.4, h:1.0, l:2.8 },
+    barrelLen:2.2, barrelR:0.2,
+    hp:320, speed:15, turn:1.1,
+    turretTurn:2.0,
+    damage:30, reload:0.22, shellSpeed:90, shellRange:44,
+    accel:11, shellType:'shell',
+    mass:48, viewRange:100,
+    model:'sturmratte', modelScale:1.4,
+    magSize:5, magReload:4.5,
+    armor:{front:30, sides:30, back:30},
+    desc:'Shell magazine. Heavy 5-round rotary burst.',
+    friction: 0.92,
+  },
+
+  panzer: {
+    id:'panzer', name:'Panzer', tier:3, collection:0,
+    color:0x6a6e72, turretColor:0x8a9096,
+    body:{ w:2.0, h:0.85, l:3.0 },
+    turret:{ w:1.2, h:0.65, l:1.6 },
+    barrelLen:1.0, barrelR:0.11,
+    hp:60, speed:28, turn:2.2,
+    turretTurn:3.0,
+    damage:7, reload:0.8, shellSpeed:95, shellRange:32,
+    accel:24, shellType:'shell',
+    mass:14, viewRange:90,
+    model:'ghost', modelScale:0.25,
+    armor:{front:10, sides:20, back:10},
+    desc:'Sturmratte escort panzer.',
+    friction: 0.85,
   },
 };
 
-const TANK_ORDER = ['coolbuddy','helix','striker','ghost','sturmratte','tankdisplay'];
+const TANK_ORDER = ['coolbuddy','rapid','helix','striker','blitz','ghost','vulkan','sturmratte','tankdisplay'];
 const U_TO_KMH = CONFIG.U_TO_KMH;
 
 /* World palette */
@@ -215,12 +329,19 @@ const DEFAULT_BINDS = {
   camLeft:  { key:'ArrowLeft',  label:'Camera Left' },
   camRight: { key:'ArrowRight', label:'Camera Right' },
   minimap:  { key:'KeyM',       label:'Toggle Map' },
+  super:    { key:'KeyF',       label:'Super Ability' },
 };
 
 function loadSettings(){
   const defaults = () => Object.fromEntries(Object.keys(DEFAULT_BINDS).map(k=>[k,DEFAULT_BINDS[k].key]));
   try{
     const s = JSON.parse(localStorage.getItem('tankparty_settings')||'{}');
+    // One-time migration: unlock the newest shell-magazine tanks for existing players
+    if(!s.mtl_mag_unlocked){
+      s.unlockedTanks = Array.from(new Set([...(s.unlockedTanks||[]), 'rapid', 'blitz', 'vulkan']));
+      s.mtl_mag_unlocked = true;
+      localStorage.setItem('tankparty_settings', JSON.stringify(s));
+    }
     return {
       binds: Object.assign(defaults(), s.binds||{}),
       selectedTank: s.selectedTank || 'coolbuddy',
@@ -237,19 +358,36 @@ function loadSettings(){
       viewRangeWidth:   (s.viewRangeWidth!=null? s.viewRangeWidth : CONFIG.VIEW_RANGE_WIDTH),
       graphicsQuality:  s.graphicsQuality || 'default',
       camRotation:      s.camRotation || 0,
+      camMode:          s.camMode || 'arrows',
+      pinchZoom:        s.pinchZoom !== false,
       unlockedTanks:    s.unlockedTanks || ['coolbuddy'],
       allUnlocked:      s.allUnlocked || false,
+      clanWeeklyXP:     typeof s.clanWeeklyXP === 'number' ? s.clanWeeklyXP : 0,
+      clanWeekKey:      s.clanWeekKey || 0,
+      clanWeeklyRewarded: s.clanWeeklyRewarded || false,
+      clanWeekWins:     s.clanWeekWins || 0,
+      clanWeekWinsBonus: s.clanWeekWinsBonus || false,
+      clanWeekLoginXP:  s.clanWeekLoginXP || 0,
+      clanLastLoginDay: s.clanLastLoginDay || 0,
+      tlPlus:           s.tlPlus || false,
+      screenShake:      (typeof s.screenShake === 'number' ? s.screenShake : 100),
+      muzzleFx:         s.muzzleFx !== false,
+      showFps:          !!s.showFps,
+      invertCamRot:     !!s.invertCamRot,
     };
   }catch(e){
     return {binds:defaults(), selectedTank:'coolbuddy', playerName:'Player'+Math.floor(Math.random()*9000+1000), playerClan:'', coins:0, gems:0,
-            aimLineOpacity:CONFIG.AIM_LINE_OPACITY, aimLineColor:CONFIG.AIM_LINE_COLOR, aimLineDesign:'professional',
+            aimLineOpacity:CONFIG.AIM_LINE_OPACITY, aimLineColor:CONFIG.AIM_LINE_COLOR, aimLineDesign:'default',
             viewRangeOpacity:CONFIG.VIEW_RANGE_OPACITY, viewRangeColor:CONFIG.VIEW_RANGE_COLOR,
-            viewRangeWidth:CONFIG.VIEW_RANGE_WIDTH, graphicsQuality:'default', camRotation:0, ricochetIndicator:true,
-            unlockedTanks:['coolbuddy'], allUnlocked:false};
+            viewRangeWidth:CONFIG.VIEW_RANGE_WIDTH, graphicsQuality:'default', camRotation:0, camMode:'arrows', pinchZoom:true, ricochetIndicator:true,
+            unlockedTanks:['coolbuddy'], allUnlocked:false, clanWeeklyXP:0, clanWeekKey:0, clanWeeklyRewarded:false,
+            clanWeekWins:0, clanWeekWinsBonus:false, clanWeekLoginXP:0, clanLastLoginDay:0, tlPlus:false,
+            screenShake:100, muzzleFx:true, showFps:false, invertCamRot:false};
   }
 }
 function saveSettings(s){
   localStorage.setItem('tankparty_settings', JSON.stringify(s));
+  if(window.Auth && window.Auth.onSettingsSaved) window.Auth.onSettingsSaved(s);
 }
 function resetSettings(){
   localStorage.removeItem('tankparty_settings');
@@ -271,3 +409,114 @@ function saveMainMap(mapData){ localStorage.setItem('tankparty_mainmap', JSON.st
 function loadMainMap(){ try{ return JSON.parse(localStorage.getItem('tankparty_mainmap')||'null'); }catch(e){ return null; } }
 function hasMainMap(){ return !!localStorage.getItem('tankparty_mainmap'); }
 function clearMainMap(){ localStorage.removeItem('tankparty_mainmap'); }
+
+/* ========== Clan XP System ========== */
+var CLAN_XP_CAP = 10000;
+var WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+function getWeekKey(){ return Math.floor(Date.now() / WEEK_MS); }
+
+var CLAN_GLAD_XP = {1:250, 2:150, 3:75};      // single-player gladiator placement XP
+var CLAN_LOGIN_DAILY = 100;                   // daily login XP
+var CLAN_LOGIN_WEEK_CAP = 700;                // max login XP per member per week
+var CLAN_TLPLUS_DAILY = 300;                  // future TL+ subscription: login XP per day
+var CLAN_WIN_BONUS_XP = 2000;                 // 10x 1st place in gladiator within a week
+var CLAN_WIN_BONUS_COUNT = 10;
+
+function clanCodeOf(){
+  try{
+    const c = JSON.parse(localStorage.getItem('tankparty_clan') || 'null');
+    return (c && c.code) ? String(c.code) : '';
+  }catch(e){ return ''; }
+}
+function isInClan(){ return !!clanCodeOf(); }
+
+/* Award XP to the local member (capped locally, reseeds the week's counters). */
+function addClanXP(n){
+  const s = Menu.settings;
+  if(!s || !isInClan()) return;
+  const wk = getWeekKey();
+  if(s.clanWeekKey !== wk){
+    s.clanWeeklyXP = 0;
+    s.clanWeekKey = wk;
+    s.clanWeeklyRewarded = false;
+    s.clanWeekWins = 0;
+    s.clanWeekWinsBonus = false;
+    s.clanWeekLoginXP = 0;
+  }
+  s.clanWeeklyXP = Math.min(CLAN_XP_CAP, (s.clanWeeklyXP || 0) + Math.max(0, n | 0));
+  saveSettings(s);
+  clanXPPost(n);
+}
+
+/* Fire-and-forget push of XP into the clan-total ledger (cloud worker). */
+function clanXPPost(add){
+  try{
+    if(!add || !window.Auth || !Auth.token || !Auth.loggedIn()) return;
+    fetch(CONFIG.CLAN_API_URL + '/clanxp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: Auth.token, code: clanCodeOf(), add: add | 0, week: getWeekKey() })
+    }).catch(()=>{});
+  }catch(_){}
+}
+
+/* Ask the cloud how much XP the whole clan collected in `week`. */
+function clanXPWeekReport(week, cb){
+  cb = cb || function(){};
+  try{
+    if(!isInClan() || !window.Auth || !Auth.token) return cb(null);
+    fetch(CONFIG.CLAN_API_URL + '/clanxp?code=' + encodeURIComponent(clanCodeOf()) + '&week=' + (week || 0))
+      .then(r => r.json())
+      .then(d => cb(d && d.total >= CLAN_XP_CAP ? d : null))
+      .catch(() => cb(null));
+  }catch(_){ cb(null); }
+}
+
+/* One-time cloud claim flag: true only the first time this account claims week's box. */
+function clanXPClaimWeek(week, cb){
+  cb = cb || function(){};
+  try{
+    if(!isInClan() || !window.Auth || !Auth.token) return cb(false);
+    fetch(CONFIG.CLAN_API_URL + '/clanxp/claim', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: Auth.token, code: clanCodeOf(), week: week })
+    }).then(r => r.json()).then(d => cb(!!(d && d.claimed))).catch(() => cb(false));
+  }catch(_){ cb(false); }
+}
+
+/* Week rolled over: if the clan's total last week hit the cap, every member
+   (this account) may claim one box. Called once per rollover via menu/game. */
+function checkClanWeeklyBox(oldWeek){
+  if(!oldWeek || !isInClan() || !window.Auth || !Auth.token) return;
+  clanXPWeekReport(oldWeek, rep => {
+    if(!rep) return;
+    clanXPClaimWeek(oldWeek, claimed => {
+      if(!claimed) return;
+      const s = Menu.settings;
+      addClanItem('box', { source:'weekly_xp', week: oldWeek });
+      s.clanWeeklyRewarded = true;
+      saveSettings(s);
+      if(Menu.toast) Menu.toast('\u{1F4E6} Clan weekly XP complete — box added to your storage!');
+    });
+  });
+}
+
+function loadClanStorage(){
+  try{ return JSON.parse(localStorage.getItem('tankparty_storage')||'[]'); }catch(e){ return []; }
+}
+function saveClanStorage(items){
+  localStorage.setItem('tankparty_storage', JSON.stringify(items));
+}
+function addClanItem(type, meta){
+  var items = loadClanStorage();
+  items.push({ type:type, meta:meta||{}, acquired:Date.now(), week:getWeekKey() });
+  saveClanStorage(items);
+  return items;
+}
+function removeClanItem(index){
+  var items = loadClanStorage();
+  if(index >= 0 && index < items.length) items.splice(index, 1);
+  saveClanStorage(items);
+  return items;
+}

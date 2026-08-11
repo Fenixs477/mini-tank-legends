@@ -323,7 +323,6 @@ input:focus{border-color:var(--accent)}
   justify-content:center;font-family:sans-serif;pointer-events:none;line-height:1}
 
 .is-mobile .map-key-hint{display:none!important}
-.is-desktop .settings-tab[data-tab="other"]{display:none}
 
 
 
@@ -370,6 +369,33 @@ input:focus{border-color:var(--accent)}
 @media (max-height:500px){#reload-indicator{left:calc(50% + 104px);width:44px;height:44px}}
 
 @media (max-height:400px){#reload-indicator{display:none}}
+
+/* Super ability slot — sits further left of the HP bar (mirror of reload indicator) */
+#super-wrap{position:absolute;left:calc(50% - 270px);bottom:18px;width:68px;height:68px}
+
+#super-btn{
+  width:100%;height:100%;border-radius:50%;border:2px solid rgba(255,255,255,.22);
+  background:conic-gradient(rgba(255,177,43,.9) calc((1 - var(--cd,0)) * 360deg), rgba(255,255,255,.1) 0);
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;outline:none;padding:0;box-shadow:0 2px 8px rgba(0,0,0,.4);
+}
+#super-btn::before{content:'';position:absolute;inset:5px;border-radius:50%;background:linear-gradient(160deg,#20242a,#12151a)}
+.super-icon{position:relative;z-index:1;font-size:22px;line-height:1;filter:drop-shadow(0 1px 2px #000)}
+.super-label{position:relative;z-index:1;font-size:10px;font-weight:700;color:#fff;margin-top:2px;text-shadow:0 1px 2px #000;letter-spacing:.5px}
+#super-btn.ready{animation:super-ready 1.6s ease-in-out infinite;border-color:var(--accent)}
+#super-btn.active{border-color:#ff6a2a;box-shadow:0 0 14px rgba(255,106,42,.7)}
+#super-btn:active{transform:scale(.95)}
+@keyframes super-ready{
+  0%,100%{box-shadow:0 0 4px rgba(255,177,43,.35)}
+  50%{box-shadow:0 0 16px rgba(255,177,43,.95)}
+}
+#super-hint{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);
+  white-space:nowrap;background:rgba(0,0,0,.7);color:#ffd27a;font-size:11px;padding:4px 10px;border-radius:10px;
+  border:1px solid rgba(255,177,43,.35);pointer-events:none}
+
+@media (max-width:768px){#super-wrap{left:calc(50% - 200px);bottom:14px;width:54px;height:54px}#super-btn::before{inset:4px}}
+@media (max-height:500px){#super-wrap{left:calc(50% - 150px);bottom:12px;width:44px;height:44px}#super-btn::before{inset:3px}}
+@media (max-height:400px){#super-wrap{display:none}}
 
 #hp-text{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);
 
@@ -426,6 +452,56 @@ input:focus{border-color:var(--accent)}
 #net-status.on{color:#8be06b;border-color:#5fdc3a}
 
 #net-status.off{color:#ff6644;border-color:#ff3311}
+
+/* Gladiator mode HUD */
+
+#glad-hud{position:absolute;left:50%;top:10px;transform:translateX(-50%);
+
+  display:flex;gap:10px;align-items:center;pointer-events:none;z-index:20}
+
+#glad-power,#glad-left{background:rgba(0,0,0,.7);border:1px solid var(--line);
+
+  border-radius:12px;padding:4px 14px;font-size:13px;font-weight:700;color:#ffb12b;
+
+  letter-spacing:.04em;white-space:nowrap}
+
+#glad-left{color:#ff6a3b}
+
+#glad-banner{position:absolute;top:52px;left:50%;transform:translateX(-50%);
+
+  background:rgba(0,0,0,.72);border:1px solid #ff9a2a;color:#ffc46b;
+
+  border-radius:12px;padding:5px 16px;font-size:13px;font-weight:700;
+
+  letter-spacing:.05em;pointer-events:none;z-index:20;white-space:nowrap;
+
+  text-shadow:0 1px 3px #000}
+
+#glad-result{position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;
+
+  background:rgba(0,0,0,.55);backdrop-filter:blur(3px)}
+
+#glad-result .glad-result-box{background:#1a1e24;border:2px solid #ffb12b;border-radius:14px;
+
+  padding:28px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.7);
+
+  max-width:420px}
+
+#glad-result-text{font-size:26px;font-weight:800;color:#ffb12b;letter-spacing:.06em;
+
+  text-transform:uppercase;margin-bottom:20px;line-height:1.25}
+
+#glad-result .glad-result-btns{display:flex;gap:10px;justify-content:center}
+
+#glad-result button{padding:10px 18px;border:none;border-radius:8px;font-size:14px;
+
+  font-weight:700;cursor:pointer;color:#fff;background:#3a3f46}
+
+#glad-result button:hover{filter:brightness(1.2)}
+
+#glad-watch-btn{background:#27ae60 !important}
+
+#glad-exit-btn{background:#e74c3c !important}
 
 
 
@@ -662,14 +738,28 @@ input[type=color]{width:100%;height:38px;background:#1c1c1c;border:1px solid var
 #main-menu-preview-canvas {
 
   position: absolute;
+  inset: 0;
+  z-index: 0;
+
+  background: #1a1a1a url('main-menu-bg.png') center / cover no-repeat;
+
+  pointer-events: none;
+
+}
+
+#main-menu-preview-canvas::after {
+
+  content: '';
+
+  position: absolute;
 
   inset: 0;
 
-  z-index: 0;
-
-  background: #1a1a1a;
+  z-index: 1;
 
   pointer-events: none;
+
+  background: radial-gradient(ellipse at 50% 42%, rgba(10,12,16,0.18), rgba(10,12,16,0.62) 100%);
 
 }
 
@@ -785,16 +875,6 @@ input[type=color]{width:100%;height:38px;background:#1c1c1c;border:1px solid var
 
 .btn-play {
 
-  position: absolute;
-
-  bottom: 70px;
-
-  left: 50%;
-
-  transform: translateX(-50%);
-
-  z-index: 1;
-
   padding: 18px 60px;
 
   font-size: 22px;
@@ -827,7 +907,7 @@ input[type=color]{width:100%;height:38px;background:#1c1c1c;border:1px solid var
 
 .btn-play:hover {
 
-  transform: translateX(-50%) translateY(-2px);
+  transform: translateY(-2px);
 
   background: linear-gradient(135deg, #ffc24b 0%, #ffa020 50%, #ff8000 100%);
 
@@ -839,9 +919,357 @@ input[type=color]{width:100%;height:38px;background:#1c1c1c;border:1px solid var
 
 .btn-play:active {
 
-  transform: translateX(-50%) translateY(1px);
+  transform: translateY(1px);
 
 }
+
+
+
+/* Main menu play row container */
+
+.main-menu-play-row {
+
+  position: absolute;
+
+  bottom: 70px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 15px;
+
+  z-index: 1;
+
+}
+
+
+
+/* Gamemode button */
+
+.btn-gamemode {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 56px;
+
+  height: 56px;
+
+  font-size: 28px;
+
+  background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 50%, #7d3c98 100%);
+
+  backdrop-filter: blur(8px);
+
+  border: 2px solid rgba(255,255,255,0.3);
+
+  border-radius: 16px;
+
+  cursor: pointer;
+
+  transition: .2s;
+
+  touch-action: manipulation;
+
+  -webkit-tap-highlight-color: transparent;
+
+  box-shadow: 0 4px 20px rgba(155, 89, 182, 0.4);
+
+}
+
+
+
+.btn-gamemode:hover {
+
+  transform: translateY(-2px);
+
+  background: linear-gradient(135deg, #a86cc1 0%, #9b59b6 50%, #8e44ad 100%);
+
+  border-color: rgba(255,255,255,0.5);
+
+  box-shadow: 0 6px 25px rgba(155, 89, 182, 0.5);
+
+}
+
+
+
+.btn-gamemode:active {
+
+  transform: translateY(1px);
+
+}
+
+
+
+/* Gamemode container */
+
+.gamemode-container {
+
+  position: relative;
+
+  width: 100%;
+
+  height: 100vh;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding: 20px;
+
+}
+
+
+
+.gamemode-grid {
+
+  display: grid;
+
+  grid-template-columns: 1.5fr 1fr;
+
+  grid-template-rows: 1fr 1fr;
+
+  gap: 15px;
+
+  width: 100%;
+
+  max-width: 800px;
+
+  aspect-ratio: 4/3;
+
+  background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+
+  border: 3px solid #3a3a3a;
+
+  border-radius: 20px;
+
+  padding: 20px;
+
+  box-shadow: 
+
+    0 10px 40px rgba(0, 0, 0, 0.6),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+}
+
+
+
+/* Gamemode squares */
+
+.gamemode-square {
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 16px;
+
+  cursor: pointer;
+
+  transition: .3s;
+
+  position: relative;
+
+  overflow: hidden;
+
+  border: 2px solid rgba(255, 255, 255, 0.1);
+
+}
+
+
+
+.gamemode-square::before {
+
+  content: '';
+
+  position: absolute;
+
+  top: 0;
+
+  left: 0;
+
+  width: 100%;
+
+  height: 100%;
+
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+
+  opacity: 0;
+
+  transition: .3s;
+
+}
+
+
+
+.gamemode-square:hover::before {
+
+  opacity: 1;
+
+}
+
+
+
+.gamemode-square:hover {
+
+  transform: scale(1.02);
+
+  border-color: rgba(255, 255, 255, 0.3);
+
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+
+}
+
+
+
+.gamemode-square:active {
+
+  transform: scale(0.98);
+
+}
+
+
+
+/* Gladiator - 30% (largest) */
+
+.gladiator-square {
+
+  background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+
+  grid-row: 1 / 2;
+
+  grid-column: 1 / 2;
+
+}
+
+
+
+/* Sandbox - 20% (smallest) */
+
+.sandbox-square {
+
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+
+  grid-row: 1 / 2;
+
+  grid-column: 2 / 3;
+
+}
+
+
+
+/* Platform King - 25% */
+
+.platform-king-square {
+
+  background: linear-gradient(135deg, #f39c12 0%, #d68910 100%);
+
+  grid-row: 2 / 3;
+
+  grid-column: 1 / 2;
+
+}
+
+
+
+/* Multiplayer - 25% */
+
+.multiplayer-square {
+
+  background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+
+  grid-row: 2 / 3;
+
+  grid-column: 2 / 3;
+
+}
+
+
+
+/* Gamemode content */
+
+.gamemode-icon {
+
+  font-size: 48px;
+
+  margin-bottom: 8px;
+
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+
+}
+
+
+
+.gamemode-name {
+
+  font-size: 18px;
+
+  font-weight: 800;
+
+  color: #ffffff;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1px;
+
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  margin-bottom: 4px;
+
+}
+
+
+
+.gamemode-percent {
+
+  font-size: 14px;
+
+  font-weight: 600;
+
+  color: rgba(255, 255, 255, 0.8);
+
+  background: rgba(0, 0, 0, 0.3);
+
+  padding: 4px 12px;
+
+  border-radius: 12px;
+
+}
+
+
+
+/* Gamemode back button */
+
+.gamemode-back {
+
+  position: absolute;
+
+  bottom: 30px;
+
+  left: 30px;
+
+  z-index: 10;
+
+}
+
+
 
 .main-menu-side {
 
@@ -1259,6 +1687,92 @@ html, body {
 
 }
 
+/* Joystick function labels (follow the joystick, not the screen side) */
+
+#joystick-move .joystick-outer::after {
+
+  content: 'DRIVE';
+
+  position: absolute;
+
+  top: 100%;
+
+  left: 50%;
+
+  transform: translate(-50%, 10px);
+
+  width: auto;
+
+  height: auto;
+
+  border: none;
+
+  border-radius: 0;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  letter-spacing: 2px;
+
+  color: rgba(255, 177, 43, 0.8);
+
+  background: rgba(0, 0, 0, 0.45);
+
+  padding: 3px 8px;
+
+  border-radius: 6px;
+
+  opacity: 1;
+
+  text-shadow: none;
+
+  white-space: nowrap;
+
+}
+
+#joystick-turret .joystick-outer::after {
+
+  content: 'TURRET';
+
+  position: absolute;
+
+  top: 100%;
+
+  left: 50%;
+
+  transform: translate(-50%, 10px);
+
+  width: auto;
+
+  height: auto;
+
+  border: none;
+
+  border-radius: 0;
+
+  font-size: 10px;
+
+  font-weight: 700;
+
+  letter-spacing: 2px;
+
+  color: rgba(255, 177, 43, 0.8);
+
+  background: rgba(0, 0, 0, 0.45);
+
+  padding: 3px 8px;
+
+  border-radius: 6px;
+
+  opacity: 1;
+
+  text-shadow: none;
+
+  white-space: nowrap;
+
+}
+
 
 
 /* Hide joysticks on desktop (show only on touch devices) */
@@ -1430,6 +1944,1326 @@ html, body {
   .tank-grid {
 
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+
+  }
+
+}
+
+
+
+/* ============ CLAN SYSTEM STYLING ============ */
+
+
+
+/* Clan menu cards - dark gray theme */
+
+.clan-menu-card {
+
+  background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+
+  border: 2px solid #3a3a3a;
+
+  box-shadow: 
+
+    0 8px 32px rgba(0, 0, 0, 0.6),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  backdrop-filter: blur(10px);
+
+}
+
+
+
+/* Clan title styling */
+
+.clan-title {
+
+  font-size: 32px;
+
+  font-weight: 800;
+
+  letter-spacing: 4px;
+
+  text-align: center;
+
+  margin-bottom: 24px;
+
+  background: linear-gradient(135deg, #ffb12b, #ff8c00);
+
+  -webkit-background-clip: text;
+
+  background-clip: text;
+
+  color: transparent;
+
+  text-shadow: 0 2px 10px rgba(255, 177, 43, 0.3);
+
+}
+
+
+
+/* Clan menu buttons container */
+
+.clan-menu-buttons {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 14px;
+
+  margin-bottom: 20px;
+
+}
+
+
+
+/* 3D Clan buttons */
+
+.clan-3d-btn {
+
+  position: relative;
+
+  padding: 16px 24px;
+
+  font-size: 16px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+
+  text-transform: uppercase;
+
+  border: none;
+
+  border-radius: 14px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+
+  background: linear-gradient(145deg, #3a3a3a, #2a2a2a);
+
+  color: #fff;
+
+  box-shadow: 
+
+    0 6px 0 #1a1a1a,
+
+    0 8px 20px rgba(0, 0, 0, 0.4),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+
+}
+
+
+
+.clan-3d-btn:hover {
+
+  transform: translateY(-2px);
+
+  box-shadow: 
+
+    0 8px 0 #1a1a1a,
+
+    0 12px 25px rgba(0, 0, 0, 0.5),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+}
+
+
+
+.clan-3d-btn:active {
+
+  transform: translateY(4px);
+
+  box-shadow: 
+
+    0 2px 0 #1a1a1a,
+
+    0 4px 10px rgba(0, 0, 0, 0.3),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+}
+
+
+
+/* Primary clan button - orange gradient */
+
+.clan-3d-btn.btn-primary {
+
+  background: linear-gradient(145deg, #ff8c00, #ff6b00);
+
+  color: #1a1a1a;
+
+  box-shadow: 
+
+    0 6px 0 #cc5500,
+
+    0 8px 20px rgba(255, 107, 0, 0.4),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+
+  text-shadow: none;
+
+}
+
+
+
+.clan-3d-btn.btn-primary:hover {
+
+  background: linear-gradient(145deg, #ffa020, #ff8000);
+
+  box-shadow: 
+
+    0 8px 0 #cc5500,
+
+    0 12px 25px rgba(255, 107, 0, 0.5),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+
+}
+
+
+
+.clan-3d-btn.btn-primary:active {
+
+  box-shadow: 
+
+    0 2px 0 #cc5500,
+
+    0 4px 10px rgba(255, 107, 0, 0.3),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+}
+
+
+
+/* Danger clan button - red gradient */
+
+.clan-3d-btn.btn-danger {
+
+  background: linear-gradient(145deg, #ff4444, #cc0000);
+
+  color: #fff;
+
+  box-shadow: 
+
+    0 6px 0 #990000,
+
+    0 8px 20px rgba(204, 0, 0, 0.4),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+}
+
+
+
+.clan-3d-btn.btn-danger:hover {
+
+  background: linear-gradient(145deg, #ff6666, #dd0000);
+
+  box-shadow: 
+
+    0 8px 0 #990000,
+
+    0 12px 25px rgba(204, 0, 0, 0.5),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+
+}
+
+
+
+.clan-3d-btn.btn-danger:active {
+
+  box-shadow: 
+
+    0 2px 0 #990000,
+
+    0 4px 10px rgba(204, 0, 0, 0.3),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+}
+
+
+
+/* Clan visibility segmented control */
+
+.clan-visibility-seg {
+
+  display: flex;
+
+  border: 2px solid #3a3a3a;
+
+  border-radius: 12px;
+
+  overflow: hidden;
+
+  margin-bottom: 12px;
+
+  background: #1a1a1a;
+
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+
+}
+
+
+
+.clan-visibility-seg .seg-opt {
+
+  flex: 1;
+
+  text-align: center;
+
+  padding: 14px;
+
+  cursor: pointer;
+
+  background: #1a1a1a;
+
+  font-size: 15px;
+
+  font-weight: 600;
+
+  color: #888;
+
+  transition: all 0.2s ease;
+
+  border-right: 1px solid #3a3a3a;
+
+}
+
+
+
+.clan-visibility-seg .seg-opt:last-child {
+
+  border-right: none;
+
+}
+
+
+
+.clan-visibility-seg .seg-opt.active {
+
+  background: linear-gradient(145deg, #ff8c00, #ff6b00);
+
+  color: #1a1a1a;
+
+  font-weight: 800;
+
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.2);
+
+}
+
+
+
+.clan-visibility-seg .seg-opt:hover:not(.active) {
+
+  background: #2a2a2a;
+
+  color: #fff;
+
+}
+
+
+
+/* Clan hint text */
+
+.clan-hint {
+
+  font-size: 12px;
+
+  color: #ffaa00;
+
+  background: rgba(255, 170, 0, 0.1);
+
+  border: 1px solid rgba(255, 170, 0, 0.3);
+
+  border-radius: 8px;
+
+  padding: 10px 14px;
+
+  margin: 12px 0;
+
+  text-align: center;
+
+}
+
+
+
+/* Clan search section */
+
+.clan-search-section {
+
+  background: rgba(0, 0, 0, 0.3);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 12px;
+
+  padding: 18px;
+
+  margin-bottom: 20px;
+
+}
+
+
+
+.clan-search-row {
+
+  display: flex;
+
+  gap: 14px;
+
+  margin-bottom: 14px;
+
+}
+
+
+
+.clan-search-col {
+
+  flex: 1;
+
+  display: flex;
+
+  flex-direction: column;
+
+}
+
+
+
+.clan-search-section label {
+
+  font-size: 13px;
+
+  color: #ffb12b;
+
+  font-weight: 600;
+
+  margin-bottom: 6px;
+
+  letter-spacing: 0.5px;
+
+}
+
+
+
+.clan-search-section input {
+
+  background: #1a1a1a;
+
+  border: 2px solid #3a3a3a;
+
+  border-radius: 10px;
+
+  padding: 12px 14px;
+
+  color: #fff;
+
+  font-size: 14px;
+
+  transition: all 0.2s ease;
+
+}
+
+
+
+.clan-search-section input:focus {
+
+  border-color: #ffb12b;
+
+  box-shadow: 0 0 0 3px rgba(255, 177, 43, 0.2);
+
+  outline: none;
+
+}
+
+
+
+.clan-search-section .btn {
+
+  margin-top: 8px;
+
+}
+
+
+
+/* Clan list container */
+
+.clan-list-container {
+
+  background: rgba(0, 0, 0, 0.3);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 12px;
+
+  padding: 16px;
+
+  max-height: 300px;
+
+  overflow-y: auto;
+
+}
+
+
+
+.clan-list-title {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #ffb12b;
+
+  letter-spacing: 1.5px;
+
+  text-transform: uppercase;
+
+  margin-bottom: 12px;
+
+  text-align: center;
+
+}
+
+
+
+.clan-list {
+
+  max-height: 250px;
+
+  overflow-y: auto;
+
+}
+
+
+
+.clan-list-item {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding: 14px 16px;
+
+  background: #1a1a1a;
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 10px;
+
+  margin-bottom: 8px;
+
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+
+}
+
+
+
+.clan-list-item:hover {
+
+  border-color: #ffb12b;
+
+  background: #2a2a2a;
+
+  transform: translateX(4px);
+
+}
+
+
+
+.clan-list-item-name {
+
+  font-weight: 700;
+
+  font-size: 15px;
+
+  color: #fff;
+
+}
+
+
+
+.clan-list-item-info {
+
+  font-size: 12px;
+
+  color: #888;
+
+  margin-top: 4px;
+
+}
+
+
+
+.clan-list-item-action {
+
+  padding: 8px 16px;
+
+  background: linear-gradient(145deg, #ff8c00, #ff6b00);
+
+  color: #1a1a1a;
+
+  border-radius: 8px;
+
+  font-weight: 700;
+
+  font-size: 12px;
+
+  text-transform: uppercase;
+
+}
+
+
+
+/* Clan UI card */
+
+.clan-ui-card {
+
+  max-width: 800px;
+
+}
+
+
+
+.clan-ui-header {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 20px;
+
+  padding-bottom: 16px;
+
+  border-bottom: 2px solid #3a3a3a;
+
+}
+
+
+
+.clan-ui-rank-badge {
+
+  background: linear-gradient(145deg, #ffb12b, #ff8c00);
+
+  color: #1a1a1a;
+
+  padding: 8px 16px;
+
+  border-radius: 20px;
+
+  font-weight: 800;
+
+  font-size: 14px;
+
+  letter-spacing: 1px;
+
+  box-shadow: 0 4px 15px rgba(255, 177, 43, 0.3);
+
+}
+
+
+
+.clan-ui-info {
+
+  display: flex;
+
+  gap: 30px;
+
+  margin-bottom: 24px;
+
+  padding: 16px;
+
+  background: rgba(0, 0, 0, 0.3);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 12px;
+
+}
+
+
+
+.clan-ui-stat {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+}
+
+
+
+.clan-stat-label {
+
+  font-size: 12px;
+
+  color: #888;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1px;
+
+}
+
+
+
+.clan-stat-value {
+
+  font-size: 18px;
+
+  font-weight: 700;
+
+  color: #ffb12b;
+
+}
+
+
+
+.clan-ui-section {
+
+  margin-bottom: 24px;
+
+}
+
+
+
+.clan-section-title {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #ffb12b;
+
+  letter-spacing: 1.5px;
+
+  text-transform: uppercase;
+
+  margin-bottom: 12px;
+
+}
+
+
+
+.clan-members-list {
+
+  max-height: 200px;
+
+  overflow-y: auto;
+
+  background: rgba(0, 0, 0, 0.3);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 10px;
+
+  padding: 12px;
+
+}
+
+
+
+.clan-member-item {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  padding: 10px 14px;
+
+  background: #1a1a1a;
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 8px;
+
+  margin-bottom: 8px;
+
+}
+
+
+
+.clan-member-name {
+
+  font-weight: 600;
+
+  color: #fff;
+
+}
+
+
+
+.clan-member-rank {
+
+  font-size: 12px;
+
+  padding: 4px 10px;
+
+  border-radius: 12px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+
+}
+
+
+
+.clan-member-rank.owner {
+
+  background: linear-gradient(145deg, #ffb12b, #ff8c00);
+
+  color: #1a1a1a;
+
+}
+
+
+
+.clan-member-rank.admin {
+
+  background: linear-gradient(145deg, #9b59b6, #8e44ad);
+
+  color: #fff;
+
+}
+
+
+
+.clan-member-rank.member {
+
+  background: #3a3a3a;
+
+  color: #888;
+
+}
+
+
+
+/* New Clan UI Layout */
+
+.clan-ui-container {
+
+  position: relative;
+
+  width: 100%;
+
+  max-width: 1200px;
+
+  margin: 0 auto;
+
+  padding: 20px;
+
+}
+
+
+
+.clan-ui-background {
+
+  position: absolute;
+
+  top: 0;
+
+  left: 0;
+
+  width: 100%;
+
+  height: 100%;
+
+  background: linear-gradient(145deg, #2a2a2a, #1a1a1a);
+
+  border: 2px solid #3a3a3a;
+
+  border-radius: 16px;
+
+  box-shadow: 
+
+    0 8px 32px rgba(0, 0, 0, 0.6),
+
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  z-index: 0;
+
+}
+
+
+
+.clan-ui-header-new {
+
+  position: relative;
+
+  z-index: 1;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 10px;
+
+  padding: 0 10px;
+
+}
+
+
+
+.clan-ui-separator {
+
+  position: relative;
+
+  z-index: 1;
+
+  text-align: center;
+
+  color: #ffffff;
+
+  font-size: 16px;
+
+  font-weight: bold;
+
+  margin-bottom: 20px;
+
+  letter-spacing: 2px;
+
+}
+
+
+
+.clan-member-list-container {
+
+  position: relative;
+
+  z-index: 1;
+
+  background: rgba(0, 0, 0, 0.4);
+
+  border: 2px solid rgba(255, 200, 50, 0.4);
+
+  border-radius: 12px;
+
+  padding: 15px;
+
+  margin-bottom: 20px;
+
+  max-width: 200px;
+
+  position: absolute;
+
+  top: 120px;
+
+  left: 20px;
+
+}
+
+
+
+.clan-member-list-header {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #ffffff;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1.5px;
+
+  margin-bottom: 10px;
+
+  padding-bottom: 8px;
+
+  border-bottom: 1px solid #3a3a3a;
+
+}
+
+
+
+.clan-members-list-new {
+
+  max-height: 220px;
+
+  overflow-y: auto;
+
+}
+
+
+
+.clan-members-list-new .clan-member-item {
+
+  background: rgba(42, 42, 42, 0.8);
+
+  border: 1px solid #3a3a3a;
+
+  padding: 8px 12px;
+
+  margin-bottom: 6px;
+
+  border-radius: 6px;
+
+}
+
+
+
+.clan-chat-container {
+
+  position: relative;
+
+  z-index: 1;
+
+  background: rgba(0, 0, 0, 0.4);
+
+  border: 2px solid rgba(255, 255, 255, 0.4);
+
+  border-radius: 12px;
+
+  padding: 15px;
+
+  margin-bottom: 20px;
+
+  margin-left: 240px;
+
+}
+
+
+
+.clan-chat-header {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #ffffff;
+
+  text-transform: uppercase;
+
+  letter-spacing: 1.5px;
+
+  margin-bottom: 10px;
+
+  padding-bottom: 8px;
+
+  border-bottom: 1px solid #3a3a3a;
+
+}
+
+
+
+.clan-chat-messages {
+
+  max-height: 300px;
+
+  overflow-y: auto;
+
+  background: rgba(0, 0, 0, 0.3);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 8px;
+
+  padding: 12px;
+
+  margin-bottom: 12px;
+
+  font-size: 22px;
+
+}
+
+
+
+.clan-chat-message {
+
+  margin-bottom: 10px;
+
+  padding: 8px 12px;
+
+  background: rgba(42, 42, 42, 0.6);
+
+  border-radius: 6px;
+
+  border-left: 3px solid #ffb12b;
+
+}
+
+
+
+.clan-chat-message-name {
+
+  font-weight: 700;
+
+  color: #ffb12b;
+
+  margin-right: 8px;
+
+}
+
+
+
+.clan-chat-message-rank {
+
+  font-size: 12px;
+
+  padding: 2px 6px;
+
+  border-radius: 4px;
+
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  margin-right: 8px;
+
+}
+
+
+
+.clan-chat-message-rank.owner {
+
+  background: linear-gradient(145deg, #ffb12b, #ff8c00);
+
+  color: #1a1a1a;
+
+}
+
+
+
+.clan-chat-message-rank.admin {
+
+  background: linear-gradient(145deg, #9b59b6, #8e44ad);
+
+  color: #fff;
+
+}
+
+
+
+.clan-chat-message-rank.member {
+
+  background: #3a3a3a;
+
+  color: #888;
+
+}
+
+
+
+.clan-chat-message-text {
+
+  color: #ffffff;
+
+  word-wrap: break-word;
+
+}
+
+
+
+.clan-chat-input-container {
+
+  display: flex;
+
+  gap: 10px;
+
+}
+
+
+
+.clan-chat-input {
+
+  flex: 1;
+
+  background: rgba(42, 42, 42, 0.8);
+
+  border: 1px solid #3a3a3a;
+
+  border-radius: 8px;
+
+  padding: 12px 16px;
+
+  color: #ffffff;
+
+  font-size: 16px;
+
+  outline: none;
+
+}
+
+
+
+.clan-chat-input:focus {
+
+  border-color: #ffb12b;
+
+}
+
+
+
+.clan-chat-input::placeholder {
+
+  color: #666;
+
+}
+
+
+
+.clan-chat-send-btn {
+
+  padding: 12px 24px;
+
+  font-size: 14px;
+
+}
+
+
+
+.clan-ui-actions-new {
+
+  position: relative;
+
+  z-index: 1;
+
+  display: flex;
+
+  gap: 12px;
+
+  justify-content: center;
+
+  margin-top: 20px;
+
+  margin-left: 240px;
+
+}
+
+
+
+.clan-action-buttons {
+
+  display: flex;
+
+  gap: 12px;
+
+  flex-wrap: wrap;
+
+}
+
+
+
+.clan-action-buttons .btn {
+
+  flex: 1;
+
+  min-width: 150px;
+
+  margin-top: 0;
+
+}
+
+
+
+/* Clan scrollbar styling */
+
+.clan-list::-webkit-scrollbar,
+
+.clan-members-list::-webkit-scrollbar {
+
+  width: 6px;
+
+}
+
+
+
+.clan-list::-webkit-scrollbar-thumb,
+
+.clan-members-list::-webkit-scrollbar-thumb {
+
+  background: #ffb12b;
+
+  border-radius: 3px;
+
+}
+
+
+
+.clan-list::-webkit-scrollbar-track,
+
+.clan-members-list::-webkit-scrollbar-track {
+
+  background: #1a1a1a;
+
+  border-radius: 3px;
+
+}
+
+
+
+/* Responsive adjustments for clan menus */
+
+@media (max-width: 768px) {
+
+  .clan-search-row {
+
+    flex-direction: column;
+
+    gap: 10px;
+
+  }
+
+  
+
+  .clan-ui-info {
+
+    flex-direction: column;
+
+    gap: 12px;
+
+  }
+
+  
+
+  .clan-action-buttons {
+
+    flex-direction: column;
+
+  }
+
+  
+
+  .clan-ui-header {
+
+    flex-direction: column;
+
+    gap: 12px;
+
+    text-align: center;
+
+  }
+
+  
+
+  .clan-title {
+
+    font-size: 24px;
 
   }
 
@@ -1620,6 +3454,10 @@ html, body {
 /* ===== Proportional UI scaling ===== */
 
 .btn-play { font-size: calc(var(--ui-scale) * 22px); padding: calc(var(--ui-scale) * 18px) calc(var(--ui-scale) * 60px); bottom: calc(var(--ui-scale) * 70px); }
+
+.btn-gamemode { width: calc(var(--ui-scale) * 56px); height: calc(var(--ui-scale) * 56px); padding: 0; box-sizing: border-box; font-size: calc(var(--ui-scale) * 28px); }
+
+.btn-gamemode img { width: calc(var(--ui-scale) * 32px); height: calc(var(--ui-scale) * 32px); object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
 
 .btn { font-size: calc(var(--ui-scale) * 14px); padding: calc(var(--ui-scale) * 10px) calc(var(--ui-scale) * 18px); border-radius: calc(var(--ui-scale) * 6px); }
 
@@ -2080,7 +3918,7 @@ html, body {
 
 .btn-play:active {
 
-  transform: translateX(-50%) scale(0.96);
+  transform: translateY(1px) scale(0.96);
 
 }
 
@@ -2278,148 +4116,266 @@ html, body {
 
 
 
-/* ===== SHOP ===== */
-
-.shop-overlay{position:absolute;inset:0;display:flex;flex-direction:column;background:rgba(20,20,20,0.92);backdrop-filter:blur(3px);animation:shopSlideDown .35s cubic-bezier(.34,1.56,.64,1);z-index:10}
-
-.shop-header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;flex-shrink:0}
-
-.shop-currencies{display:flex;gap:20px;font-size:18px;font-weight:600}
-
-.shop-coin-disp{color:var(--accent)}
-
-.shop-gem-disp{color:#8af}
-
-.shop-body{display:flex;flex:1;overflow:hidden;gap:0}
-
-.shop-sidebar{width:180px;min-width:180px;background:var(--card);padding:16px 10px;display:flex;flex-direction:column;gap:4px;border-right:1px solid var(--line)}
-
-.shop-store-logo{font-size:24px;font-weight:700;text-align:center;padding:14px 0;margin-bottom:8px;letter-spacing:2px;background:linear-gradient(135deg,#fbbf24,#f97316,#ef4444);-webkit-background-clip:text;background-clip:text;color:transparent;font-family:'Lilita One',cursive}
-
-.shop-sidebar-section{padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-radius:10px;transition:all .2s cubic-bezier(.34,1.56,.64,1);color:var(--muted);background:transparent;border:2px solid transparent}
-
-.shop-sidebar-section:hover{color:#fff;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1);transform:translateX(3px)}
-
-.shop-sidebar-section.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent);font-weight:700;transform:translateX(0);box-shadow:0 2px 8px rgba(255,255,255,0.15)}
-
-.shop-sidebar-back{padding:10px 14px;cursor:pointer;font-size:13px;font-weight:600;border-radius:10px;transition:all .2s;color:var(--muted);text-align:center;margin-top:auto;background:transparent;border:2px solid transparent}
-
-.shop-sidebar-back:hover{color:#fff;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.1)}
-
-.shop-content{flex:1;overflow-x:auto;overflow-y:hidden;white-space:nowrap;padding:24px;display:flex;gap:32px}
-
-.shop-page{display:inline-block;min-width:100%;white-space:normal;vertical-align:top;animation:fadeIn .3s ease}
-
-.shop-coming-soon{color:var(--muted);font-size:24px;text-align:center;padding:80px 0;font-family:'Lilita One',cursive;letter-spacing:1px}
-
-.shop-section-title{font-size:22px;font-weight:600;margin-bottom:12px;color:#ddd;letter-spacing:1px}
-
-.shop-timer{font-size:13px;color:var(--muted);margin-bottom:20px}
-
-.shop-deals{display:flex;gap:12px;flex-wrap:nowrap;padding-bottom:16px}
-
-.shop-deal-card{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:20px;text-align:center;cursor:pointer;transition:all .25s cubic-bezier(.34,1.56,.64,1);min-width:170px;flex-shrink:0}
-
-.shop-deal-card:hover{border-color:#fbbf24;transform:translateY(-6px) scale(1.02);box-shadow:0 8px 25px rgba(251,191,36,0.15)}
-
-.shop-deal-card:active{transform:translateY(-2px) scale(0.98)}
-
-.shop-deal-card.sold-out{opacity:0.35;cursor:default;pointer-events:none}
-
-.shop-deal-card.sold-out:hover{border-color:var(--line);transform:none;box-shadow:none}
-
-.shop-deal-image{width:72px;height:72px;margin:0 auto 10px;background-size:contain;background-repeat:no-repeat;background-position:center;transition:transform .3s ease}
-
-.shop-deal-card:hover .shop-deal-image{transform:scale(1.1) rotate(-5deg)}
-
-.shop-deal-amount{font-size:22px;font-weight:600;color:#fff;margin-bottom:2px}
-
-.shop-deal-label{font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
-
-.shop-deal-price{font-size:14px;font-weight:600;color:#8af;margin-bottom:4px}
-
-.shop-deal-price.coins{color:#fbbf24}
-
-.shop-deal-stock{font-size:10px;color:#666}
-
-.shop-free-offer{margin-top:24px;display:flex;gap:16px;align-items:center}
-
-.shop-free-card{background:linear-gradient(135deg,var(--card),#2a2a20);border:2px solid rgba(251,191,36,0.3);border-radius:16px;padding:14px 20px;display:flex;align-items:center;gap:14px;cursor:pointer;transition:all .25s cubic-bezier(.34,1.56,.64,1)}
-
-.shop-free-card:hover{border-color:#fbbf24;transform:translateY(-3px);box-shadow:0 6px 20px rgba(251,191,36,0.12)}
-
-.shop-free-card.claimed{opacity:0.5;cursor:default;pointer-events:none;background:var(--card);border-color:var(--line)}
-
-.shop-free-card.claimed:hover{transform:none;box-shadow:none}
-
-.shop-free-icon{font-size:32px;font-weight:700;color:#fbbf24;font-family:'Lilita One',cursive}
-
-.shop-free-info{font-size:12px;color:var(--muted)}
-
-.shop-free-btn{padding:8px 20px;border-radius:10px;font-size:13px;font-weight:600;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a1a1a;transition:all .2s cubic-bezier(.34,1.56,.64,1);cursor:pointer;white-space:nowrap;border:2px solid #000}
-
-.shop-free-btn:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(251,191,36,0.3)}
-
-.shop-free-btn:active{transform:scale(0.95)}
+/* ===== SHOP - Cartoon Comic Style ===== */
+.shop-overlay {
+  position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; overflow: hidden;
+  background:
+    radial-gradient(circle, rgba(180,150,0,0.2) 2px, transparent 2px),
+    repeating-linear-gradient(-45deg, transparent, transparent 24px, rgba(80,60,0,0.2) 24px, rgba(80,60,0,0.2) 36px),
+    #ffd700;
+}
+.shop-header {
+  position: relative; z-index: 3; margin-left: 200px;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding: clamp(8px,1.5vh,12px) clamp(12px,2vw,24px);
+  flex-shrink: 0;
+}
+.shop-currencies { display: flex; gap: clamp(8px,1.5vw,16px); font-size: clamp(14px,2.5vw,18px); font-weight: 800; }
+.shop-coin-disp { color: #ffd700; -webkit-text-stroke: 1px #000; }
+.shop-gem-disp { color: #8af; -webkit-text-stroke: 1px #000; }
+.shop-body { margin-left: 200px; flex: 1; overflow: auto; position: relative; z-index: 2; }
+.shop-sidebar {
+  position: fixed; left: 0; top: 0; bottom: 0;
+  width: 200px;
+  background:
+    radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px),
+    #f5f0eb;
+  background-size: 8px 8px;
+  border-right: 3px solid #000;
+  box-shadow: 4px 0 0 rgba(0,0,0,0.15);
+  padding: 16px 10px;
+  display: flex; flex-direction: column;
+  gap: clamp(4px,0.8vh,8px);
+  z-index: 20;
+  overflow-y: auto;
+}
+.shop-store-logo {
+  padding: 14px 0;
+  text-align: center;
+  font-size: clamp(24px,5vw,36px);
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 4px;
+  margin-bottom: 12px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  -webkit-text-stroke: 3px #000;
+  text-shadow:
+    1px 1px 0 #000,
+    2px 2px 0 #000,
+    3px 3px 0 #000,
+    4px 4px 0 #000,
+    5px 5px 0 #000,
+    6px 6px 0 #000;
+  font-family: 'Lilita One', cursive;
+  transform: rotate(-3deg);
+  position: relative;
+}
+.shop-sidebar-section {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: clamp(11px,2vw,14px);
+  font-weight: 800;
+  color: #333;
+  background: #fff;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  border-radius: 12px;
+  text-align: center;
+  text-transform: uppercase;
+  transition: all 0.1s;
+  letter-spacing: 0.5px;
+  transform: rotate(-5deg);
+  flex-shrink: 0;
+}
+.shop-sidebar-section.active { background: #ffd700; }
+.shop-sidebar-section:hover { transform: rotate(-5deg) translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
+.shop-sidebar-section:active { transform: rotate(-5deg) translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+.shop-sidebar-back {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto 5px 0;
+  padding: 8px 0;
+  background: #f5f0eb;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  transform: rotate(-5deg);
+  transition: all 0.1s;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  font-size: clamp(11px,2vw,14px);
+  font-weight: 800;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.shop-sidebar-back:hover { transform: rotate(-5deg) translate(-1px, -1px); }
+.shop-sidebar-back:active { transform: rotate(-5deg) translate(2px, 2px); }
+.shop-back-section {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto 5px 0;
+  padding: 8px 0;
+  background: #f5f0eb;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  transform: rotate(-5deg);
+  transition: all 0.1s;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+.shop-back-section:hover { transform: rotate(-5deg) translate(-1px, -1px); }
+.shop-back-section:active { transform: rotate(-5deg) translate(2px, 2px); }
+.shop-back-icon { width: 100px; height: auto; display: block; pointer-events: none; }
+.shop-content { padding: clamp(12px,2vw,24px); }
+.shop-page {
+  animation: fadeIn .3s ease;
+  position: relative;
+}
+.shop-page::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 60px; height: 60px;
+  background: radial-gradient(circle at top right, rgba(255,215,0,0.15) 0%, transparent 70%);
+  pointer-events: none;
+  border-radius: 0 0 0 100%;
+}
+.shop-page::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 40px; height: 40px;
+  background: radial-gradient(circle at bottom left, rgba(255,215,0,0.1) 0%, transparent 70%);
+  pointer-events: none;
+  border-radius: 0 100% 0 0;
+}
+.shop-coming-soon {
+  color: #666;
+  font-size: clamp(16px,4vw,24px);
+  font-weight: 700;
+  text-align: center;
+  padding: clamp(40px,8vh,80px) 0;
+  font-family: 'Lilita One', cursive;
+}
+.shop-section-title {
+  font-size: clamp(18px,3vw,24px);
+  font-weight: 800;
+  margin-bottom: 12px;
+  color: #333;
+  letter-spacing: 1px;
+  -webkit-text-stroke: 1px #000;
+}
+.shop-timer { font-size: 13px; color: #666; margin-bottom: 20px; font-weight: 600; }
+.shop-deals { display: flex; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; }
+.shop-deal-card {
+  background: #fff;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.1s;
+  min-width: 160px;
+  flex-shrink: 0;
+}
+.shop-deal-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #000; }
+.shop-deal-card:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+.shop-deal-card.sold-out { opacity: 0.4; cursor: default; pointer-events: none; }
+.shop-deal-card.sold-out:hover { transform: none; box-shadow: 3px 3px 0 #000; }
+.shop-deal-image { width: 72px; height: 72px; margin: 0 auto 10px; background-size: contain; background-repeat: no-repeat; background-position: center; }
+.shop-deal-amount { font-size: 22px; font-weight: 800; color: #333; margin-bottom: 2px; }
+.shop-deal-label { font-size: 11px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.shop-deal-price { font-size: 14px; font-weight: 800; color: #8af; margin-bottom: 4px; }
+.shop-deal-price.coins { color: #ffd700; }
+.shop-deal-stock { font-size: 10px; color: #999; font-weight: 600; }
+.shop-free-offer { margin-top: 24px; display: flex; gap: 16px; align-items: center; }
+.shop-free-card {
+  background: #fff;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  border-radius: 14px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.shop-free-card:hover { transform: translate(-2px, -2px); box-shadow: 5px 5px 0 #000; }
+.shop-free-card.claimed { opacity: 0.5; cursor: default; pointer-events: none; }
+.shop-free-card.claimed:hover { transform: none; box-shadow: 3px 3px 0 #000; }
+.shop-free-icon { font-size: 32px; font-weight: 800; color: #ffd700; font-family: 'Lilita One', cursive; -webkit-text-stroke: 1px #000; }
+.shop-free-info { font-size: 12px; color: #666; font-weight: 600; }
+.shop-free-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  background: #ffd700;
+  color: #333;
+  cursor: pointer;
+  white-space: nowrap;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  transition: all 0.1s;
+}
+.shop-free-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
+.shop-free-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
 
 /* Buy page */
-
-.shop-buy-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;background:rgba(20,20,20,0.95);backdrop-filter:blur(3px);animation:shopSlideDown .3s cubic-bezier(.34,1.56,.64,1)}
-
-.shop-buy-header{padding:16px 24px;flex-shrink:0}
-
-.shop-buy-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}
-
-.shop-buy-image{width:120px;height:120px;background-size:contain;background-repeat:no-repeat;background-position:center;animation:fadeIn .5s ease}
-
-.shop-buy-all{padding:8px 20px;border-radius:10px;font-size:14px;font-weight:600;color:#888;background:#2a2a2a;cursor:pointer;border:2px solid #444;transition:all .2s}
-
-.shop-buy-all.btn-disabled{opacity:0.4;cursor:default;pointer-events:none}
-
-.shop-buy-all:hover:not(.btn-disabled){background:#3a3a3a;border-color:#666}
+.shop-buy-wrapper { position: absolute; inset: 0; display: flex; flex-direction: column; background: #ffd700; z-index: 11; }
+.shop-buy-header { padding: 16px 24px; flex-shrink: 0; }
+.shop-buy-body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+.shop-buy-image { width: 120px; height: 120px; background-size: contain; background-repeat: no-repeat; background-position: center; animation: fadeIn .5s ease; }
+.shop-buy-all {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #333;
+  background: #fff;
+  cursor: pointer;
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0 #000;
+  transition: all 0.1s;
+}
+.shop-buy-all.btn-disabled { opacity: 0.4; cursor: default; pointer-events: none; }
+.shop-buy-all:hover:not(.btn-disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 #000; }
 
 /* Receive page */
-
-.shop-receive-wrapper{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;animation:pop .3s cubic-bezier(.34,1.56,.64,1)}
-
-.shop-receive-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
-
-.shop-receive-bg-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;opacity:0}
-
-.shop-receive-reward{position:relative;z-index:1;text-align:center;animation:fadeIn .75s ease}
-
-.shop-receive-image{width:100px;height:100px;margin:0 auto 12px;background-size:contain;background-repeat:no-repeat;background-position:center}
-
-.shop-receive-amount{font-size:28px;font-weight:700;color:#fff}
-
-.shop-receive-claim{position:relative;z-index:1;color:#fff;font-size:18px;cursor:pointer;padding:12px 24px;animation:fadeIn .75s ease;text-shadow:0 0 10px rgba(255,255,255,0.5)}
-
+.shop-receive-wrapper { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000; animation: pop .3s ease; }
+.shop-receive-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+.shop-receive-bg-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; opacity: 0; }
+.shop-receive-reward { position: relative; z-index: 1; text-align: center; animation: fadeIn .75s ease; }
+.shop-receive-image { width: 100px; height: 100px; margin: 0 auto 12px; background-size: contain; background-repeat: no-repeat; background-position: center; }
+.shop-receive-amount { font-size: 28px; font-weight: 800; color: #fff; }
+.shop-receive-claim { position: relative; z-index: 1; color: #fff; font-size: 18px; cursor: pointer; padding: 12px 24px; animation: fadeIn .75s ease; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
 
 /* ----- Button (shop spec) ----- */
-
-.button{all:unset;display:flex;align-items:center;position:relative;padding:0.6em 2em;border:mediumspringgreen solid 0.15em;border-radius:0.25em;color:mediumspringgreen;font-size:1.5em;font-weight:600;cursor:pointer;overflow:hidden;transition:border 300ms,color 300ms;user-select:none}
-
-.button p{z-index:1;margin:0}
-
-.button:hover{color:#212121}
-
-.button:active{border-color:teal}
-
-.button::after,.button::before{content:"";position:absolute;width:9em;aspect-ratio:1;background:mediumspringgreen;opacity:50%;border-radius:50%;transition:transform 500ms,background 300ms}
-
-.button::before{left:0;transform:translateX(-8em)}
-
-.button::after{right:0;transform:translateX(8em)}
-
-.button:hover:before{transform:translateX(-1em)}
-
-.button:hover:after{transform:translateX(1em)}
-
-.button:active:before,.button:active:after{background:teal}
-
-.button.btn-gray{border-color:#555;color:#555;cursor:default;pointer-events:none}
-
-.button.btn-gray::after,.button.btn-gray::before{background:#555}
+.button { all: unset; display: flex; align-items: center; position: relative; padding: 0.6em 2em; border: mediumspringgreen solid 0.15em; border-radius: 0.25em; color: mediumspringgreen; font-size: 1.5em; font-weight: 600; cursor: pointer; overflow: hidden; transition: border 300ms, color 300ms; user-select: none; }
+.button p { z-index: 1; margin: 0; }
+.button:hover { color: #212121; }
+.button:active { border-color: teal; }
+.button::after, .button::before { content: ""; position: absolute; width: 9em; aspect-ratio: 1; background: mediumspringgreen; opacity: 50%; border-radius: 50%; transition: transform 500ms, background 300ms; }
+.button::before { left: 0; transform: translateX(-8em); }
+.button::after { right: 0; transform: translateX(8em); }
+.button:hover:before { transform: translateX(-1em); }
+.button:hover:after { transform: translateX(1em); }
+.button:active:before, .button:active:after { background: teal; }
+.button.btn-gray { border-color: #555; color: #555; cursor: default; pointer-events: none; }
+.button.btn-gray::after, .button.btn-gray::before { background: #555; }
 
 
 
@@ -2499,3 +4455,1359 @@ html, body {
 
 .night-mode-btn:hover{animation:none}
 
+/* ============================================================
+   CLAN CANVAS UI (custom layout renderer)
+   ============================================================ */
+
+#clan-canvas-wrap {
+  position: relative;
+  width: 100%;
+  margin: 0 auto;
+}
+
+#clan-canvas-wrap.hidden { display: none; }
+
+#clan-ui-canvas {
+  display: block;
+  margin: 0 auto;
+  border-radius: 16px;
+  border: 2px solid #3a3a3a;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: #1a1e24;
+  cursor: default;
+}
+
+#clan-canvas-input {
+  position: absolute;
+  opacity: 0;
+  color: transparent;
+  background: transparent;
+  border: none;
+  outline: none;
+  caret-color: transparent;
+  z-index: 5;
+  font-size: 15px;
+}
+
+#menu-clan-ui.canvas-mode .clan-ui-html { display: none !important; }
+
+/* Yellow sync tip: clan chat arrives with a delay, not instantly */
+#clan-sync-tip {
+  position: absolute;
+  bottom: 0;
+  left: 14px;
+  right: 14px;
+  max-width: 520px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 14px 14px 0 0;
+  background: rgba(30, 24, 0, 0.92);
+  border: 2px solid #ffd54a;
+  border-bottom: none;
+  color: #ffd54a;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 -4px 18px rgba(255, 213, 74, 0.25);
+  animation: clanTipGlow 2.4s ease-in-out infinite;
+}
+
+#clan-sync-tip.hidden { display: none; }
+
+#clan-sync-tip .clan-sync-tip-icon {
+  font-size: 17px;
+  animation: clanTipPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes clanTipGlow {
+  0%, 100% { box-shadow: 0 -4px 18px rgba(255, 213, 74, 0.25); }
+  50% { box-shadow: 0 -4px 26px rgba(255, 213, 74, 0.55); }
+}
+
+@keyframes clanTipPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+/* Clan UI is fullscreen and must not scroll */
+#menu-clan-ui.canvas-mode {
+  position: fixed;
+  overflow: hidden;
+}
+
+/* ============================================================
+   CLAN UI FULLSCREEN (canvas mode)
+   ============================================================ */
+#menu-clan-ui.canvas-mode .clan-ui-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+#menu-clan-ui.canvas-mode #clan-canvas-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+#menu-clan-ui.canvas-mode #clan-ui-canvas {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
+#menu-clan-ui.canvas-mode .clan-ui-actions-new {
+  position: static;
+  margin: 0;
+}
+
+#menu-clan-ui.canvas-mode #btn-copy-clan-code {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  margin: 0;
+}
+
+/* Leave Clan: below the back arrow, circled-square icon frame, door icon only */
+#menu-clan-ui.canvas-mode #btn-leave-clan {
+  position: absolute;
+  top: 52px;
+  left: 8px;
+  z-index: 20;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid #ff6b6b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+#menu-clan-ui.canvas-mode #btn-leave-clan:hover {
+  background: rgba(255, 60, 60, 0.25);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+/* Duplicate bottom Back button hidden in fullscreen canvas mode */
+#menu-clan-ui.canvas-mode .clan-ui-container > .btn.btn-back:not(.clan-ui-back-arrow) {
+  display: none;
+}
+
+/* Animated title shimmer */
+.clan-title {
+  animation: clanTitleShimmer 3s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
+@keyframes clanTitleShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Pulsing glow on primary 3D buttons */
+.clan-3d-btn.btn-primary { animation: clanBtnPulse 2.2s ease-in-out infinite; }
+
+@keyframes clanBtnPulse {
+  0%, 100% { box-shadow: 0 6px 0 #cc5500, 0 8px 20px rgba(255,107,0,.4), inset 0 1px 0 rgba(255,255,255,.3); }
+  50% { box-shadow: 0 6px 0 #cc5500, 0 8px 26px rgba(255,140,0,.75), inset 0 1px 0 rgba(255,255,255,.4); }
+}
+
+/* Animated icons on clan buttons */
+.clan-ico .clan-ico-ani {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 18px;
+  animation: clanIconFloat 1.6s ease-in-out infinite;
+}
+
+.clan-ico:nth-child(2) .clan-ico-ani { animation-delay: 0.3s; }
+
+@keyframes clanIconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Top-left back arrow on the clan UI screen (search other clans, keep membership) */
+.clan-ui-back-arrow {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid #ffb12b;
+  color: #ffb12b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clan-ui-back-arrow:hover {
+  background: rgba(255, 177, 43, 0.25);
+  transform: translateX(-2px);
+}
+
+/* ============================================================
+   SETTINGS GEAR BUTTON (separate button right of the profile)
+   ============================================================ */
+#profile-wrap {
+  position: absolute;
+  top: calc(var(--ui-scale) * 6px);
+  left: calc(var(--ui-scale) * 12px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#profile-wrap .profile {
+  position: static;
+}
+
+#btn-settings-gear {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#btn-settings-gear img {
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+}
+
+#btn-settings-gear:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: #fff;
+  transform: translateY(-2px);
+}
+
+#btn-settings-gear:active {
+  transform: translateY(0);
+}
+
+/* Touch-controls info block in the settings Controls tab (mobile only) */
+.bind-row.touch-controls-hint {
+  justify-content: flex-start;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   ACCOUNTS — login/register overlay
+   ============================================================ */
+.auth-mini-btn {
+  align-self: center;
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 177, 43, 0.22), rgba(255, 120, 40, 0.16));
+  border: 1px solid rgba(255, 177, 43, 0.45);
+  color: #ffb12b;
+  font-weight: 700;
+  font-size: calc(var(--ui-scale, 1) * 13px);
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.auth-mini-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 177, 43, 0.4), rgba(255, 120, 40, 0.3));
+  box-shadow: 0 0 16px rgba(255, 177, 43, 0.35);
+  transform: translateY(-1px);
+}
+.auth-mini-btn:active { transform: translateY(0); }
+.auth-mini-btn.logged-in {
+  background: linear-gradient(135deg, rgba(90, 210, 120, 0.2), rgba(60, 180, 100, 0.14));
+  border-color: rgba(90, 210, 120, 0.45);
+  color: #7ee08a;
+}
+.auth-mini-btn.logged-in:hover {
+  background: linear-gradient(135deg, rgba(210, 90, 90, 0.35), rgba(190, 60, 60, 0.25));
+  border-color: rgba(230, 100, 100, 0.5);
+  color: #ff9a9a;
+  box-shadow: 0 0 16px rgba(230, 100, 100, 0.3);
+}
+
+.profile-account {
+  margin-top: 6px;
+  font-size: calc(var(--ui-scale, 1) * 11px);
+  color: #7ee08a;
+  letter-spacing: 0.3px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-account.hidden { display: none; }
+
+/* ---- overlay ---- */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 10, 14, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  overflow-y: auto;
+}
+.auth-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.auth-overlay.hidden { display: none; }
+
+.auth-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.auth-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+}
+.auth-blob-1 {
+  width: 46vmax;
+  height: 46vmax;
+  left: -12vmax;
+  top: -14vmax;
+  background: radial-gradient(circle, rgba(255, 120, 40, 0.55), transparent 65%);
+  animation: auth-drift-1 14s ease-in-out infinite alternate;
+}
+.auth-blob-2 {
+  width: 40vmax;
+  height: 40vmax;
+  right: -10vmax;
+  bottom: -12vmax;
+  background: radial-gradient(circle, rgba(64, 140, 255, 0.5), transparent 65%);
+  animation: auth-drift-2 17s ease-in-out infinite alternate;
+}
+.auth-blob-3 {
+  width: 26vmax;
+  height: 26vmax;
+  right: 18vmax;
+  top: -8vmax;
+  background: radial-gradient(circle, rgba(190, 90, 255, 0.4), transparent 65%);
+  animation: auth-drift-3 12s ease-in-out infinite alternate;
+}
+@keyframes auth-drift-1 {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(9vmax, 7vmax) scale(1.15); }
+}
+@keyframes auth-drift-2 {
+  from { transform: translate(0, 0) scale(1.1); }
+  to   { transform: translate(-8vmax, -6vmax) scale(0.95); }
+}
+@keyframes auth-drift-3 {
+  from { transform: translate(0, 0) scale(0.95); }
+  to   { transform: translate(-6vmax, 9vmax) scale(1.2); }
+}
+
+.auth-card {
+  position: relative;
+  width: min(400px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 26px 26px 20px;
+  border-radius: 22px;
+  background: linear-gradient(165deg, rgba(28, 32, 42, 0.95), rgba(14, 17, 24, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(26px) scale(0.94);
+  transition: transform 0.35s cubic-bezier(0.18, 0.9, 0.3, 1.2), opacity 0.3s ease;
+}
+.auth-overlay.visible .auth-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.auth-logo {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.auth-logo-tank {
+  width: 54px;
+  height: 40px;
+  margin: 0 auto 10px;
+  background: linear-gradient(135deg, #ffb12b, #ff6a3d);
+  clip-path: polygon(8% 30%, 30% 30%, 38% 12%, 62% 12%, 70% 30%, 92% 30%, 92% 62%, 70% 62%, 62% 88%, 38% 88%, 30% 62%, 8% 62%);
+  animation: auth-tank-float 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 6px 14px rgba(255, 150, 40, 0.45));
+}
+@keyframes auth-tank-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+.auth-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  background: linear-gradient(90deg, #ffb12b, #ff6a3d, #ffb12b);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: auth-title-shine 5s linear infinite;
+}
+@keyframes auth-title-shine {
+  from { background-position: 0% 0; }
+  to { background-position: 200% 0; }
+}
+.auth-sub {
+  margin-top: 5px;
+  font-size: 13px;
+  color: #8a93a6;
+  letter-spacing: 0.4px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.auth-tab {
+  flex: 1;
+  text-align: center;
+  padding: 9px 0;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #8a93a6;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  user-select: none;
+}
+.auth-tab.active {
+  color: #1a1d24;
+  background: linear-gradient(135deg, #ffb12b, #ff8a3d);
+  box-shadow: 0 4px 14px rgba(255, 150, 60, 0.35);
+}
+.auth-tab:not(.active):hover { color: #d4d9e2; }
+
+.auth-panel { display: none; animation: auth-panel-in 0.3s ease; }
+.auth-panel.active { display: block; }
+@keyframes auth-panel-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.auth-field {
+  position: relative;
+  margin-bottom: 11px;
+}
+.auth-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e8ecf4;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  box-sizing: border-box;
+}
+.auth-field input::placeholder { color: #5d6575; }
+.auth-field input:focus {
+  border-color: rgba(255, 177, 43, 0.65);
+  background: rgba(255, 177, 43, 0.05);
+  box-shadow: 0 0 0 3px rgba(255, 177, 43, 0.14);
+}
+
+.auth-error {
+  margin: 2px 0 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(230, 80, 80, 0.12);
+  border: 1px solid rgba(230, 80, 80, 0.35);
+  color: #ff9a9a;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.auth-error.hidden { display: none; }
+.auth-error.shake { animation: auth-shake 0.45s ease; }
+@keyframes auth-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 13px;
+  margin-top: 4px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffb12b, #ff7a3d);
+  color: #16181e;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  box-shadow: 0 6px 20px rgba(255, 140, 50, 0.3);
+  position: relative;
+}
+.auth-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 28px rgba(255, 140, 50, 0.42);
+}
+.auth-btn:active { transform: translateY(0); }
+.auth-btn.busy { pointer-events: none; opacity: 0.85; }
+.auth-btn.success {
+  background: linear-gradient(135deg, #43d97c, #2fb25f);
+  box-shadow: 0 6px 20px rgba(60, 200, 110, 0.35);
+  animation: auth-pop 0.4s ease;
+}
+@keyframes auth-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+.auth-spin {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(20, 22, 28, 0.35);
+  border-top-color: #16181e;
+  border-radius: 50%;
+  animation: auth-spin 0.7s linear infinite;
+}
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 12px;
+  color: #5d6575;
+  font-size: 12px;
+}
+.auth-or::before, .auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #dfe4ee;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.55;
+  position: relative;
+}
+.auth-google:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.auth-google-g {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: conic-gradient(from -45deg, #4285f4 0 90deg, #34a853 90deg 180deg, #fbbc05 180deg 270deg, #ea4335 270deg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.auth-google-soon {
+  position: absolute;
+  right: 10px;
+  top: -7px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: #ffb12b;
+  color: #16181e;
+  box-shadow: 0 2px 8px rgba(255, 177, 43, 0.4);
+  animation: auth-soon-pulse 2.2s ease-in-out infinite;
+}
+@keyframes auth-soon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.09); }
+}
+
+.auth-foot {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 11.5px;
+  color: #5d6575;
+  letter-spacing: 0.2px;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   COMIC STORE-STYLE UI — buttons & animations
+   ============================================================ */
+
+/* Main menu side buttons (store look) */
+.main-menu-side .btn {
+  --btn-bg: #fff;
+  background: var(--btn-bg);
+  color: #1a1a1a;
+  border: 3px solid #000;
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 #000;
+  font-family: 'Lilita One', sans-serif;
+  font-size: 19px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
+  transform: rotate(-2deg);
+  transition: transform .12s, box-shadow .12s, filter .12s;
+  padding: 13px 22px;
+}
+.main-menu-side .btn:nth-child(even) { transform: rotate(1.5deg); }
+.main-menu-side .btn:hover {
+  background: linear-gradient(180deg, #fff, #e6dfc8);
+  border-color: #000;
+  transform: rotate(-2deg) translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #000;
+  outline: none;
+}
+.main-menu-side .btn:nth-child(even):hover { transform: rotate(1.5deg) translate(2px, -2px); }
+.main-menu-side .btn:active {
+  transform: rotate(-2deg) translate(2px, 2px);
+  box-shadow: 1px 1px 0 #000;
+}
+.main-menu-side .btn:nth-child(even):active { transform: rotate(1.5deg) translate(2px, 2px); }
+.main-menu-side .btn-subtle { --btn-bg: #eab308; }
+
+/* PLAY button (comic) — idle bob + glow live on the WRAPPER so the
+   button itself has no animations and can transition smoothly on hover */
+.btn-play-wrap {
+  display: inline-block;
+  animation: playGlow 3s ease-in-out infinite, btnBob 3.6s ease-in-out 0.2s infinite;
+}
+.btn-play {
+  border: 3px solid #000;
+  border-radius: 16px;
+  box-shadow: 0 5px 0 #000, 0 10px 24px rgba(0,0,0,0.35);
+  font-family: 'Lilita One', sans-serif;
+  letter-spacing: 4px;
+}
+@keyframes btnBob {
+  0%, 100% { transform: rotate(-1deg) translateY(0); }
+  50% { transform: rotate(-1deg) translateY(-4px); }
+}
+
+/* Gamemode button (comic) */
+.btn-gamemode {
+  border: 3px solid #000;
+  border-radius: 16px;
+  box-shadow: 3px 3px 0 #000, 0 6px 18px rgba(155,89,182,0.4);
+  transform: rotate(2deg);
+  font-family: 'Lilita One', sans-serif;
+  transition: transform .12s, box-shadow .12s;
+}
+.btn-gamemode:hover {
+  border-color: #000;
+  transform: rotate(2deg) translate(-2px, -2px) scale(1.05);
+  box-shadow: 5px 5px 0 #000, 0 8px 22px rgba(155,89,182,0.5);
+}
+.btn-gamemode:active {
+  transform: rotate(2deg) translate(2px, 2px);
+  box-shadow: 1px 1px 0 #000;
+}
+
+/* Settings chrome (tabs, top buttons, seg options, bind chips) */
+.settings-tab {
+  border: 2px solid transparent;
+  border-radius: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  transition: transform .1s, box-shadow .1s, background .1s, border-color .1s;
+}
+.settings-tab:not(.active):hover {
+  border-color: #000;
+  box-shadow: 2px 2px 0 #000;
+  transform: translate(-1px, -1px);
+}
+.settings-tab.active {
+  border: 2px solid #000;
+  box-shadow: 2px 2px 0 #000;
+  transform: translate(-1px, -1px);
+  background: #1a1a1a;
+}
+.settings-tab.active::after {
+  right: 4px;
+  background: #ffd700;
+}
+.settings-btn {
+  border: 2px solid #000;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 #000;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-size: 11px;
+  transition: transform .1s, box-shadow .1s, background .1s;
+}
+.settings-btn:hover {
+  border-color: #000;
+  box-shadow: 3px 3px 0 #000;
+  transform: translate(-1px, -1px);
+}
+.settings-btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 #000;
+}
+.settings-btn-primary {
+  background: linear-gradient(135deg, #ffd700, #ffb12b);
+  color: #1a1a1a;
+  border: 2px solid #000;
+}
+.settings-btn-primary:hover { background: linear-gradient(135deg, #ffe14d, #ffc24b); color: #1a1a1a; }
+
+.seg-opt {
+  border: 2px solid #000;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 #000;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 2px;
+  transition: transform .1s, box-shadow .1s, background .1s;
+}
+.seg-opt:not(.active):hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #000;
+  background: #2c2c2c;
+}
+.seg-opt.active {
+  background: linear-gradient(135deg, #ffd700, #ffb12b);
+  color: #1a1a1a;
+  box-shadow: 3px 3px 0 #000;
+  transform: translate(-1px, -1px);
+  font-weight: 800;
+}
+.seg-opt:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #000; }
+
+.bind-key {
+  border: 2px solid #1a1a1a;
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 #000;
+  font-weight: 700;
+  font-family: 'Lilita One', sans-serif;
+}
+.bind-key:hover { border-color: var(--accent); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 #000; }
+.bind-key.binding { animation: pulse 1s infinite; }
+
+/* Settings rows fade in on every render */
+#other-settings > *, #cam-settings > *, #aim-settings > *, #view-settings > *, #graphics-settings > * {
+  animation: rowIn .35s ease backwards;
+}
+#other-settings > *:nth-child(2) { animation-delay: .05s; }
+#other-settings > *:nth-child(3) { animation-delay: .1s; }
+#other-settings > *:nth-child(4) { animation-delay: .15s; }
+#cam-settings > *:nth-child(2) { animation-delay: .05s; }
+#cam-settings > *:nth-child(3) { animation-delay: .1s; }
+#cam-settings > *:nth-child(4) { animation-delay: .15s; }
+#cam-settings > *:nth-child(5) { animation-delay: .2s; }
+#cam-settings > *:nth-child(6) { animation-delay: .25s; }
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Shop buy page back button (comic text button — replaces missing back.png) */
+.shop-back-btn {
+  display: inline-block;
+  cursor: pointer;
+  padding: 10px 22px;
+  background: #fff;
+  color: #1a1a1a;
+  border: 3px solid #000;
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 #000;
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  transform: rotate(-3deg);
+  transition: transform .1s, box-shadow .1s;
+  user-select: none;
+}
+.shop-back-btn:hover { transform: rotate(-3deg) translate(-2px, -2px); box-shadow: 5px 5px 0 #000; }
+.shop-back-btn:active { transform: rotate(-3deg) translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+
+/* FPS counter */
+#fps-counter {
+  position: absolute;
+  right: 14px;
+  top: 170px;
+  background: rgba(20,20,20,.75);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+  font-family: ui-monospace, Consolas, monospace;
+  backdrop-filter: blur(4px);
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   MAIN MENU SIDE NAV — neutral chunky 3D buttons, white top-corner
+   gradient, real SVG icon chips. All sizes scale with --ui-scale
+   so the column resizes correctly on mobile/touch devices.
+   ============================================================ */
+.main-menu-side {
+  width: calc(var(--ui-scale) * 252px);
+}
+.main-menu-side .menu-side-btn {
+  margin-top: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--ui-scale) * 12px);
+  padding: calc(var(--ui-scale) * 8px) calc(var(--ui-scale) * 10px);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #ffffff;
+  font-family: 'Lilita One', sans-serif;
+  font-weight: 700;
+  font-size: calc(var(--ui-scale) * 20px);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-shadow:
+    calc(var(--ui-scale) * -2px) calc(var(--ui-scale) * -2px) 0 #000,
+    calc(var(--ui-scale) * 2px) calc(var(--ui-scale) * -2px) 0 #000,
+    calc(var(--ui-scale) * -2px) calc(var(--ui-scale) * 2px) 0 #000,
+    calc(var(--ui-scale) * 2px) calc(var(--ui-scale) * 2px) 0 #000,
+    calc(var(--ui-scale) * -2px) 0 0 #000,
+    calc(var(--ui-scale) * 2px) 0 0 #000,
+    0 calc(var(--ui-scale) * -2px) 0 #000,
+    0 calc(var(--ui-scale) * 2px) 0 #000;
+  transform: none;
+  transition: transform .1s ease, filter .1s ease;
+}
+.main-menu-side .menu-side-btn .menu-side-chip {
+  flex: 0 0 auto;
+  width: calc(var(--ui-scale) * 34px);
+  height: calc(var(--ui-scale) * 34px);
+  padding: calc(var(--ui-scale) * 6px);
+  box-sizing: border-box;
+  background: #14171b;
+  border: calc(var(--ui-scale) * 2px) solid rgba(255,255,255,0.18);
+  border-radius: calc(var(--ui-scale) * 10px);
+  box-shadow: inset 0 calc(var(--ui-scale) * 2px) calc(var(--ui-scale) * 4px) rgba(0,0,0,0.5);
+}
+.main-menu-side .menu-side-btn span {
+  line-height: 1;
+}
+.main-menu-side .menu-side-btn:hover {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform: translateY(-2px);
+  filter: brightness(1.15);
+}
+.main-menu-side .menu-side-btn:active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform: translateY(2px);
+  filter: brightness(0.9);
+}
+.main-menu-side .btn:nth-child(6) { animation-delay: 0.4s; }
+
+/* Missions placeholder panel */
+.menu-missions-sub {
+  color: #9aa4b2;
+  font-size: 15px;
+  margin: 6px 0 18px;
+  text-align: center;
+}
+.menu-missions-placeholder {
+  margin: 6px 0 18px;
+  padding: 26px 16px;
+  border: 3px dashed rgba(255,255,255,0.25);
+  border-radius: 16px;
+  color: #6b7686;
+  font-family: 'Lilita One', sans-serif;
+  font-size: 21px;
+  letter-spacing: 2px;
+  text-align: center;
+  background: rgba(0,0,0,0.25);
+}
+
+/* ============================================================
+   SMOOTH MICROINTERACTIONS — hover: lift + scale + white glow
+   One easing curve everywhere; PLAY pauses its idle bob so the
+   3D lift eases smoothly instead of snapping.
+   ============================================================ */
+:root {
+  --hover-ease: cubic-bezier(.22,.61,.36,1);
+  --hover-glow: rgba(255,255,255,.45);
+}
+
+.btn,
+.btn-play,
+.btn-gamemode,
+.main-menu-side .menu-side-btn,
+.settings-tab,
+.settings-btn,
+.seg-opt,
+.bind-key,
+.shop-back-btn,
+.clan-3d-btn {
+  transition: transform .28s var(--hover-ease), box-shadow .3s var(--hover-ease),
+              filter .3s var(--hover-ease), background .25s ease, border-color .25s ease, color .25s ease;
+}
+
+/* Generic buttons: smooth lift + scale + white glow */
+.btn:hover {
+  background: #444;
+  color: #fff;
+  transform: translateY(-2px) scale(1.05);
+  filter: drop-shadow(0 0 8px var(--hover-glow));
+  outline: 2px solid #000;
+  outline-offset: 2px;
+}
+.btn:active {
+  transform: translateY(1px) scale(0.99);
+  transition-duration: .12s;
+}
+
+/* PLAY: hover now transitions smoothly (button has no animations of its own) */
+.btn-play-wrap:hover .btn-play {
+  border-color: #000;
+  transform: rotate(-1deg) translateY(-4px) scale(1.06);
+  box-shadow: 0 5px 0 #000, 0 0 24px var(--hover-glow), 0 14px 30px rgba(0,0,0,.4);
+  filter: brightness(1.06) drop-shadow(0 0 10px var(--hover-glow));
+}
+.btn-play-wrap:active .btn-play {
+  transform: rotate(-1deg) translateY(2px) scale(.97);
+  box-shadow: 0 2px 0 #000;
+  transition-duration: .12s;
+}
+
+/* Side menu buttons: bigger + white glow + smooth rise */
+.main-menu-side .menu-side-btn:hover {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transform: translateY(-3px) scale(1.06);
+  filter: brightness(1.15) drop-shadow(0 0 10px var(--hover-glow));
+}
+.main-menu-side .menu-side-btn:active {
+  transform: translateY(1px) scale(.98);
+  filter: brightness(.92);
+  transition-duration: .12s;
+}
+
+/* Gamemode button */
+.btn-gamemode:hover {
+  transform: rotate(2deg) translate(-2px, -2px) scale(1.05);
+  box-shadow: 5px 5px 0 #000, 0 10px 24px rgba(255,255,255,.35);
+  filter: drop-shadow(0 0 8px var(--hover-glow));
+}
+
+/* Settings chrome: smooth lift + glow */
+.settings-tab:not(.active):hover {
+  border-color: #000;
+  box-shadow: 2px 2px 0 #000, 0 0 12px rgba(255,255,255,.25);
+  transform: translate(-1px, -1px);
+  filter: brightness(1.08);
+}
+.settings-btn:hover {
+  border-color: #000;
+  box-shadow: 3px 3px 0 #000, 0 0 12px rgba(255,255,255,.25);
+  transform: translate(-1px, -1px) scale(1.02);
+  filter: brightness(1.1);
+}
+.seg-opt:not(.active):hover {
+  transform: translate(-1px, -1px) scale(1.02);
+  box-shadow: 2px 2px 0 #000, 0 0 10px rgba(255,255,255,.2);
+}
+.bind-key:hover {
+  border-color: var(--accent);
+  transform: translate(-1px, -1px) scale(1.02);
+  box-shadow: 3px 3px 0 #000, 0 0 10px rgba(255,255,255,.2);
+}
+
+/* Shop back + clan 3D buttons */
+.shop-back-btn:hover {
+  transform: rotate(-3deg) translate(-2px, -2px) scale(1.03);
+  box-shadow: 5px 5px 0 #000, 0 0 12px rgba(255,255,255,.25);
+}
+.clan-3d-btn:hover { filter: drop-shadow(0 0 8px rgba(255,255,255,.35)); }
+
+/* ============================================================
+   MOBILE SIDE NAV (AUTHORITATIVE) — must sit after the layout
+   blocks so it wins the cascade: compact + vertically centered
+   on short landscape screens (phones/tablets).
+   ============================================================ */
+@media (orientation: landscape) and (max-height: 520px) {
+  .main-menu-side {
+    top: 50%;
+    transform: translateY(-50%);
+    width: calc(var(--ui-scale) * 176px);
+    gap: calc(var(--ui-scale) * 5px);
+  }
+  .main-menu-side .menu-side-btn {
+    padding: calc(var(--ui-scale) * 4px) calc(var(--ui-scale) * 7px);
+    gap: calc(var(--ui-scale) * 7px);
+    font-size: calc(var(--ui-scale) * 14px);
+  }
+  .main-menu-side .menu-side-btn .menu-side-chip {
+    width: calc(var(--ui-scale) * 22px);
+    height: calc(var(--ui-scale) * 22px);
+    padding: calc(var(--ui-scale) * 3px);
+    border-radius: calc(var(--ui-scale) * 7px);
+  }
+}
+@media (orientation: landscape) and (max-height: 340px) {
+  .main-menu-side {
+    top: 50%;
+    transform: translateY(-50%);
+    gap: calc(var(--ui-scale) * 3px);
+    width: calc(var(--ui-scale) * 150px);
+  }
+  .main-menu-side .menu-side-btn {
+    padding: calc(var(--ui-scale) * 2px) calc(var(--ui-scale) * 6px);
+    font-size: calc(var(--ui-scale) * 11px);
+  }
+  .main-menu-side .menu-side-btn .menu-side-chip {
+    width: calc(var(--ui-scale) * 16px);
+    height: calc(var(--ui-scale) * 16px);
+    padding: calc(var(--ui-scale) * 2px);
+  }
+}
+.gamemode-square.active { outline: 3px solid #ffb12b; transform: scale(1.03); box-shadow: 0 6px 18px rgba(255,177,43,0.5); }
+
+/* ============================================================
+   MAIN MENU PLAY ROW + BUTTON THEME (authoritative)
+   ============================================================ */
+.main-menu-play-row { left: 50%; transform: translateX(calc(-50% - 20px)); }
+.btn-gamemode { border-radius: 10px; width: calc(var(--ui-scale) * 56px); height: calc(var(--ui-scale) * 56px); }
+#btn-enter-fullscreen {
+  background: linear-gradient(135deg, #ffb12b 0%, #ff8c00 50%, #ff6b00 100%);
+  color: #ffffff;
+  border: 3px solid #000;
+  border-radius: 10px;
+  box-shadow: 0 5px 0 #000, 0 12px 26px rgba(255,120,0,.45);
+  font-family: 'Lilita One', sans-serif;
+  letter-spacing: 1px;
+}
+#btn-enter-fullscreen:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 #000, 0 16px 30px rgba(255,120,0,.55);
+}
+.btn-primary {
+  background: linear-gradient(135deg, #ffb12b 0%, #ff8c00 50%, #ff6b00 100%);
+  color: #ffffff;
+  border: 2px solid #000;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+
+/* ============================================================
+   CURRENCY ICONS + PROFILE MENU + NIGHT IN SETTINGS (authoritative)
+   ============================================================ */
+.cur-img {
+  display: inline-block;
+  width: calc(var(--ui-scale) * 15px);
+  height: auto;
+  margin-right: 3px;
+  vertical-align: -2px;
+  pointer-events: none;
+}
+.cur-img.cur-lg { width: calc(var(--ui-scale) * 22px); vertical-align: -4px; }
+.cur-mini {
+  display: inline-block;
+  width: calc(var(--ui-scale) * 13px);
+  height: auto;
+  margin-right: 3px;
+  vertical-align: -2px;
+  pointer-events: none;
+}
+.profile-coin, .profile-crystal { display: flex; align-items: center; }
+.shop-coin-disp, .shop-gem-disp { display: flex; align-items: center; }
+.shop-free-icon { line-height: 1; }
+.shop-deal-price { display: flex; align-items: center; justify-content: center; }
+.shop-deal-price span { padding-top: 1px; }
+#profile { cursor: pointer; }
+
+/* ---------- Profile overlay ---------- */
+.profile-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 8, 10, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+}
+.profile-card {
+  width: min(94vw, 460px);
+  background: linear-gradient(160deg, #23262e 0%, #171a20 60%, #101318 100%);
+  border: 3px solid #000;
+  border-radius: 18px;
+  box-shadow: 0 5px 0 #000, 0 18px 50px rgba(0,0,0,.55);
+  padding: 22px 24px 18px;
+  text-align: center;
+  font-family: 'Lilita One', sans-serif;
+}
+.profile-card-head {
+  display: flex; align-items: center; gap: 14px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+  padding-bottom: 14px; margin-bottom: 16px;
+  text-align: left;
+}
+.profile-card-avatar {
+  width: 64px; height: 64px; flex: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffb12b 0%, #ff6b00 100%);
+  border: 3px solid #000;
+  box-shadow: 0 4px 0 #000;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px;
+}
+.profile-card-name { font-size: 22px; color: #fff; letter-spacing: 1px; }
+.profile-card-clan { font-size: 13px; color: #ffb12b; }
+.profile-card-account { font-size: 12px; color: var(--muted, #9aa0ab); }
+.profile-card-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  margin-bottom: 18px;
+}
+.stat-tile {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.stat-label { font-size: 12px; color: var(--muted, #9aa0ab); text-transform: uppercase; letter-spacing: 1px; }
+.stat-value { font-size: 17px; color: #fff; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+/* Fullscreen prompt must not block the menu behind it: only its buttons take clicks */
+#ui-layer > .fullscreen-overlay { pointer-events: none; }
+#ui-layer > .fullscreen-overlay .btn,
+#ui-layer > .fullscreen-overlay .fs-close { pointer-events: auto; }
+#profile { pointer-events: auto; }
+.pcard-rename {
+  font-size: 13px; color: var(--muted, #9aa0ab);
+  cursor: pointer; margin-left: 6px; user-select: none;
+}
+.pcard-rename:hover { color: #ffb12b; }
+.profile-top .profile-trophy { font-size: calc(var(--ui-scale) * 15px); margin-right: 5px; filter: drop-shadow(0 1px 2px #000); }
+.profile-top .profile-clan { color: #ffd700; font-weight: 700; margin-right: 8px; font-size: calc(var(--ui-scale) * 13px); }
+.profile-card-nick { font-size: 20px; color: #fff; }
+.profile-card-name .profile-trophy { font-size: 18px; margin-right: 4px; vertical-align: -2px; }
+.profile-card-name .profile-card-clan { color: #ffd700; font-weight: 700; font-size: 14px; margin-right: 6px; }
+.profile-trophy-slot {
+  width: 64px; height: 64px; flex: none;
+  border: 3px dashed rgba(255,255,255,0.75);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: background .15s, border-color .15s;
+}
+.profile-trophy-slot:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
+.trophy-slot-plus {
+  color: #fff; font-size: 30px; font-weight: 300; line-height: 1;
+  user-select: none; pointer-events: none;
+}
+.trophy-pop {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 210px;
+  background: #1b1e24;
+  border: 2px solid #000;
+  border-radius: 10px;
+  box-shadow: 0 4px 0 #000, 0 10px 24px rgba(0,0,0,.5);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  text-align: left;
+  z-index: 60;
+  font-family: 'Lilita One', sans-serif;
+  letter-spacing: 0.5px;
+}
+.trophy-pop b { color: #ffd700; font-size: 16px; }
+.trophy-pop {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 12px);
+  width: 300px;
+  background: #1b1e24;
+  border: 2px solid #000;
+  border-radius: 12px;
+  box-shadow: 0 4px 0 #000, 0 12px 26px rgba(0,0,0,.55);
+  color: #fff;
+  font-family: 'Lilita One', sans-serif;
+  letter-spacing: 0.5px;
+  padding: 10px;
+  text-align: left;
+  z-index: 60;
+}
+.trophy-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  max-height: 264px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.trophy-grid::-webkit-scrollbar { width: 6px; }
+.trophy-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+.trophy-cell {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 60px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 8px;
+}
+.trophy-cell-icon { font-size: 24px; line-height: 1; filter: grayscale(1); opacity: 0.35; }
+.trophy-cell-name { font-size: 8px; color: var(--muted, #9aa0ab); margin-top: 4px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trophy-cell.owned {
+  background: rgba(255, 215, 0, 0.08);
+  border-color: rgba(255, 215, 0, 0.6);
+}
+.trophy-cell.owned .trophy-cell-icon { filter: none; opacity: 1; }
+.trophy-cell.owned .trophy-cell-name { color: #ffd700; }
+.trophy-pop-foot { font-size: 11px; color: var(--muted, #9aa0ab); margin-top: 8px; text-align: center; }
+.platoon-btn {
+  position: absolute;
+  left: calc(100% + 14px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--ui-scale) * 56px);
+  height: calc(var(--ui-scale) * 56px);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #34d399 0%, #16a34a 60%, #15803d 100%);
+  border: 3px solid #000;
+  box-shadow: 0 5px 0 #000, 0 10px 24px rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform .2s, filter .2s, box-shadow .2s;
+}
+.platoon-btn img { width: calc(var(--ui-scale) * 32px); height: auto; pointer-events: none; }
+.platoon-btn:hover { transform: translateY(-50%) translateY(-3px) scale(1.06); filter: brightness(1.12); box-shadow: 0 7px 0 #000, 0 14px 30px rgba(0,0,0,.45); }
+.platoon-btn:active { transform: translateY(-50%) translateY(1px) scale(.96); }
+
+.platoon-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 8, 10, 0.72);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+}
+.platoon-card {
+  width: min(94vw, 480px);
+  background: linear-gradient(160deg, #23262e 0%, #171a20 60%, #101318 100%);
+  border: 3px solid #000;
+  border-radius: 18px;
+  box-shadow: 0 5px 0 #000, 0 18px 50px rgba(0,0,0,.55);
+  padding: 22px 24px 18px;
+  text-align: center;
+  font-family: 'Lilita One', sans-serif;
+}
+.platoon-card h2 { color: #34d399; letter-spacing: 2px; margin-bottom: 16px; }
+.platoon-ui-placeholder {
+  min-height: 260px;
+  border: 2px dashed rgba(255,255,255,.3);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; letter-spacing: 4px; color: rgba(255,255,255,.35);
+  margin-bottom: 18px;
+  font-family: 'Lilita One', sans-serif;
+}
+/* ---- unified dark-gray frame for platoon + gamemode buttons ---- */
+.btn-gamemode,
+.platoon-btn {
+  background: linear-gradient(145deg, #4a4f58 0%, #33373f 45%, #23262c 100%) !important;
+  border: 3px solid #000 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 5px 0 #000, inset 0 1px 0 rgba(255,255,255,.14), 0 10px 24px rgba(0,0,0,.35) !important;
+}
+.platoon-btn:hover {
+  background: linear-gradient(145deg, #565c66 0%, #3a3e46 45%, #2a2d34 100%) !important;
+  box-shadow: 0 7px 0 #000, inset 0 1px 0 rgba(255,255,255,.2), 0 14px 30px rgba(0,0,0,.5) !important;
+}
+.btn-gamemode:hover {
+  background: linear-gradient(145deg, #565c66 0%, #3a3e46 45%, #2a2d34 100%) !important;
+  box-shadow: 0 7px 0 #000, inset 0 1px 0 rgba(255,255,255,.2), 0 14px 30px rgba(0,0,0,.5) !important;
+}
+.btn-gamemode:active,
+.platoon-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 3px 0 #000, inset 0 1px 0 rgba(255,255,255,.14) !important;
+}

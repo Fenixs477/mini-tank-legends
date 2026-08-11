@@ -15,7 +15,8 @@ const Audio = {
     this._volume = parseFloat(localStorage.getItem('audio_volume') || '0.3');
     this._musicVolume = parseFloat(localStorage.getItem('audio_musicVolume') || '0.25');
     this._muted = localStorage.getItem('audio_muted') === '1';
-    this._loadClick('default', 'assets/click.mp3');
+    this._loadClick('default', 'assets/click.wav');
+    this._loadClick('gun', 'assets/sounds/gunshot.mp3');
   },
 
   _loadClick(name, url){
@@ -27,13 +28,13 @@ const Audio = {
     }).catch(()=>{});
   },
 
-  click(name){
+  click(name, vol){
     if(!this._ctx || this._muted || !this._clickBuffers[name]) return;
     if(this._ctx.state === 'suspended') this._ctx.resume();
     const src = this._ctx.createBufferSource();
     src.buffer = this._clickBuffers[name];
     const g = this._ctx.createGain();
-    g.gain.value = this._volume;
+    g.gain.value = this._volume * (vol == null ? 1 : vol);
     src.connect(g).connect(this._ctx.destination);
     src.start(0);
   },

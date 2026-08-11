@@ -12,9 +12,13 @@
 
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
+<link rel="icon" type="image/png" href="assets/icons/favicon.png">
+
+<link rel="apple-touch-icon" href="assets/icons/favicon.png">
+
 <title>Mini Tank Legends Cline</title>
 
-<link rel="stylesheet" href="css/style.css?v=1784317815">
+<link rel="stylesheet" href="css/style.css?v=1786501000">
 
 </head>
 
@@ -142,59 +146,69 @@
 
       <div id="main-menu-preview-canvas"></div>
 
-      <div class="profile" id="profile">
+      <div id="profile-wrap">
 
-        <div class="profile-top">
+        <div class="profile" id="profile">
 
-          <span class="profile-name" id="profile-name">Player</span>
+          <div class="profile-top">
 
-          <span class="profile-clan" id="profile-clan"></span>
+            <span class="profile-trophy">🏆</span>
 
-        </div>
+            <span class="profile-clan" id="profile-clan"></span>
 
-        <div class="profile-sep"></div>
+            <span class="profile-name" id="profile-name">Player</span>
 
-        <div class="profile-bottom">
+          </div>
 
-          <span class="profile-coin">0 $</span>
+          <div class="profile-sep"></div>
 
-          <span class="profile-crystal">0 &#9670;</span>
+          <div class="profile-bottom">
 
-        </div>
+            <span class="profile-coin"><img class="cur-img" src="assets/currency/cash.png" alt="cash"><span id="profile-cash-num">0</span></span>
 
-      </div>
+            <span class="profile-crystal"><img class="cur-img" src="assets/currency/gold.png" alt="gold"><span id="profile-gold-num">0</span></span>
 
-      <div class="night-mode-btn" id="night-mode-btn">
+          </div>
 
-        <div class="night-btn-icon">
-
-          <svg viewBox="0 0 48 48" width="26" height="26">
-
-            <path d="M28 8c-11 0-20 9-20 20s9 20 20 20c-3-2-5-5.5-5-9 0-6.6 5.4-12 12-12 3.5 0 7 1.5 9 4 0-11-9-20-20-20z" fill="#fbbf24"/>
-
-          </svg>
+          <div class="profile-account hidden" id="profile-account"></div>
 
         </div>
 
-        <span class="night-btn-label">Night Mode</span>
+        <div id="btn-settings-gear" data-open="settings" title="Settings">
+
+          <img src="gear.png" alt="Settings">
+
+        </div>
+
+        <div class="auth-mini-btn" id="auth-mini" title="Account">Log In</div>
 
       </div>
 
       <div class="main-menu-side" id="main-menu-side">
 
-        <div class="btn" data-open="storage">Storage</div>
+        <div class="btn menu-side-btn" data-open="store"><img class="menu-side-chip" src="assets/icons/store.svg" alt=""><span>Store</span></div>
 
-        <div class="btn" data-open="store">Store</div>
+        <div class="btn menu-side-btn" data-open="storage"><img class="menu-side-chip" src="assets/icons/storage.svg" alt=""><span>Storage</span></div>
 
-        <div class="btn" data-open="collections">Collections</div>
+        <div class="btn menu-side-btn" data-open="collections"><img class="menu-side-chip" src="assets/icons/collections.svg" alt=""><span>Collections</span></div>
 
-        <div class="btn" data-open="settings">Settings</div>
+        <div class="btn menu-side-btn" data-open="missions"><img class="menu-side-chip" src="assets/icons/missions.svg" alt=""><span>Missions</span></div>
 
-        <div class="btn btn-subtle" data-open="codes">Codes</div>
+        <div class="btn menu-side-btn" data-open="clans"><img class="menu-side-chip" src="assets/icons/clans.svg" alt=""><span>Clans</span></div>
+
+        <div class="btn menu-side-btn" data-open="codes"><img class="menu-side-chip" src="assets/icons/codes.svg" alt=""><span>Codes</span></div>
 
       </div>
 
-      <div class="btn-play" id="btn-play">PLAY</div>
+      <div class="main-menu-play-row">
+        <div class="btn-gamemode" id="btn-gamemode"><img id="gamemode-icon" src="assets/icons/gamemode-gladiator.png" alt=""><span id="gamemode-emoji" style="display:none">👑</span></div>
+        <div class="btn-play-wrap" id="btn-play-wrap">
+          <div class="btn-play" id="btn-play">PLAY</div>
+        </div>
+        <div class="platoon-btn" id="btn-platoon" title="Platoon">
+          <img src="assets/icons/platoon.png" alt="Platoon">
+        </div>
+      </div>
 
       <div class="main-menu-crates" id="main-menu-crates">
 
@@ -256,6 +270,57 @@
 
 
 
+    <!-- GAMEMODE SELECT -->
+
+    <div class="menu hidden" id="menu-gamemode-select">
+
+      <div class="gamemode-container">
+
+        <div class="gamemode-grid">
+
+          <!-- Gladiator - 30% -->
+          <div class="gamemode-square gladiator-square" data-gamemode="gladiator">
+
+            <div class="gamemode-icon">⚔️</div>
+
+            <div class="gamemode-name">Gladiator</div>
+
+            <div class="gamemode-percent">30%</div>
+
+          </div>
+
+          <!-- Sandbox - 20% -->
+          <div class="gamemode-square sandbox-square" data-gamemode="sandbox">
+
+            <div class="gamemode-icon">🧱</div>
+
+            <div class="gamemode-name">Sandbox</div>
+
+            <div class="gamemode-percent">20%</div>
+
+          </div>
+
+          <!-- Platform King - 25% -->
+          <div class="gamemode-square platform-king-square" data-gamemode="platform-king">
+
+            <div class="gamemode-icon">👑</div>
+
+            <div class="gamemode-name">Platform King</div>
+
+            <div class="gamemode-percent">25%</div>
+
+          </div>
+
+        </div>
+
+        <div class="btn btn-back gamemode-back" data-back="menu-main">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
     <!-- MULTIPLAYER ROOT -->
 
     <div class="menu hidden" id="menu-multiplayer">
@@ -290,7 +355,7 @@
 
         <input type="number" id="host-maxplayers" min="1" max="20" value="8">
 
-        <div class="hint">⚠ Many players → stronger device recommended</div>
+        <div class="hint">⚠️ Many players → ⚠️ stronger device recommended</div>
 
 
 
@@ -309,6 +374,20 @@
         <label>Max Fake Players (bots)</label>
 
         <input type="number" id="host-fakeplayers" min="0" max="20" value="4">
+
+
+
+        <label>Game Mode</label>
+
+        <div class="seg" id="host-gamemode-seg">
+
+          <div class="seg-opt active" data-mode="deathmatch">Deathmatch</div>
+
+          <div class="seg-opt" data-mode="gladiator">Gladiator</div>
+
+        </div>
+
+        <div class="hint" id="host-gamemode-hint">Gladiator: battle royale — shrinking zone, power drops, airdrops. 10 spawn points recommended.</div>
 
 
 
@@ -498,9 +577,9 @@
 
           <div class="shop-currencies">
 
-            <span class="shop-coin-disp">$ <span id="shop-coins">0</span></span>
+            <span class="shop-coin-disp"><img class="cur-img cur-lg" src="assets/currency/cash.png" alt="cash"> <span id="shop-coins">0</span></span>
 
-            <span class="shop-gem-disp">&#9670; <span id="shop-gems">0</span></span>
+            <span class="shop-gem-disp"><img class="cur-img cur-lg" src="assets/currency/gold.png" alt="gold"> <span id="shop-gems">0</span></span>
 
           </div>
 
@@ -590,7 +669,7 @@
 
         <div class="shop-buy-header">
 
-          <img class="shop-back-btn" id="shop-back-buy" src="assets/shop/back.png" alt="Back">
+          <div class="shop-back-btn" id="shop-back-buy">← Back</div>
 
         </div>
 
@@ -682,6 +761,8 @@
 
             <div class="settings-tab" data-tab="graphics">-- Graphics --</div>
 
+            <div class="settings-tab" data-tab="other">-- Other --</div>
+
           </div>
 
           <div class="settings-content">
@@ -712,6 +793,12 @@
 
             </div>
 
+            <div id="tab-other" class="tab-content">
+
+              <div id="other-settings"></div>
+
+            </div>
+
           <div class="btn btn-back" data-back="menu-main">&lt;- Back</div>
 
           </div>
@@ -724,6 +811,481 @@
 
 
 
+    <div class="menu hidden" id="menu-profile">
+
+      <div class="profile-overlay">
+
+        <div class="profile-card">
+
+          <div class="profile-card-head">
+
+            <div class="profile-trophy-slot" id="pcard-trophy-slot" title="Trophies">
+
+              <span class="trophy-slot-plus">+</span>
+
+              <div class="trophy-pop hidden" id="pcard-trophy-pop"></div>
+
+            </div>
+
+            <div>
+
+              <div class="profile-card-name" id="pcard-name"><span class="profile-trophy">🏆</span> <span class="profile-card-clan" id="pcard-clan"></span> <span class="profile-card-nick" id="pcard-name-text">Player</span></div>
+
+              <div class="profile-card-account" id="pcard-account"></div>
+
+            </div>
+
+          </div>
+
+          <div class="profile-card-grid" id="pcard-grid"></div>
+
+          <div class="btn btn-back" data-back="menu-main">&lt;- Back</div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+        <!-- PLATOON -->
+    <div class="menu hidden" id="menu-platoon">
+      <div class="platoon-overlay">
+        <div class="platoon-card pl-lobby">
+
+          <style>
+            .pl-lobby { width: min(96vw, 940px) !important; max-height: 94vh; overflow: auto; padding: 16px 18px 14px; box-sizing: border-box; text-align: left; --pl-sq: clamp(84px, 17vw, 118px); }
+            .pl-lobby * { box-sizing: border-box; font-family: 'Lilita One', sans-serif; }
+            .pl-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+            .pl-mode-wrap { display: flex; align-items: center; gap: 8px; }
+            .pl-mode-wrap label { color: #9aa0ab; font-size: 13px; letter-spacing: 1px; }
+            .pl-mode-wrap select { background: #101318; color: #fff; border: 2px solid #000; border-radius: 6px; padding: 8px 10px; font-size: 15px; cursor: pointer; outline: none; box-shadow: 0 3px 0 #000; }
+            .pl-switch { background: linear-gradient(160deg, #38bdf8 0%, #0369a1 100%); color: #fff; border: 2px solid #000; border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer; letter-spacing: 1px; box-shadow: 0 4px 0 #000; transition: transform .12s, filter .12s; }
+            .pl-switch:hover { filter: brightness(1.15); }
+            .pl-switch:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
+            .pl-switch:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
+            .pl-room-box { display: flex; align-items: center; gap: 7px; }
+            .pl-room-label { color: #9aa0ab; font-size: 12px; letter-spacing: 1px; }
+            .pl-room-code { background: #0b0e12; border: 2px solid #000; border-radius: 6px; padding: 7px 12px; font-size: 18px; letter-spacing: 3px; color: #fbbf24; min-width: 92px; text-align: center; box-shadow: 0 3px 0 #000; }
+            .pl-btn { border: 2px solid #000; border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; letter-spacing: 1px; box-shadow: 0 4px 0 #000; color: #fff; transition: transform .12s, filter .12s, box-shadow .12s; }
+            .pl-btn:hover { filter: brightness(1.1); }
+            .pl-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
+            .pl-btn:disabled { filter: grayscale(.7) brightness(.7); cursor: not-allowed; }
+            .pl-btn-orange { background: linear-gradient(160deg, #fbbf24 0%, #f97316 55%, #ea580c 100%); color: #241505; }
+            .pl-btn-gold { background: linear-gradient(160deg, #fde68a 0%, #fbbf24 45%, #f59e0b 100%); color: #241505; }
+            .pl-btn-red { background: linear-gradient(160deg, #f87171 0%, #b91c1c 100%); }
+            .pl-btn-gray { background: linear-gradient(160deg, #4b5563 0%, #1f2937 100%); }
+            .pl-btn-sm { padding: 6px 10px; font-size: 11px; border-radius: 6px; box-shadow: 0 3px 0 #000; }
+            .pl-join-input { background: #101318; border: 2px solid #000; border-radius: 6px; color: #fff; padding: 7px 9px; width: 76px; font-size: 15px; letter-spacing: 2px; text-align: center; outline: none; text-transform: uppercase; box-shadow: 0 3px 0 #000; }
+            .pl-teams { display: flex; gap: 16px; justify-content: center; margin-top: 16px; align-items: flex-start; }
+            .pl-team { background: rgba(255,255,255,.03); border: 2px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px 14px; }
+            .pl-team-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+            .pl-team-head b { font-size: 16px; letter-spacing: 2px; color: #fff; }
+            .pl-team-1 .pl-team-head b { color: #fbbf24; }
+            .pl-team-2 .pl-team-head b { color: #60a5fa; }
+            .pl-team-count { font-size: 12px; color: #9aa0ab; }
+            .pl-slots { display: flex; flex-direction: column; gap: 10px; }
+            .pl-slot { width: var(--pl-sq); height: var(--pl-sq); background: #161a21; border: 2px solid #000; border-radius: 12px; box-shadow: 0 4px 0 #000; position: relative; display: flex; align-items: center; justify-content: center; transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+            .pl-slot.pl-open { border: 2px dashed rgba(255,255,255,.35); background: rgba(255,255,255,.02); box-shadow: none; cursor: pointer; }
+            .pl-slot.pl-open:hover { transform: translateY(-3px) scale(1.03); border-color: #fbbf24; background: rgba(251,191,36,.06); box-shadow: 0 6px 0 #000, 0 0 20px rgba(251,191,36,.25); }
+            .pl-slot.pl-you { border-color: #fbbf24; box-shadow: 0 4px 0 #000, 0 0 16px rgba(251,191,36,.4); }
+            .pl-slot.pl-crown-slot { border-color: #f97316; }
+            .pl-slot.pl-pop { animation: plSlotPop .35s cubic-bezier(.34,1.56,.64,1); }
+            @keyframes plSlotPop { 0% { transform: scale(1.14); box-shadow: 0 0 0 rgba(251,191,36,0); } 100% { transform: scale(1); } }
+            .pl-slot-body { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+            .pl-plus { font-size: 34px; color: rgba(255,255,255,.45); line-height: 1; }
+            .pl-open-label { font-size: 10px; letter-spacing: 2px; color: rgba(255,255,255,.35); }
+            .pl-slot-name { font-size: 14px; color: #fff; letter-spacing: 1px; }
+            .pl-slot.pl-you .pl-slot-name { color: #fbbf24; }
+            .pl-slot-ready { font-size: 10px; letter-spacing: 2px; padding: 4px 12px; border-radius: 999px; background: rgba(249,115,22,.18); color: #fb923c; border: 1px solid rgba(249,115,22,.55); animation: plPop .25s cubic-bezier(.34,1.56,.64,1); }
+            @keyframes plPop { 0% { transform: scale(.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+            .pl-crown { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 24px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); animation: plCrown .8s ease-in-out infinite alternate; }
+            @keyframes plCrown { from { transform: translateX(-50%) translateY(0) rotate(-8deg); } to { transform: translateX(-50%) translateY(-4px) rotate(8deg); } }
+            .pl-team.pl-hidden { display: none; }
+            .pl-spec { margin: 14px auto 0; width: fit-content; background: rgba(255,255,255,.02); border: 2px dashed rgba(255,255,255,.12); border-radius: 12px; padding: 12px 16px; }
+            .pl-spec .pl-team-head b { color: #9aa0ab; }
+            .pl-voice { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+            .pl-mic-status { font-size: 11px; color: #9aa0ab; letter-spacing: 1px; }
+            .pl-mic-on { background: rgba(251,191,36,.15); color: #fbbf24; border: 1px solid rgba(251,191,36,.5); border-radius: 999px; padding: 2px 10px; font-size: 10px; letter-spacing: 2px; }
+            .pl-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+            .pl-actions { display: flex; align-items: flex-end; gap: 10px; margin-left: auto; }
+            .pl-ready-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+            .pl-ready-wrap .pl-btn { min-width: 150px; }
+            #pl-start.pl-btn { font-size: 15px; padding: 11px 14px; animation: plPulse .9s infinite alternate; }
+            @keyframes plPulse { from { box-shadow: 0 4px 0 #000, 0 0 0 rgba(251,191,36,0); } to { box-shadow: 0 4px 0 #000, 0 0 18px rgba(251,191,36,.55); } }
+            .pl-status { margin-top: 10px; min-height: 18px; font-size: 12px; color: #9aa0ab; letter-spacing: 1px; text-align: center; }
+            .pl-toast-anim { animation: plToast .35s ease; }
+            @keyframes plToast { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+          </style>
+
+          <!-- TOP BAR -->
+          <div class="pl-top">
+            <div class="pl-mode-wrap">
+              <label>GAME MODE</label>
+              <select id="pl-mode">
+                <option value="tdm">TEAM DEATHMATCH</option>
+                <option value="ctf">CAPTURE THE FLAG</option>
+                <option value="ffa">FREE FOR ALL</option>
+                <option value="custom">CUSTOM</option>
+              </select>
+            </div>
+            <button class="pl-switch" id="pl-switch" title="Move to the other team (custom mode only)">&#8646; SWITCH TEAM SIDES</button>
+            <div class="pl-room-box">
+              <span class="pl-room-label">GAME CODE</span>
+              <span class="pl-room-code" id="pl-room-code">----</span>
+              <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-copy">COPY</button>
+              <input class="pl-join-input" id="pl-join-code" maxlength="4" placeholder="XXXX" spellcheck="false">
+              <button class="pl-btn pl-btn-sm pl-btn-orange" id="pl-join">JOIN</button>
+            </div>
+          </div>
+
+          <!-- TEAMS (vertical columns) -->
+          <div class="pl-teams">
+            <div class="pl-team pl-team-1" id="pl-team-1">
+              <div class="pl-team-head"><b>TEAM 1</b><span class="pl-team-count" id="pl-c1">0/3</span></div>
+              <div class="pl-slots" id="pl-slots-1"></div>
+            </div>
+            <div class="pl-team pl-team-2 pl-hidden" id="pl-team-2">
+              <div class="pl-team-head"><b>TEAM 2</b><span class="pl-team-count" id="pl-c2">0/3</span></div>
+              <div class="pl-slots" id="pl-slots-2"></div>
+            </div>
+          </div>
+
+          <!-- SPECTATORS (vertical, below) -->
+          <div class="pl-spec">
+            <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs">0/2</span></div>
+            <div class="pl-slots" id="pl-slots-s"></div>
+          </div>
+
+          <!-- VOICE -->
+          <div class="pl-voice">
+            <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-mic">&#127908; VOICE: OFF</button>
+            <span class="pl-mic-status" id="pl-mic-status">Click to enable lobby voice chat</span>
+            <span class="pl-mic-on" id="pl-mic-tag" style="display:none">VOICE LIVE</span>
+          </div>
+
+          <!-- BOTTOM -->
+          <div class="pl-bottom">
+            <button class="pl-btn pl-btn-orange" id="pl-collections">COLLECTIONS</button>
+            <div class="pl-actions">
+              <button class="pl-btn pl-btn-red" id="pl-delete">DELETE ROOM</button>
+              <button class="pl-btn pl-btn-gray" id="pl-back">BACK</button>
+              <div class="pl-ready-wrap">
+                <button class="pl-btn pl-btn-gold" id="pl-start" style="display:none">START BATTLE</button>
+                <button class="pl-btn pl-btn-orange" id="pl-ready">READY</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pl-status" id="pl-status"></div>
+
+          <script>
+          (function(){
+            if(window.PlatoonLobby) return;
+
+            var MODES = {
+              tdm:    { label: 'TEAM DEATHMATCH', custom: false },
+              ctf:    { label: 'CAPTURE THE FLAG', custom: false },
+              ffa:    { label: 'FREE FOR ALL',     custom: false },
+              custom: { label: 'CUSTOM',           custom: true  }
+            };
+            var CROWN_POS = '1-0';
+
+            function $(id){ return document.getElementById(id); }
+            function el(tag, cls, txt){
+              var n = document.createElement(tag);
+              if(cls) n.className = cls;
+              if(txt !== undefined) n.textContent = txt;
+              return n;
+            }
+
+            var L = window.PlatoonLobby = {
+              code: null, mode: 'tdm',
+              team1: [null, null, null], team2: [null, null, null], specs: [null, null],
+              you: null
+            };
+
+            function rndCode(){
+              var c = Math.random().toString(36).slice(2,6).toUpperCase();
+              return c.length < 4 ? c + 'X'.repeat(4 - c.length) : c;
+            }
+            function arrOf(t){ return t === '2' ? L.team2 : (t === 's' ? L.specs : L.team1); }
+            function isHostYou(){ return L.you && L.you.team === '1' && L.you.slot === 0; }
+            function firstEmpty(arr){ return arr.findIndex(function(p){ return !p; }); }
+
+            function status(msg){
+              var s = $('pl-status');
+              s.textContent = msg;
+              s.classList.remove('pl-toast-anim');
+              void s.offsetWidth;
+              s.classList.add('pl-toast-anim');
+            }
+
+            function vacate(){
+              var arr = arrOf(L.you.team);
+              if(arr && arr[L.you.slot]) arr[L.you.slot] = null;
+            }
+
+            function moveTo(t, i){
+              if(!L.you || (L.you.team === t && L.you.slot === i)) return;
+              if(t === '2' && !MODES[L.mode].custom) return;
+              var arr = arrOf(t);
+              if(arr[i]) return;
+              vacate();
+              arr[i] = L.you;
+              L.you.team = t; L.you.slot = i; L.you.ready = false;
+              status(isHostYou() ? 'You are the HOST — top slot (crown)'
+                : (t === 's' ? 'You are now SPECTATING — observing only'
+                   : 'Moved to ' + (t === '2' ? 'TEAM 2' : 'TEAM 1') + (isHostYou() ? '' : ' — the top slot player is the host')));
+              render();
+            }
+
+            function switchSide(){
+              if(!L.you) return;
+              if(L.you.team === 's'){
+                var i = firstEmpty(L.team1);
+                if(i < 0){ status('TEAM 1 is full'); return; }
+                moveTo('1', i);
+                return;
+              }
+              var dest = L.you.team === '1' ? '2' : '1';
+              var i = firstEmpty(arrOf(dest));
+              if(i < 0){ status('Team is full'); return; }
+              moveTo(dest, i);
+            }
+
+            function toggleReady(){
+              if(!L.you || L.you.team === 's') return;
+              L.you.ready = !L.you.ready;
+              status(L.you.ready ? (isHostYou() ? 'READY — you can start the battle' : 'READY — the host can start the battle') : 'NOT ready');
+              render();
+            }
+
+            function placeYou(dests){
+              var list = dests || ['1', '2', 's'];
+              for(var k = 0; k < list.length; k++){
+                var t = list[k];
+                if(t === '2' && !MODES[L.mode].custom) continue;
+                var i = firstEmpty(arrOf(t));
+                if(i >= 0){ arrOf(t)[i] = L.you; L.you.team = t; L.you.slot = i; return; }
+              }
+            }
+
+            function setupRoom(){
+              L.you = { id: 'you', name: 'YOU', team: '1', slot: 0, ready: false };
+              L.team1 = [L.you, null, null];
+              L.team2 = [null, null, null];
+              L.specs = [null, null];
+              render();
+            }
+
+            function newRoom(){
+              L.code = rndCode();
+              setupRoom();
+              status('You are HOST — code ' + L.code);
+            }
+
+            function joinRoom(code){
+              L.code = code;
+              L.you = { id: 'you', name: 'YOU', team: '1', slot: 0, ready: false };
+              L.team1 = [null, null, null];
+              L.team2 = [null, null, null];
+              L.specs = [null, null];
+              placeYou(null);
+              render();
+              status('Joined room ' + code + ' — waiting for host');
+            }
+
+            /* ---- diff render (perf: only changed slots touch the DOM) ---- */
+            var nodes = { '1': [], '2': [], 's': [] };
+            var built = false;
+
+            function sig(p, pos){
+              if(!p) return 'o';
+              return (p.id === 'you' ? 'Y' : 'P') + (p.ready ? 'R' : '') + (pos === CROWN_POS ? 'C' : '');
+            }
+
+            function buildSlot(pos, t, i){
+              var d = el('div', 'pl-slot pl-open');
+              d.dataset.pos = pos;
+              d.appendChild(el('div', 'pl-crown', '\uD83D\uDC51'));
+              var body = el('div', 'pl-slot-body');
+              body.appendChild(el('div', 'pl-plus', '+'));
+              body.appendChild(el('div', 'pl-open-label', 'OPEN'));
+              body.appendChild(el('div', 'pl-slot-name'));
+              body.appendChild(el('div', 'pl-slot-ready'));
+              d.appendChild(body);
+              d.onclick = function(){ moveTo(t, i); };
+              return d;
+            }
+
+            function applySlot(d, p, pos){
+              var crown = d.querySelector('.pl-crown');
+              var plus = d.querySelector('.pl-plus');
+              var label = d.querySelector('.pl-open-label');
+              var name = d.querySelector('.pl-slot-name');
+              var ready = d.querySelector('.pl-slot-ready');
+              var isYou = p && p.id === 'you';
+              var isCrown = pos === CROWN_POS;
+              d.className = 'pl-slot' + (p ? (isYou ? ' pl-you' : ' pl-player') : ' pl-open') + (isCrown && p ? ' pl-crown-slot' : '');
+              crown.style.display = (p && isCrown) ? '' : 'none';
+              plus.style.display = p ? 'none' : '';
+              label.style.display = p ? 'none' : '';
+              name.style.display = p ? '' : 'none';
+              ready.style.display = (p && p.ready) ? '' : 'none';
+              name.textContent = isYou ? 'YOU' : (p ? p.name : '');
+            }
+
+            function render(){
+              var custom = MODES[L.mode].custom;
+              $('pl-team-2').classList.toggle('pl-hidden', !custom);
+              $('pl-switch').disabled = !(custom || (L.you && L.you.team === 's'));
+              $('pl-delete').style.display = isHostYou() ? '' : 'none';
+              $('pl-ready').disabled = L.you.team === 's';
+              $('pl-ready').textContent = L.you.team === 's' ? 'SPECTATING' : (L.you.ready ? 'READY \u2713' : 'READY');
+              $('pl-ready').classList.toggle('pl-btn-gold', L.you.ready);
+              $('pl-room-code').textContent = L.code;
+              var start = isHostYou() && L.you.ready;
+              $('pl-start').style.display = start ? '' : 'none';
+              $('pl-start').disabled = false;
+
+              var groups = [['1', L.team1], ['2', L.team2], ['s', L.specs]];
+              for(var g = 0; g < groups.length; g++){
+                var t = groups[g][0], arr = groups[g][1];
+                var wrap = $('pl-slots-' + t);
+                if(!built){
+                  for(var i = 0; i < arr.length; i++){
+                    var d = buildSlot(t + '-' + i, t, i);
+                    nodes[t].push({ el: d, last: null });
+                    wrap.appendChild(d);
+                  }
+                }
+                $('pl-c' + t).textContent = arr.filter(Boolean).length + '/' + arr.length;
+                for(var j = 0; j < arr.length; j++){
+                  var pos = t + '-' + j;
+                  var n = nodes[t][j];
+                  var s = sig(arr[j], pos);
+                  if(n.last !== s){
+                    applySlot(n.el, arr[j], pos);
+                    n.last = s;
+                    if(arr[j] && arr[j].id === 'you'){
+                      n.el.classList.remove('pl-pop');
+                      void n.el.offsetWidth;
+                      n.el.classList.add('pl-pop');
+                    }
+                  }
+                }
+              }
+              built = true;
+            }
+
+            /* ---------------- voice chat (WebRTC) ---------------- */
+            var Voice = L.voice = {
+              ctx: null, stream: null, pc: null, on: false,
+              toggle: function(){
+                if(this.on){ this.stop(); return; }
+                var self = this;
+                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+                  self.stream = stream;
+                  self.ctx = self.ctx || new (window.AudioContext || window.webkitAudioContext)();
+                  self.pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                  stream.getTracks().forEach(function(t){ self.pc.addTrack(t, stream); });
+                  self.pc.ontrack = function(ev){
+                    var a = document.createElement('audio');
+                    a.autoplay = true;
+                    a.srcObject = ev.streams[0];
+                    document.body.appendChild(a);
+                  };
+                  self.pc.onicecandidate = function(ev){
+                    if(ev.candidate && window.__PLATOON_SIGNAL) window.__PLATOON_SIGNAL({ c: ev.candidate });
+                  };
+                  self.on = true;
+                  $('pl-mic').innerHTML = '\uD83C\uDFA4 VOICE: ON';
+                  $('pl-mic-tag').style.display = '';
+                  $('pl-mic-status').textContent = window.__PLATOON_SIGNAL
+                    ? 'Connected — broadcasting to room'
+                    : 'Mic live — no signaling relay yet (teammates will connect when the relay is added)';
+                }).catch(function(){
+                  $('pl-mic-status').textContent = 'MIC BLOCKED — allow microphone access';
+                });
+              },
+              stop: function(){
+                this.on = false;
+                if(this.pc){ this.pc.close(); this.pc = null; }
+                if(this.stream){ this.stream.getTracks().forEach(function(t){ t.stop(); }); this.stream = null; }
+                $('pl-mic').innerHTML = '\uD83C\uDFA4 VOICE: OFF';
+                $('pl-mic-tag').style.display = 'none';
+                $('pl-mic-status').textContent = 'Voice chat disabled';
+              }
+            };
+
+            /* ---------------- wiring ---------------- */
+            function wire(){
+              $('pl-mode').addEventListener('change', function(){
+                L.mode = $('pl-mode').value;
+                var custom = MODES[L.mode].custom;
+                if(!custom && L.you && L.you.team === '2'){
+                  var i = firstEmpty(L.team1);
+                  if(i < 0){ moveTo('s', firstEmpty(L.specs)); }
+                  else moveTo('1', i);
+                }
+                status('Game mode: ' + MODES[L.mode].label + (custom ? ' (custom)' : ''));
+                render();
+              });
+              $('pl-switch').addEventListener('click', switchSide);
+              $('pl-ready').addEventListener('click', toggleReady);
+              $('pl-start').addEventListener('click', function(){
+                status('START BATTLE pressed — match launch integration coming next');
+                $('pl-start').disabled = true;
+              });
+              $('pl-delete').addEventListener('click', function(){
+                status('Room ' + L.code + ' closed — creating a new room');
+                newRoom();
+              });
+              $('pl-back').addEventListener('click', function(){
+                if(window.Menu){ Menu._platoonReturn = false; Menu.show('menu-main'); }
+              });
+              $('pl-collections').addEventListener('click', function(){
+                if(window.Menu){ Menu._platoonReturn = true; Menu.show('menu-collections'); }
+              });
+              $('pl-copy').addEventListener('click', function(){
+                function done(){ status('Code ' + L.code + ' copied to clipboard'); }
+                if(navigator.clipboard && navigator.clipboard.writeText){
+                  navigator.clipboard.writeText(L.code).then(done, function(){
+                    var t = document.createElement('textarea');
+                    t.value = L.code; document.body.appendChild(t); t.select();
+                    document.execCommand('copy'); t.remove(); done();
+                  });
+                } else {
+                  var t = document.createElement('textarea');
+                  t.value = L.code; document.body.appendChild(t); t.select();
+                  document.execCommand('copy'); t.remove(); done();
+                }
+              });
+              $('pl-join').addEventListener('click', function(){
+                var v = $('pl-join-code').value.trim().toUpperCase();
+                if(v.length !== 4){ status('Enter a 4-character game code'); return; }
+                joinRoom(v);
+              });
+              $('pl-join-code').addEventListener('input', function(e){
+                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+              });
+              $('pl-join-code').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('pl-join').click(); });
+              $('pl-mic').addEventListener('click', function(){ Voice.toggle(); });
+            }
+
+            if(document.readyState === 'loading'){
+              document.addEventListener('DOMContentLoaded', function(){ wire(); newRoom(); });
+            } else {
+              wire(); newRoom();
+            }
+          })();
+          </script>
+
+        </div>
+      </div>
+    </div>
     <!-- HUD -->
 
     <div id="hud" class="hidden">
@@ -733,6 +1295,8 @@
       <div id="menu-btn" title="Menu"><svg width="39" height="39" viewBox="0 0 24 24" fill="none" stroke="#ffb12b" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg><span class="map-key-hint">TAB</span></div>
 
       <div id="speed-readout"><span id="speed-val">0</span> <small>km/h</small></div>
+
+      <div id="fps-counter" class="hidden"></div>
 
       <div id="leaderboard">
 
@@ -746,6 +1310,14 @@
 
       <div id="hp-wrap"><div id="hp-bar"></div><span id="hp-text">100 / 100</span></div>
 
+      <div id="super-wrap" class="hidden">
+        <button id="super-btn" title="Super ability (F)">
+          <span class="super-icon">✈</span>
+          <span class="super-label">READY</span>
+        </button>
+        <span id="super-hint" class="hidden"></span>
+      </div>
+
       <canvas id="reload-indicator" width="104" height="104"></canvas>
 
       <div id="camo-indicator"><span id="camo-dot"></span><span id="camo-text">EXPOSED</span></div>
@@ -755,6 +1327,38 @@
       <div id="heat-wrap" class="hidden"><div id="heat-bar-outer"><div id="heat-bar"></div></div><span class="heat-tick" style="top:0">1000</span><span class="heat-tick" style="top:50%">500</span><span class="heat-tick" style="top:100%">0</span><span id="heat-text"></span></div>
 
       <div id="net-status" class="hidden"></div>
+
+      <!-- Gladiator mode HUD -->
+
+      <div id="glad-hud" class="hidden">
+
+        <span id="glad-power">PWR 0 (+0%)</span>
+
+        <span id="glad-left">Alive: -</span>
+
+      </div>
+
+      <div id="glad-banner" class="hidden"></div>
+
+      <!-- Gladiator result overlay -->
+
+      <div id="glad-result" class="hidden">
+
+        <div class="glad-result-box">
+
+          <div id="glad-result-text">MATCH OVER</div>
+
+          <div class="glad-result-btns">
+
+            <button id="glad-watch-btn">Keep watching</button>
+
+            <button id="glad-exit-btn">Exit to menu</button>
+
+          </div>
+
+        </div>
+
+      </div>
 
       <!-- In-game portrait warning -->
 
@@ -827,6 +1431,220 @@
         <div class="btn" id="btn-revert-map" style="margin-top:8px">Revert Map (restore original)</div>
 
         <div class="btn btn-back" data-back="menu-main">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- MISSIONS -->
+
+    <div class="menu hidden" id="menu-missions">
+
+      <div class="menu-card clan-menu-card">
+
+        <h2 class="clan-title">🎯 MISSIONS</h2>
+
+        <p class="menu-missions-sub">Daily and weekly missions are on the way. Check back soon!</p>
+
+        <div class="menu-missions-placeholder">COMING SOON</div>
+
+        <div class="btn btn-back" data-back="menu-main">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- CLANS MAIN MENU -->
+
+    <div class="menu hidden" id="menu-clans">
+
+      <div class="menu-card clan-menu-card">
+
+        <h2 class="clan-title">CLANS</h2>
+
+        <div class="hint clan-hint" id="clan-current-hint" style="display:none"></div>
+
+        <div class="clan-menu-buttons">
+
+          <div class="btn btn-primary clan-3d-btn clan-ico" id="btn-create-clan-menu"><span class="clan-ico-ani">🏠</span> Create Clan</div>
+
+          <div class="btn clan-3d-btn clan-ico" id="btn-search-clans-menu"><span class="clan-ico-ani">🔍</span> Search Clans</div>
+
+        </div>
+
+        <div class="btn btn-back" data-back="menu-main">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- CREATE CLAN MENU -->
+
+    <div class="menu hidden" id="menu-create-clan">
+
+      <div class="menu-card clan-menu-card">
+
+        <h2 class="clan-title">CREATE CLAN</h2>
+
+        <label>Clan Name (minimum 3 letters)</label>
+
+        <input type="text" id="clan-name-input" placeholder="Enter clan name..." maxlength="20">
+
+        <label>Visibility</label>
+
+        <div class="seg clan-visibility-seg">
+
+          <div class="seg-opt active" data-vis="public">Public</div>
+
+          <div class="seg-opt" data-vis="hidden">Hidden</div>
+
+        </div>
+
+        <div class="hint clan-hint">⚠️ Attention! If you choose hidden, a code will be copied to your clipboard. You can also get it writing /code in codes menu.</div>
+
+        <div class="btn btn-primary clan-3d-btn clan-ico" id="btn-create-clan-submit"><span class="clan-ico-ani">📜</span> CREATE CLAN</div>
+
+        <div class="btn btn-back" data-back="menu-clans">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- SEARCH CLANS MENU -->
+
+    <div class="menu hidden" id="menu-search-clans">
+
+      <div class="menu-card clan-menu-card wide">
+
+        <h2 class="clan-title">SEARCH CLANS</h2>
+
+        <div class="clan-search-section">
+
+          <div class="clan-search-row">
+
+            <div class="clan-search-col">
+
+              <label>Search Public Clans</label>
+
+              <input type="text" id="public-clan-search" placeholder="Search by name...">
+
+            </div>
+
+            <div class="clan-search-col">
+
+              <label>Join Hidden Clan</label>
+
+              <input type="text" id="hidden-clan-code" placeholder="Enter clan code...">
+
+            </div>
+
+          </div>
+
+          <div class="btn btn-primary clan-3d-btn clan-ico" id="btn-search-public-clans"><span class="clan-ico-ani">🔎</span> Search</div>
+
+          <div class="btn clan-3d-btn clan-ico" id="btn-join-hidden-clan"><span class="clan-ico-ani">🎁</span> Join Hidden Clan</div>
+
+        </div>
+
+        <div class="clan-list-container">
+
+          <h3 class="clan-list-title">Public Clans</h3>
+
+          <div id="public-clan-list" class="clan-list"><div class="muted">Search for public clans...</div></div>
+
+        </div>
+
+        <div class="btn btn-back" data-back="menu-clans">← Back</div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- CLAN UI (NEW LAYOUT WITH MEMBER LIST AND CHAT) -->
+
+    <div class="menu hidden" id="menu-clan-ui">
+
+      <div id="clan-sync-tip" class="hidden">
+        <span class="clan-sync-tip-icon">💾</span>
+        <span>Messages from other players can take up to 2 minutes to arrive.</span>
+      </div>
+
+      <div class="clan-ui-container">
+
+        <!-- Back arrow (top-left): go search other clans, does NOT leave the clan -->
+        <div class="btn btn-back clan-ui-back-arrow" data-back="menu-clans" id="btn-clan-ui-back" title="Search for other clans (you stay in this clan)">←</div>
+
+        <!-- Custom canvas layout (Clan Editor design) rendered with live data -->
+
+        <div id="clan-canvas-wrap" class="hidden">
+
+          <canvas id="clan-ui-canvas"></canvas>
+
+          <input type="text" id="clan-canvas-input" maxlength="200" autocomplete="off" spellcheck="false">
+
+        </div>
+
+        <!-- Background Image -->
+        <div class="clan-ui-html clan-ui-background"></div>
+
+        <!-- Clan Header -->
+        <div class="clan-ui-html clan-ui-header-new">
+
+          <h2 class="clan-title" id="clan-ui-name">CLAN NAME</h2>
+
+          <div class="clan-ui-rank-badge" id="clan-ui-rank">OWNER</div>
+
+        </div>
+
+        <!-- Separator -->
+        <div class="clan-ui-html clan-ui-separator">-----------------------------</div>
+
+        <!-- Member List -->
+        <div class="clan-ui-html clan-member-list-container">
+
+          <div class="clan-member-list-header">Members</div>
+
+          <div id="clan-members-list" class="clan-members-list-new"></div>
+
+        </div>
+
+        <!-- Chat Section -->
+        <div class="clan-ui-html clan-chat-container">
+
+          <div class="clan-chat-header">Clan Chat</div>
+
+          <div id="clan-chat-messages" class="clan-chat-messages"></div>
+
+          <div class="clan-chat-input-container">
+
+            <input type="text" id="clan-chat-input" class="clan-chat-input" placeholder="Type a message..." maxlength="200">
+
+            <div class="btn clan-3d-btn clan-chat-send-btn" id="btn-send-chat">Send</div>
+
+          </div>
+
+        </div>
+
+        <!-- Actions -->
+        <div class="clan-ui-actions-new">
+
+          <div class="btn clan-3d-btn" id="btn-copy-clan-code">Copy Join Code</div>
+
+          <div class="btn clan-3d-btn btn-danger" id="btn-leave-clan" title="Leave Clan">🚪</div>
+
+        </div>
+
+        <div class="btn btn-back" data-back="menu-clans">← Back</div>
 
       </div>
 
@@ -930,7 +1748,7 @@
 
           <div class="rt-arrow rt-arrow-a">↻</div>
 
-          <div class="rt-arrow rt-arrow-b">↺</div>
+          <div class="rt-arrow rt-arrow-b">↻</div>
 
         </div>
 
@@ -990,49 +1808,111 @@
 
   <!-- Game -->
 
-  <script src="js/config.js?v=1784317705"></script>
+  <script src="js/config.js?v=1786502000"></script>
 
-  <script src="js/vfx.js?v=1784317672"></script>
+  <script src="js/vfx.js?v=1784323000"></script>
 
-  <script src="js/shaders.js?v=1784317673"></script>
+  <script src="js/shaders.js?v=1784319500"></script>
 
   <script src="js/glb_data.js?v=1784317672"></script>
 
   <script src="js/obj_data.js?v=1784317672"></script>
 
-  <script src="js/models.js?v=1784317672"></script>
+  <script src="js/models.js?v=1786502000"></script>
 
-  <script src="js/water-shader.js?v=1784320000"></script>
+  <script src="js/water-shader.js?v=1784319500"></script>
 
-  <script src="js/world.js?v=1784320000"></script>
+  <script src="js/world.js?v=1786396114"></script>
 
-  <script src="js/tank.js?v=1784317672"></script>
+  <script src="js/tank.js?v=1786502000"></script>
 
-  <script src="js/projectile.js?v=1784317672"></script>
+  <script src="js/projectile.js?v=1786502000"></script>
 
   <script src="js/bullet-trail.js?v=1784317672"></script>
 
-  <script src="js/input.js?v=1784317695"></script>
+  <script src="js/input.js?v=1786308292"></script>
 
-  <script src="js/bot.js?v=1784317672"></script>
+  <script src="js/bot.js?v=1784325000"></script>
 
-  <script src="js/nakama-net.js?v=1784317672"></script>
+  <script src="js/nakama-net.js?v=1784319500"></script>
 
-  <script src="js/net.js?v=1784317672"></script>
+  <script src="js/net.js?v=1784319500"></script>
 
-  <script src="js/audio.js?v=20260724"></script>
+  <script src="js/audio.js?v=1786388907"></script>
 
   <script src="js/shopdata.js?v=20260724"></script>
 
-  <script src="js/menu.js?v=1784317835"></script>
+  <script src="js/clan-default-layout.js?v=7"></script>
 
-  <script src="js/menu-editor.js?v=1784317672"></script>
+  <script src="js/menu.js?v=1786501000"></script>
+  <script src="js/menu-editor.js?v=1784319500"></script>
 
-  <script src="js/editor123.js?v=1784317675"></script>
+  <script src="js/editor123.js?v=1786346038"></script>
 
-  <script src="js/default-map.js?v=1784317672"></script>
+  <script src="js/default-map.js?v=1784319500"></script>
+  <script src="js/gladiator-map.js?v=1784327000"></script>
 
-  <script src="js/game.js?v=20260723"></script>
+  <script src="js/game.js?v=1786502000"></script>
+
+  <script src="js/auth.js?v=1784320000"></script>
+
+  <!-- Account login overlay -->
+  <div class="auth-overlay hidden" id="auth-overlay">
+    <div class="auth-bg" aria-hidden="true">
+      <div class="auth-blob auth-blob-1"></div>
+      <div class="auth-blob auth-blob-2"></div>
+      <div class="auth-blob auth-blob-3"></div>
+    </div>
+    <div class="auth-card">
+      <div class="auth-logo">
+        <div class="auth-logo-tank" aria-hidden="true"></div>
+        <div class="auth-title">TANK LEGENDS</div>
+        <div class="auth-sub">One account → every device</div>
+      </div>
+      <div class="auth-tabs">
+        <div class="auth-tab active" data-authtab="login" id="auth-tab-login">Log In</div>
+        <div class="auth-tab" data-authtab="register" id="auth-tab-register">Register</div>
+      </div>
+
+      <div class="auth-panel active" id="auth-panel-login">
+        <div class="auth-field">
+          <input id="auth-login-login" type="text" placeholder="Username or email" autocomplete="username">
+        </div>
+        <div class="auth-field">
+          <input id="auth-login-pass" type="password" placeholder="Password" autocomplete="current-password">
+        </div>
+        <div class="auth-error hidden" id="auth-error-login"></div>
+        <button class="auth-btn" id="auth-login-btn">Log In</button>
+        <div class="auth-or"><span>or</span></div>
+        <button class="auth-google" id="auth-google-login">
+          <span class="auth-google-g">G</span><span>Continue with Google</span><span class="auth-google-soon">soon</span>
+        </button>
+        <div class="auth-foot">Your progress (coins, tanks, clans) syncs to your account</div>
+      </div>
+
+      <div class="auth-panel" id="auth-panel-register">
+        <div class="auth-field">
+          <input id="auth-reg-username" type="text" placeholder="Username (3-20 chars)" autocomplete="username">
+        </div>
+        <div class="auth-field">
+          <input id="auth-reg-email" type="email" placeholder="Email" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <input id="auth-reg-pass" type="password" placeholder="Password (min 6 chars)" autocomplete="new-password">
+        </div>
+        <div class="auth-field">
+          <input id="auth-reg-pass2" type="password" placeholder="Repeat password" autocomplete="new-password">
+        </div>
+        <div class="auth-error hidden" id="auth-error-register"></div>
+        <button class="auth-btn" id="auth-reg-btn">Create Account</button>
+        <div class="auth-or"><span>or</span></div>
+        <button class="auth-google" id="auth-google-register">
+          <span class="auth-google-g">G</span><span>Continue with Google</span><span class="auth-google-soon">soon</span>
+        </button>
+        <div class="auth-foot">No email verification → just play</div>
+      </div>
+    </div>
+  </div>
 
 </body>
 

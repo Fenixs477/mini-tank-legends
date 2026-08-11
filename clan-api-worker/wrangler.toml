@@ -1,0 +1,7 @@
+name = "clan-registry-api"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "CLAN_KV"
+id = "8c5f6a7a957c47269ce0ef94ba4fd4e6"

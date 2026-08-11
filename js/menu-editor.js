@@ -6,7 +6,7 @@ const MENU_COMMANDS = [
   { value: 'settings', label: 'Settings' },
   { value: 'codes', label: 'Codes' },
   { value: 'preview', label: 'Preview Tank' },
-  { value: 'back', label: 'â† Back' },
+  { value: 'back', label: '← Back' },
 ];
 
 const MenuEditor = {
@@ -108,7 +108,7 @@ const MenuEditor = {
         ctx.font = '10px Segoe UI';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
-        ctx.fillText('âž¤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
+        ctx.fillText('➤ ' + el.command, el.x + el.w - 4, el.y + el.h - 4);
       }
     }
     if(el === this.selected){

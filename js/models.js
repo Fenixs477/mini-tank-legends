@@ -1,5 +1,5 @@
 /* ============================================================
-   models.js â€” GLTF / GLB / Collada loader + cache. Tries to load
+   models.js — GLTF / GLB / Collada loader + cache. Tries to load
    the real tank model from mini_tank_legends_models/<name>.glb,
    .gltf, or .dae; if missing it falls back to the cube body+turret.
    Uses Three.js GLTFLoader or ColladaLoader.
@@ -95,7 +95,7 @@ const Models = {
     }
     const loader = this.loader();
     if(!loader) return this._loadCollada(name);
-    // Try .glb â†’ .gltf â†’ .dae
+    // Try .glb → .gltf → .dae
     return this._tryLoad(name, '.glb')
       .catch(()=> this._tryLoad(name, '.gltf'))
       .catch(()=> this._loadCollada(name))
@@ -108,6 +108,7 @@ const Models = {
       if(typeof window.__GLB_DATA__ !== 'undefined' && window.__GLB_DATA__[name] && ext === '.glb'){
         const url = 'data:application/octet-stream;base64,' + window.__GLB_DATA__[name];
         this.loader().load(url, (gltf)=>{
+          this._stripSkins(gltf.scene);
           this._cache[name].gltf = gltf.scene;
           this._cache[name].tried = true;
           resolve(this._clone(name));
@@ -118,6 +119,7 @@ const Models = {
       this.loader().load(
         CONFIG.MODEL_DIR + name + ext,
         (gltf)=>{
+          this._stripSkins(gltf.scene);
           this._cache[name].gltf = gltf.scene;
           this._cache[name].tried = true;
           resolve(this._clone(name));
@@ -155,6 +157,38 @@ const Models = {
     if(!src) return null;
     return src.clone(true);
   },
+
+  /* Turn SkinnedMesh into plain Mesh at the same authored node.
+     The game never plays GLB animations, and a cloned scene shares
+     its skeleton with the original (undrawn) scene, so the bone
+     matrices stay uninitialized and the model renders crushed into
+     tiny fragments. At bind pose the two are visually identical. */
+  _stripSkins(scene){
+    const plain = [];
+    scene.traverse(o => { if(o.isSkinnedMesh) plain.push(o); });
+    plain.forEach(o => {
+      const m = new THREE.Mesh(o.geometry, o.material);
+      m.position.copy(o.position);
+      m.quaternion.copy(o.quaternion);
+      m.scale.copy(o.scale);
+      m.name = o.name;
+      m.castShadow = o.castShadow;
+      m.receiveShadow = o.receiveShadow;
+      // Migrate the skinned node's children onto the plain mesh so the
+      // authored hierarchy survives (e.g. blockbench "gun"/"shell" empties
+      // and pivot groups that sit under the skinned mesh). Replacing with a
+      // sibling would orphan and drop them.
+      while(o.children.length){
+        m.add(o.children[0]);
+      }
+      const par = o.parent;
+      if(par){
+        const idx = par.children.indexOf(o);
+        par.children.splice(idx, 1, m);
+        m.parent = par;
+      }
+    });
+  },
 };
 
 /* Pre-loader for nature-pack OBJ models (trees, rocks, bushes) */
@@ -177,7 +211,7 @@ const NatureAssets = {
       rocks:   [0x8a8a7a, 0x7a7a6a, 0x9a9a8a, 0x6a7a5a, 0x7a8a6a],
       bushes:  [0x4a7a28, 0x5a8a30, 0x3a6a1a],
     };
-    /* Dynamic Cartoon Material Router â€” reads node names and assigns
+    /* Dynamic Cartoon Material Router — reads node names and assigns
        solid flat-shaded materials. Fixes white/hollow shell issue by
        forcing procedural colors + recomputing normals + double-sided shading. */
     const addColors = (group, colList) => {

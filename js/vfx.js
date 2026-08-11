@@ -19,6 +19,37 @@ const VFX = {
       g.addColorStop(0.8, 'rgba(80,80,80,0.1)');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+    } else if(name === 'oil'){
+      const g = ctx.createRadialGradient(32,32,0,32,32,30);
+      g.addColorStop(0, 'rgba(14,15,18,0.95)');
+      g.addColorStop(0.45, 'rgba(20,22,28,0.9)');
+      g.addColorStop(0.75, 'rgba(30,36,44,0.55)');
+      g.addColorStop(1, 'rgba(40,50,60,0)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+      // glossy highlight
+      const h = ctx.createRadialGradient(26,24,0,26,24,10);
+      h.addColorStop(0, 'rgba(120,130,150,0.35)');
+      h.addColorStop(1, 'rgba(120,130,150,0)');
+      ctx.fillStyle = h; ctx.fillRect(0,0,64,64);
+      // wobble rings
+      ctx.strokeStyle = 'rgba(70,85,105,0.35)';
+      ctx.lineWidth = 1.5;
+      for(const r of [14, 22]){
+        ctx.beginPath(); ctx.arc(32,32,r,0,Math.PI*2); ctx.stroke();
+      }
+    } else if(name === 'fire'){
+      const g = ctx.createRadialGradient(32,32,0,32,32,31);
+      g.addColorStop(0, 'rgba(255,255,210,0.95)');
+      g.addColorStop(0.25, 'rgba(255,200,60,0.9)');
+      g.addColorStop(0.55, 'rgba(255,110,15,0.75)');
+      g.addColorStop(0.8, 'rgba(200,40,5,0.35)');
+      g.addColorStop(1, 'rgba(120,10,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+      const g2 = ctx.createRadialGradient(40,20,0,40,20,18);
+      g2.addColorStop(0, 'rgba(255,250,200,0.7)');
+      g2.addColorStop(0.5, 'rgba(255,170,40,0.35)');
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g2; ctx.fillRect(0,0,64,64);
     } else {
       const g = ctx.createRadialGradient(28,38,0,28,38,30);
       g.addColorStop(0, 'rgba(255,255,230,1)');
