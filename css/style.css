@@ -2947,6 +2947,10 @@ html, body {
 
   margin-left: 240px;
 
+  max-width: calc(100% - 240px);
+
+  overflow: hidden;
+
 }
 
 
@@ -3007,6 +3011,12 @@ html, body {
 
   border-left: 3px solid #ffb12b;
 
+  max-width: 100%;
+
+  overflow-wrap: anywhere;
+
+  word-break: break-word;
+
 }
 
 
@@ -3018,6 +3028,8 @@ html, body {
   color: #ffb12b;
 
   margin-right: 8px;
+
+  overflow-wrap: anywhere;
 
 }
 
@@ -3076,6 +3088,8 @@ html, body {
   color: #ffffff;
 
   word-wrap: break-word;
+
+  overflow-wrap: anywhere;
 
 }
 

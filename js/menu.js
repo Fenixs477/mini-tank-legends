@@ -3189,6 +3189,33 @@ this._renderCamSettings();
      ============================================================ */
   _clanUIState: null,
 
+  /* Break a string into lines that each fit inside maxW (word wrap +
+     hard-break for words longer than the box). Returns array of lines. */
+  _clanUIBreakText(ctx, text, maxW){
+    const words = String(text || '').split(/(\s+)/);
+    const lines = [];
+    let cur = '';
+    for(let i = 0; i < words.length; i++){
+      const w = words[i];
+      if(ctx.measureText(cur + w).width <= maxW){
+        cur += w;
+        continue;
+      }
+      if(cur) lines.push(cur);
+      let rest = w;
+      while(rest.length){
+        let j = rest.length;
+        while(j > 0 && ctx.measureText(rest.slice(0, j)).width > maxW) j--;
+        if(!j) j = 1;
+        lines.push(rest.slice(0, j));
+        rest = rest.slice(j);
+      }
+      cur = '';
+    }
+    if(cur) lines.push(cur);
+    return lines;
+  },
+
   _loadClanLayoutForUI(){
     try{
       this._clanLayoutSort = null;
@@ -3450,13 +3477,21 @@ this._renderCamSettings();
       ctx.textBaseline = 'top';
       const msgs = clan.chat || [];
       const visible = msgs.slice(-6);
+      const lineH = fs * 1.9;
+      const wrapW = Math.max(40, el.w - 24);
+      let ly = el.y + 10;
       for(let i = 0; i < visible.length; i++){
         const m = visible[i];
-        const ly = el.y + 10 + i * (fs * 1.9);
-        if(ly + fs * 2 > el.y + el.h) break;
-        ctx.fillStyle = m.rank === 'owner' ? '#ff6b6b' : txtCol;
         const rankStr = (m.rank && m.rank !== '-') ? '[' + m.rank.toUpperCase() + '] ' : '';
-        ctx.fillText(rankStr + m.name + ': ' + m.msg, el.x + 12, ly);
+        const fullText = rankStr + m.name + ': ' + (m.msg || '');
+        ctx.fillStyle = m.rank === 'owner' ? '#ff6b6b' : txtCol;
+        const wrapped = this._clanUIBreakText(ctx, fullText, wrapW);
+        for(let k = 0; k < wrapped.length; k++){
+          if(ly + fs * 2 > el.y + el.h) break;
+          ctx.fillText(wrapped[k], el.x + 12, ly);
+          ly += lineH;
+        }
+        if(ly + fs * 2 > el.y + el.h) break;
       }
 
     } else if(el.type === 'chat-input'){
@@ -3475,8 +3510,12 @@ this._renderCamSettings();
         ctx.fillText(el.label || 'Type a message...', el.x + 12, el.y + el.h / 2);
         ctx.globalAlpha = 1;
       } else {
-        ctx.fillText(draft, el.x + 12, el.y + el.h / 2);
-        const tw = ctx.measureText(draft).width;
+        // clip long drafts so they never spill out of the input box
+        let shown = draft;
+        const inMaxW = Math.max(40, el.w - 24);
+        while(shown.length && ctx.measureText(shown).width > inMaxW) shown = shown.slice(1);
+        ctx.fillText(shown, el.x + 12, el.y + el.h / 2);
+        const tw = ctx.measureText(shown).width;
         if(Math.floor(t * 1.9) % 2 === 0){
           ctx.fillRect(el.x + 14 + tw, el.y + el.h * 0.22, 2, el.h * 0.56);
         }
@@ -3531,13 +3570,27 @@ this._renderCamSettings();
     } else if(el.type === 'xp-counter'){
       drawFrame();
       ctx.fillStyle = txtCol;
-      ctx.font = 'bold ' + (el.fontSize || 28) + 'px Segoe UI, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String(s.clanWeeklyXP || 0), el.x + el.w / 2, el.y + el.h * 0.4);
+      // Auto-shrink the number until it fits inside the box so big
+      // values (4120, 10000, ...) never burst out of the frame.
+      let vSize = el.fontSize || 28;
+      const vStr = String(s.clanWeeklyXP || 0);
+      ctx.font = 'bold ' + vSize + 'px Segoe UI, sans-serif';
+      while(ctx.measureText(vStr).width > el.w - 8 && vSize > 9){
+        vSize--;
+        ctx.font = 'bold ' + vSize + 'px Segoe UI, sans-serif';
+      }
+      ctx.fillText(vStr, el.x + el.w / 2, el.y + el.h * 0.4);
       ctx.globalAlpha = 0.55;
-      ctx.font = (el.fontSize || 14) + 'px Segoe UI, sans-serif';
-      ctx.fillText(el.label || 'collected', el.x + el.w / 2, el.y + el.h * 0.75);
+      const lStr = el.label || 'collected';
+      let lSize = Math.max(8, Math.min(el.fontSize || 14, vSize * 0.6));
+      ctx.font = lSize + 'px Segoe UI, sans-serif';
+      while(ctx.measureText(lStr).width > el.w - 8 && lSize > 8){
+        lSize--;
+        ctx.font = lSize + 'px Segoe UI, sans-serif';
+      }
+      ctx.fillText(lStr, el.x + el.w / 2, el.y + el.h * 0.75);
       ctx.globalAlpha = 1;
 
     } else if(el.type === 'clan-count'){
