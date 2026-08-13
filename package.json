@@ -4,7 +4,8 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build",
+    "preview": "vite preview",
     "start": "node server.js"
   },
   "keywords": [],
@@ -19,7 +20,9 @@
     "peer": "^1.0.2",
     "three": "^0.185.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "vite": "^8.2.1"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Fenixs477/mini-tank-legends.git"

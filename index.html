@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="en">
 
@@ -18,7 +18,7 @@
 
 <title>Mini Tank Legends Cline</title>
 
-<link rel="stylesheet" href="css/style.css?v=1786501000">
+<link rel="stylesheet" href="css/style.css?v=1786501002">
 
 </head>
 
@@ -878,7 +878,7 @@
             .pl-btn-gray { background: linear-gradient(160deg, #4b5563 0%, #1f2937 100%); }
             .pl-btn-sm { padding: 6px 10px; font-size: 11px; border-radius: 6px; box-shadow: 0 3px 0 #000; }
             .pl-join-input { background: #101318; border: 2px solid #000; border-radius: 6px; color: #fff; padding: 7px 9px; width: 76px; font-size: 15px; letter-spacing: 2px; text-align: center; outline: none; text-transform: uppercase; box-shadow: 0 3px 0 #000; }
-            .pl-teams { display: flex; gap: 16px; justify-content: center; margin-top: 16px; align-items: flex-start; }
+            .pl-teams { display: flex; gap: 16px; justify-content: space-between; margin-top: 16px; align-items: flex-start; }
             .pl-team { background: rgba(255,255,255,.03); border: 2px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px 14px; }
             .pl-team-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
             .pl-team-head b { font-size: 16px; letter-spacing: 2px; color: #fff; }
@@ -903,20 +903,142 @@
             .pl-crown { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 24px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); animation: plCrown .8s ease-in-out infinite alternate; }
             @keyframes plCrown { from { transform: translateX(-50%) translateY(0) rotate(-8deg); } to { transform: translateX(-50%) translateY(-4px) rotate(8deg); } }
             .pl-team.pl-hidden { display: none; }
+            .pl-team.pl-ghost { opacity: .15; filter: grayscale(.6); border-style: dashed; cursor: pointer; transition: opacity .25s ease, filter .25s ease; }
+            .pl-team.pl-ghost:hover { opacity: .32; filter: grayscale(.4); }
+            .pl-ghost-hint { display: none; }
+            .pl-team.pl-ghost .pl-ghost-hint { display: inline; font-size: 10px; letter-spacing: 1px; color: rgba(255,255,255,.55); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 2px 8px; }
+            @media (max-width: 560px) {
+              .pl-lobby { --pl-sq: clamp(58px, 15vw, 80px); padding: 12px 10px 12px; }
+              .pl-team { padding: 10px; width: 100%; }
+              .pl-teams { flex-direction: column; align-items: stretch; }
+              .pl-team .pl-slots { flex-direction: row; flex-wrap: wrap; }
+              .pl-team .pl-slots .pl-slot { width: calc((100% - 20px) / 3); }
+              .pl-team .pl-spec .pl-slots .pl-slot { width: calc((100% - 10px) / 2); }
+              .pl-mode-wrap select { font-size: 13px; padding: 7px 8px; }
+              .pl-room-code { min-width: 70px; font-size: 15px; letter-spacing: 2px; }
+              .pl-btn { padding: 7px 10px; font-size: 12px; }
+              .pl-ready-wrap .pl-btn { min-width: 118px; }
+              .pl-join-input { width: 62px; font-size: 13px; }
+            }
             .pl-spec { margin: 14px auto 0; width: fit-content; background: rgba(255,255,255,.02); border: 2px dashed rgba(255,255,255,.12); border-radius: 12px; padding: 12px 16px; }
+            .pl-team-1 .pl-spec { margin-left: 0; }
+            .pl-team-2 .pl-spec { margin-right: 0; }
             .pl-spec .pl-team-head b { color: #9aa0ab; }
-            .pl-voice { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+            .pl-team .pl-spec .pl-slots { flex-direction: row; gap: 10px; }
+            .pl-team .pl-spec .pl-slot { width: calc((var(--pl-sq) - 10px) / 2); height: var(--pl-sq); }
+            .pl-voice { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
             .pl-mic-status { font-size: 11px; color: #9aa0ab; letter-spacing: 1px; }
             .pl-mic-on { background: rgba(251,191,36,.15); color: #fbbf24; border: 1px solid rgba(251,191,36,.5); border-radius: 999px; padding: 2px 10px; font-size: 10px; letter-spacing: 2px; }
+            .pl-vpanel { display: none; margin-top: 10px; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.12); border-radius: 12px; padding: 10px; }
+            .pl-vpanel-on { display: block; }
+            .pl-vtools { display: flex; gap: 8px; flex-wrap: wrap; }
+            .pl-vlist { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+            .pl-vrow { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; flex-wrap: wrap; }
+            .pl-vinfo { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+            .pl-vname { font-size: 13px; color: #fff; letter-spacing: 1px; }
+            .pl-vteam { font-size: 10px; color: #9aa0ab; background: rgba(255,255,255,.08); border-radius: 999px; padding: 1px 8px; }
+            .pl-vmuted { font-size: 11px; color: #f87171; letter-spacing: 1px; }
+            .pl-vvol { width: 70px; accent-color: #fbbf24; }
+            .pl-vbar { flex: 1; min-width: 60px; height: 8px; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; }
+            .pl-vbar-fill { display: block; height: 100%; width: 4%; background: linear-gradient(90deg, #34d399, #a3e635); border-radius: 999px; transition: width .1s linear; }
+            .pl-chat { margin-top: 10px; }
+            .pl-chat-list { max-height: 88px; overflow-y: auto; background: rgba(0,0,0,.3); border: 2px solid rgba(255,255,255,.08); border-radius: 8px; padding: 6px 8px; font-size: 12px; }
+            .pl-chat-row { color: #cbd5e1; }
+            .pl-chat-row b { color: #fbbf24; font-weight: normal; }
+            .pl-chat-self b { color: #38bdf8; }
+            .pl-chat-in { display: flex; gap: 8px; margin-top: 6px; }
+            .pl-chat-input { flex: 1; background: #101318; border: 2px solid #000; border-radius: 6px; color: #fff; padding: 7px 9px; font-size: 13px; outline: none; box-shadow: 0 3px 0 #000; }
+            .pl-results { margin-top: 12px; background: rgba(52,211,153,.07); border: 2px solid rgba(52,211,153,.35); border-radius: 12px; padding: 10px 12px; }
+            .pl-results-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+            .pl-results-head b { color: #34d399; letter-spacing: 2px; font-size: 14px; }
+            .pl-results-head span { color: #fbbf24; font-size: 12px; letter-spacing: 1px; }
+            .pl-rrow { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: #e2e8f0; padding: 3px 0; }
+            .pl-rrow b { color: #fff; font-weight: normal; }
+            .pl-r-mvp { color: #fbbf24; font-size: 11px; letter-spacing: 1px; }
+            .pl-vote-btn { background: linear-gradient(160deg, #64748b 0%, #334155 100%); color: #fff; border: 2px solid #000; border-radius: 6px; padding: 8px 10px; font-size: 12px; cursor: pointer; letter-spacing: 1px; box-shadow: 0 3px 0 #000; transition: transform .12s, filter .12s; }
+            .pl-vote-btn:hover { filter: brightness(1.15); }
+            .pl-vote-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+            .pl-vote-btn:disabled { filter: grayscale(.6) brightness(.7); cursor: not-allowed; }
+            .pl-vote-btn.pl-vote-on { background: linear-gradient(160deg, #fbbf24 0%, #f97316 100%); color: #241505; }
+            .pl-slot.pl-lock { cursor: not-allowed; filter: grayscale(.5) brightness(.85); }
+            .pl-tk { position: absolute; bottom: 4px; right: 4px; display: none; flex-direction: column; align-items: center; gap: 1px; opacity: 0; transition: opacity .12s linear; pointer-events: none; }
+            .pl-tk-ico { font-size: 9px; color: #34d399; filter: drop-shadow(0 1px 2px rgba(0,0,0,.8)); }
+            .pl-tk-bar { width: 4px; height: 14px; background: rgba(52,211,153,.25); border-radius: 2px; overflow: hidden; position: relative; }
+            .pl-tk-bar::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg, #a3e635, #34d399); transition: height .1s linear; }
+            .pl-slot .pl-tk-bar { height: 14px; }
+            .pl-tk-live .pl-tk-bar::after { height: 100%; }
+            .pl-tk-muted .pl-tk-ico { color: #f87171; }
+            .pl-tk-muted .pl-tk-bar::after { background: #f87171; }
+            .pl-tk-deaf .pl-tk-ico { color: #f87171; }
+            .pl-cd { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); pointer-events: none; }
+            .pl-cd-box { background: linear-gradient(160deg, #23262e 0%, #101318 100%); border: 3px solid #000; border-radius: 18px; box-shadow: 0 5px 0 #000, 0 0 40px rgba(251,191,36,.35); padding: 26px 44px; text-align: center; pointer-events: auto; }
+            .pl-cd-label { font-size: 15px; letter-spacing: 3px; color: #9aa0ab; }
+            .pl-cd-num { font-size: 84px; color: #fbbf24; text-shadow: 0 4px 0 #000; animation: plCdPop .9s infinite; }
+            @keyframes plCdPop { 0% { transform: scale(1.25); } 100% { transform: scale(1); } }
             .pl-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
             .pl-actions { display: flex; align-items: flex-end; gap: 10px; margin-left: auto; }
-            .pl-ready-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.pl-ready-wrap { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
             .pl-ready-wrap .pl-btn { min-width: 150px; }
             #pl-start.pl-btn { font-size: 15px; padding: 11px 14px; animation: plPulse .9s infinite alternate; }
             @keyframes plPulse { from { box-shadow: 0 4px 0 #000, 0 0 0 rgba(251,191,36,0); } to { box-shadow: 0 4px 0 #000, 0 0 18px rgba(251,191,36,.55); } }
             .pl-status { margin-top: 10px; min-height: 18px; font-size: 12px; color: #9aa0ab; letter-spacing: 1px; text-align: center; }
             .pl-toast-anim { animation: plToast .35s ease; }
             @keyframes plToast { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+            /* S0 SHARED SPECTATOR */
+            .pl-spec-shared { margin: 14px auto 0; width: fit-content; background: rgba(255,255,255,.02); border: 2px dashed rgba(255,255,255,.12); border-radius: 12px; padding: 12px 16px; }
+            .pl-spec-shared .pl-slots { flex-direction: row; gap: 10px; }
+            .pl-spec-shared .pl-slot { width: var(--pl-sq); height: var(--pl-sq); }
+            /* CONFIRM MODAL */
+            .pl-modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.75); }
+            .pl-modal.hidden { display: none; }
+            .pl-modal-box { background: linear-gradient(160deg, #23262e 0%, #101318 100%); border: 3px solid #000; border-radius: 16px; box-shadow: 0 5px 0 #000, 0 0 40px rgba(251,191,36,.35); padding: 24px 32px; text-align: center; min-width: 260px; }
+            .pl-modal-title { font-size: 16px; letter-spacing: 2px; color: #fbbf24; margin-bottom: 12px; }
+            .pl-modal-text { font-size: 13px; color: #cbd5e1; margin-bottom: 20px; line-height: 1.5; }
+            .pl-modal-actions { display: flex; gap: 12px; justify-content: center; }
+            /* MOBILE: side-by-side teams, auto-fit, pinch zoom */
+            @media (max-width: 560px) {
+              .pl-lobby { --pl-sq: clamp(58px, 15vw, 80px); padding: 12px 10px 12px; }
+              .pl-team { padding: 10px; width: 100%; }
+              .pl-teams { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+              .pl-team { width: calc(50% - 6px); min-width: 0; }
+              .pl-team .pl-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 6px; }
+              .pl-team .pl-slots .pl-slot { width: 100%; height: var(--pl-sq); }
+              .pl-team .pl-spec .pl-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+              .pl-team .pl-spec .pl-slots .pl-slot { width: calc((100% - 6px) / 2); height: var(--pl-sq); }
+              .pl-spec-shared { width: 100%; margin: 10px 0 0; }
+              .pl-spec-shared .pl-slots { display: flex; justify-content: center; gap: 6px; }
+              .pl-spec-shared .pl-slot { width: var(--pl-sq); height: var(--pl-sq); }
+              .pl-mode-wrap select { font-size: 13px; padding: 7px 8px; }
+              .pl-room-code { min-width: 70px; font-size: 15px; letter-spacing: 2px; }
+              .pl-btn { padding: 7px 10px; font-size: 12px; }
+              .pl-ready-wrap .pl-btn { min-width: 118px; }
+              .pl-join-input { width: 62px; font-size: 13px; }
+              .pl-vtools { gap: 6px; }
+              .pl-vrow { gap: 6px; padding: 5px 6px; }
+              .pl-vname { font-size: 12px; }
+              .pl-vvol { width: 50px; }
+              .pl-vbar { min-width: 40px; }
+              .pl-chat-list { max-height: 70px; }
+              .pl-chat-input { padding: 6px 8px; font-size: 12px; }
+              .pl-ready-wrap .pl-btn { min-width: 100px; font-size: 12px; }
+              .pl-join-input { width: 62px; font-size: 13px; }
+            }
+            /* PC: near-fullscreen lobby */
+            @media (min-width: 768px) {
+              .pl-lobby { width: min(1500px, 96vw); max-height: 94vh; }
+            }
+            /* AUTO-FIT + PINCH ZOOM (mobile) */
+            .pl-card { transform-origin: center center; transition: transform .15s ease-out; will-change: transform; }
+            .pl-card.pinch-active { transition: none; }
+            /* MATCH COUNTDOWN (5s before battle) */
+            .match-cd { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.85); pointer-events: none; }
+            .match-cd.hidden { display: none; }
+            .match-cd-box { background: linear-gradient(160deg, #23262e 0%, #101318 100%); border: 3px solid #000; border-radius: 18px; box-shadow: 0 5px 0 #000, 0 0 60px rgba(251,191,36,.45); padding: 40px 80px; text-align: center; pointer-events: auto; }
+            .match-cd-label { font-size: 20px; letter-spacing: 4px; color: #9aa0ab; margin-bottom: 16px; }
+            .match-cd-num { font-size: 140px; color: #fbbf24; text-shadow: 0 6px 0 #000, 0 0 30px rgba(251,191,36,.6); animation: matchCdPop .9s infinite; }
+            @keyframes matchCdPop { 0% { transform: scale(1.2); } 50% { transform: scale(1); } 100% { transform: scale(1.2); } }
+            .match-cd-go { font-size: 80px; color: #34d399; text-shadow: 0 4px 0 #000, 0 0 20px rgba(52,211,153,.6); animation: matchGoPulse .5s ease-out; }
+            @keyframes matchGoPulse { 0% { transform: scale(2); opacity: 0; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1); opacity: 1; } }
           </style>
 
           <!-- TOP BAR -->
@@ -929,8 +1051,9 @@
                 <option value="ffa">FREE FOR ALL</option>
                 <option value="custom">CUSTOM</option>
               </select>
+              <button class="pl-vote-btn" id="pl-vote" title="Host: enable player voting. Locks until the battle ends.">ENABLE VOTING</button>
             </div>
-            <button class="pl-switch" id="pl-switch" title="Move to the other team (custom mode only)">&#8646; SWITCH TEAM SIDES</button>
+            <button class="pl-switch" id="pl-switch" title="Move to the other team (custom mode only)"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/><path d="M15.41 7.66l-4.58 4.59 4.58 4.59L14 18.25l-6-6 6-6z"/></svg> SWITCH TEAM SIDES</button>
             <div class="pl-room-box">
               <span class="pl-room-label">GAME CODE</span>
               <span class="pl-room-code" id="pl-room-code">----</span>
@@ -940,29 +1063,60 @@
             </div>
           </div>
 
-          <!-- TEAMS (vertical columns) -->
+          <!-- TEAMS (separated: team 1 left, team 2 right, spectators under each) -->
           <div class="pl-teams">
             <div class="pl-team pl-team-1" id="pl-team-1">
               <div class="pl-team-head"><b>TEAM 1</b><span class="pl-team-count" id="pl-c1">0/3</span></div>
               <div class="pl-slots" id="pl-slots-1"></div>
+              <div class="pl-spec">
+                <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs1">0/2</span></div>
+                <div class="pl-slots" id="pl-slots-s1"></div>
+              </div>
             </div>
             <div class="pl-team pl-team-2 pl-hidden" id="pl-team-2">
-              <div class="pl-team-head"><b>TEAM 2</b><span class="pl-team-count" id="pl-c2">0/3</span></div>
+              <div class="pl-team-head"><b>TEAM 2</b><span class="pl-ghost-hint">LOCKED — CLICK TO ENABLE CUSTOM</span><span class="pl-team-count" id="pl-c2">0/3</span></div>
               <div class="pl-slots" id="pl-slots-2"></div>
+              <div class="pl-spec">
+                <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs2">0/2</span></div>
+                <div class="pl-slots" id="pl-slots-s2"></div>
+              </div>
+            </div>
+          </div>
+          <!-- SHARED SPECTATORS (centered below teams) -->
+          <div class="pl-spec pl-spec-shared" id="pl-spec-s0">
+            <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs0">0/1</span></div>
+            <div class="pl-slots" id="pl-slots-s0"></div>
+          </div>
+
+          <!-- VOICE (one place: toggle + settings panel) -->
+          <div class="pl-voice">
+            <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-mic"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c.4 0 .73.17 1 .44v-3.89c0-.83-.67-1.5-1.5-1.5h-2.41c-.83 0-1.5.67-1.5 1.5v3.89c.27-.27.6-.44 1-.44z"/></svg> VOICE: OFF</button>
+            <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-vopts"><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.59-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.56.24-1.09.56-1.59.94l-2.39-.96c-.22-.07-.47 0-.59.22L2.74 8.87c-.12.2-.07.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.12.22-.07.47.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.59.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.56-.24 1.09-.56 1.59-.94l2.39.96c.22.07.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg> VOICE SETTINGS</button>
+            <span class="pl-mic-status" id="pl-mic-status">Click VOICE to enable lobby voice chat</span>
+            <span class="pl-mic-on" id="pl-mic-tag" style="display:none">VOICE LIVE</span>
+          </div>
+          <div class="pl-vpanel" id="pl-vpanel">
+            <div class="pl-vrow pl-vtools">
+              <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-vdeaf">DEAFEN: OFF</button>
+              <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-vptt">PTT: AUTO</button>
+              <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-vptt-hold"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/></svg> HOLD TO TALK</button>
+            </div>
+            <div class="pl-vlist" id="pl-vlist"></div>
+          </div>
+
+          <!-- CHAT -->
+          <div class="pl-chat">
+            <div class="pl-chat-list" id="pl-chat-list"></div>
+            <div class="pl-chat-in">
+              <input class="pl-chat-input" id="pl-chat-input" maxlength="140" placeholder="Type a message…" spellcheck="false">
+              <button class="pl-btn pl-btn-sm pl-btn-orange" id="pl-chat-send">SEND</button>
             </div>
           </div>
 
-          <!-- SPECTATORS (vertical, below) -->
-          <div class="pl-spec">
-            <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs">0/2</span></div>
-            <div class="pl-slots" id="pl-slots-s"></div>
-          </div>
-
-          <!-- VOICE -->
-          <div class="pl-voice">
-            <button class="pl-btn pl-btn-sm pl-btn-gray" id="pl-mic">&#127908; VOICE: OFF</button>
-            <span class="pl-mic-status" id="pl-mic-status">Click to enable lobby voice chat</span>
-            <span class="pl-mic-on" id="pl-mic-tag" style="display:none">VOICE LIVE</span>
+          <!-- LAST MATCH RESULTS -->
+          <div class="pl-results hidden" id="pl-results">
+            <div class="pl-results-head"><b>LAST MATCH</b><span id="pl-results-mvp"></span></div>
+            <div id="pl-results-list"></div>
           </div>
 
           <!-- BOTTOM -->
@@ -980,315 +1134,40 @@
 
           <div class="pl-status" id="pl-status"></div>
 
-          <script>
-          (function(){
-            if(window.PlatoonLobby) return;
+          <!-- COUNTDOWN OVERLAY -->
+          <div class="pl-cd hidden" id="pl-cd">
+            <div class="pl-cd-box">
+              <div class="pl-cd-label">MATCH STARTS IN</div>
+              <div class="pl-cd-num">3</div>
+            </div>
+</div>
 
-            var MODES = {
-              tdm:    { label: 'TEAM DEATHMATCH', custom: false },
-              ctf:    { label: 'CAPTURE THE FLAG', custom: false },
-              ffa:    { label: 'FREE FOR ALL',     custom: false },
-              custom: { label: 'CUSTOM',           custom: true  }
-            };
-            var CROWN_POS = '1-0';
-
-            function $(id){ return document.getElementById(id); }
-            function el(tag, cls, txt){
-              var n = document.createElement(tag);
-              if(cls) n.className = cls;
-              if(txt !== undefined) n.textContent = txt;
-              return n;
-            }
-
-            var L = window.PlatoonLobby = {
-              code: null, mode: 'tdm',
-              team1: [null, null, null], team2: [null, null, null], specs: [null, null],
-              you: null
-            };
-
-            function rndCode(){
-              var c = Math.random().toString(36).slice(2,6).toUpperCase();
-              return c.length < 4 ? c + 'X'.repeat(4 - c.length) : c;
-            }
-            function arrOf(t){ return t === '2' ? L.team2 : (t === 's' ? L.specs : L.team1); }
-            function isHostYou(){ return L.you && L.you.team === '1' && L.you.slot === 0; }
-            function firstEmpty(arr){ return arr.findIndex(function(p){ return !p; }); }
-
-            function status(msg){
-              var s = $('pl-status');
-              s.textContent = msg;
-              s.classList.remove('pl-toast-anim');
-              void s.offsetWidth;
-              s.classList.add('pl-toast-anim');
-            }
-
-            function vacate(){
-              var arr = arrOf(L.you.team);
-              if(arr && arr[L.you.slot]) arr[L.you.slot] = null;
-            }
-
-            function moveTo(t, i){
-              if(!L.you || (L.you.team === t && L.you.slot === i)) return;
-              if(t === '2' && !MODES[L.mode].custom) return;
-              var arr = arrOf(t);
-              if(arr[i]) return;
-              vacate();
-              arr[i] = L.you;
-              L.you.team = t; L.you.slot = i; L.you.ready = false;
-              status(isHostYou() ? 'You are the HOST — top slot (crown)'
-                : (t === 's' ? 'You are now SPECTATING — observing only'
-                   : 'Moved to ' + (t === '2' ? 'TEAM 2' : 'TEAM 1') + (isHostYou() ? '' : ' — the top slot player is the host')));
-              render();
-            }
-
-            function switchSide(){
-              if(!L.you) return;
-              if(L.you.team === 's'){
-                var i = firstEmpty(L.team1);
-                if(i < 0){ status('TEAM 1 is full'); return; }
-                moveTo('1', i);
-                return;
-              }
-              var dest = L.you.team === '1' ? '2' : '1';
-              var i = firstEmpty(arrOf(dest));
-              if(i < 0){ status('Team is full'); return; }
-              moveTo(dest, i);
-            }
-
-            function toggleReady(){
-              if(!L.you || L.you.team === 's') return;
-              L.you.ready = !L.you.ready;
-              status(L.you.ready ? (isHostYou() ? 'READY — you can start the battle' : 'READY — the host can start the battle') : 'NOT ready');
-              render();
-            }
-
-            function placeYou(dests){
-              var list = dests || ['1', '2', 's'];
-              for(var k = 0; k < list.length; k++){
-                var t = list[k];
-                if(t === '2' && !MODES[L.mode].custom) continue;
-                var i = firstEmpty(arrOf(t));
-                if(i >= 0){ arrOf(t)[i] = L.you; L.you.team = t; L.you.slot = i; return; }
-              }
-            }
-
-            function setupRoom(){
-              L.you = { id: 'you', name: 'YOU', team: '1', slot: 0, ready: false };
-              L.team1 = [L.you, null, null];
-              L.team2 = [null, null, null];
-              L.specs = [null, null];
-              render();
-            }
-
-            function newRoom(){
-              L.code = rndCode();
-              setupRoom();
-              status('You are HOST — code ' + L.code);
-            }
-
-            function joinRoom(code){
-              L.code = code;
-              L.you = { id: 'you', name: 'YOU', team: '1', slot: 0, ready: false };
-              L.team1 = [null, null, null];
-              L.team2 = [null, null, null];
-              L.specs = [null, null];
-              placeYou(null);
-              render();
-              status('Joined room ' + code + ' — waiting for host');
-            }
-
-            /* ---- diff render (perf: only changed slots touch the DOM) ---- */
-            var nodes = { '1': [], '2': [], 's': [] };
-            var built = false;
-
-            function sig(p, pos){
-              if(!p) return 'o';
-              return (p.id === 'you' ? 'Y' : 'P') + (p.ready ? 'R' : '') + (pos === CROWN_POS ? 'C' : '');
-            }
-
-            function buildSlot(pos, t, i){
-              var d = el('div', 'pl-slot pl-open');
-              d.dataset.pos = pos;
-              d.appendChild(el('div', 'pl-crown', '\uD83D\uDC51'));
-              var body = el('div', 'pl-slot-body');
-              body.appendChild(el('div', 'pl-plus', '+'));
-              body.appendChild(el('div', 'pl-open-label', 'OPEN'));
-              body.appendChild(el('div', 'pl-slot-name'));
-              body.appendChild(el('div', 'pl-slot-ready'));
-              d.appendChild(body);
-              d.onclick = function(){ moveTo(t, i); };
-              return d;
-            }
-
-            function applySlot(d, p, pos){
-              var crown = d.querySelector('.pl-crown');
-              var plus = d.querySelector('.pl-plus');
-              var label = d.querySelector('.pl-open-label');
-              var name = d.querySelector('.pl-slot-name');
-              var ready = d.querySelector('.pl-slot-ready');
-              var isYou = p && p.id === 'you';
-              var isCrown = pos === CROWN_POS;
-              d.className = 'pl-slot' + (p ? (isYou ? ' pl-you' : ' pl-player') : ' pl-open') + (isCrown && p ? ' pl-crown-slot' : '');
-              crown.style.display = (p && isCrown) ? '' : 'none';
-              plus.style.display = p ? 'none' : '';
-              label.style.display = p ? 'none' : '';
-              name.style.display = p ? '' : 'none';
-              ready.style.display = (p && p.ready) ? '' : 'none';
-              name.textContent = isYou ? 'YOU' : (p ? p.name : '');
-            }
-
-            function render(){
-              var custom = MODES[L.mode].custom;
-              $('pl-team-2').classList.toggle('pl-hidden', !custom);
-              $('pl-switch').disabled = !(custom || (L.you && L.you.team === 's'));
-              $('pl-delete').style.display = isHostYou() ? '' : 'none';
-              $('pl-ready').disabled = L.you.team === 's';
-              $('pl-ready').textContent = L.you.team === 's' ? 'SPECTATING' : (L.you.ready ? 'READY \u2713' : 'READY');
-              $('pl-ready').classList.toggle('pl-btn-gold', L.you.ready);
-              $('pl-room-code').textContent = L.code;
-              var start = isHostYou() && L.you.ready;
-              $('pl-start').style.display = start ? '' : 'none';
-              $('pl-start').disabled = false;
-
-              var groups = [['1', L.team1], ['2', L.team2], ['s', L.specs]];
-              for(var g = 0; g < groups.length; g++){
-                var t = groups[g][0], arr = groups[g][1];
-                var wrap = $('pl-slots-' + t);
-                if(!built){
-                  for(var i = 0; i < arr.length; i++){
-                    var d = buildSlot(t + '-' + i, t, i);
-                    nodes[t].push({ el: d, last: null });
-                    wrap.appendChild(d);
-                  }
-                }
-                $('pl-c' + t).textContent = arr.filter(Boolean).length + '/' + arr.length;
-                for(var j = 0; j < arr.length; j++){
-                  var pos = t + '-' + j;
-                  var n = nodes[t][j];
-                  var s = sig(arr[j], pos);
-                  if(n.last !== s){
-                    applySlot(n.el, arr[j], pos);
-                    n.last = s;
-                    if(arr[j] && arr[j].id === 'you'){
-                      n.el.classList.remove('pl-pop');
-                      void n.el.offsetWidth;
-                      n.el.classList.add('pl-pop');
-                    }
-                  }
-                }
-              }
-              built = true;
-            }
-
-            /* ---------------- voice chat (WebRTC) ---------------- */
-            var Voice = L.voice = {
-              ctx: null, stream: null, pc: null, on: false,
-              toggle: function(){
-                if(this.on){ this.stop(); return; }
-                var self = this;
-                navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-                  self.stream = stream;
-                  self.ctx = self.ctx || new (window.AudioContext || window.webkitAudioContext)();
-                  self.pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-                  stream.getTracks().forEach(function(t){ self.pc.addTrack(t, stream); });
-                  self.pc.ontrack = function(ev){
-                    var a = document.createElement('audio');
-                    a.autoplay = true;
-                    a.srcObject = ev.streams[0];
-                    document.body.appendChild(a);
-                  };
-                  self.pc.onicecandidate = function(ev){
-                    if(ev.candidate && window.__PLATOON_SIGNAL) window.__PLATOON_SIGNAL({ c: ev.candidate });
-                  };
-                  self.on = true;
-                  $('pl-mic').innerHTML = '\uD83C\uDFA4 VOICE: ON';
-                  $('pl-mic-tag').style.display = '';
-                  $('pl-mic-status').textContent = window.__PLATOON_SIGNAL
-                    ? 'Connected — broadcasting to room'
-                    : 'Mic live — no signaling relay yet (teammates will connect when the relay is added)';
-                }).catch(function(){
-                  $('pl-mic-status').textContent = 'MIC BLOCKED — allow microphone access';
-                });
-              },
-              stop: function(){
-                this.on = false;
-                if(this.pc){ this.pc.close(); this.pc = null; }
-                if(this.stream){ this.stream.getTracks().forEach(function(t){ t.stop(); }); this.stream = null; }
-                $('pl-mic').innerHTML = '\uD83C\uDFA4 VOICE: OFF';
-                $('pl-mic-tag').style.display = 'none';
-                $('pl-mic-status').textContent = 'Voice chat disabled';
-              }
-            };
-
-            /* ---------------- wiring ---------------- */
-            function wire(){
-              $('pl-mode').addEventListener('change', function(){
-                L.mode = $('pl-mode').value;
-                var custom = MODES[L.mode].custom;
-                if(!custom && L.you && L.you.team === '2'){
-                  var i = firstEmpty(L.team1);
-                  if(i < 0){ moveTo('s', firstEmpty(L.specs)); }
-                  else moveTo('1', i);
-                }
-                status('Game mode: ' + MODES[L.mode].label + (custom ? ' (custom)' : ''));
-                render();
-              });
-              $('pl-switch').addEventListener('click', switchSide);
-              $('pl-ready').addEventListener('click', toggleReady);
-              $('pl-start').addEventListener('click', function(){
-                status('START BATTLE pressed — match launch integration coming next');
-                $('pl-start').disabled = true;
-              });
-              $('pl-delete').addEventListener('click', function(){
-                status('Room ' + L.code + ' closed — creating a new room');
-                newRoom();
-              });
-              $('pl-back').addEventListener('click', function(){
-                if(window.Menu){ Menu._platoonReturn = false; Menu.show('menu-main'); }
-              });
-              $('pl-collections').addEventListener('click', function(){
-                if(window.Menu){ Menu._platoonReturn = true; Menu.show('menu-collections'); }
-              });
-              $('pl-copy').addEventListener('click', function(){
-                function done(){ status('Code ' + L.code + ' copied to clipboard'); }
-                if(navigator.clipboard && navigator.clipboard.writeText){
-                  navigator.clipboard.writeText(L.code).then(done, function(){
-                    var t = document.createElement('textarea');
-                    t.value = L.code; document.body.appendChild(t); t.select();
-                    document.execCommand('copy'); t.remove(); done();
-                  });
-                } else {
-                  var t = document.createElement('textarea');
-                  t.value = L.code; document.body.appendChild(t); t.select();
-                  document.execCommand('copy'); t.remove(); done();
-                }
-              });
-              $('pl-join').addEventListener('click', function(){
-                var v = $('pl-join-code').value.trim().toUpperCase();
-                if(v.length !== 4){ status('Enter a 4-character game code'); return; }
-                joinRoom(v);
-              });
-              $('pl-join-code').addEventListener('input', function(e){
-                e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-              });
-              $('pl-join-code').addEventListener('keydown', function(e){ if(e.key === 'Enter') $('pl-join').click(); });
-              $('pl-mic').addEventListener('click', function(){ Voice.toggle(); });
-            }
-
-            if(document.readyState === 'loading'){
-              document.addEventListener('DOMContentLoaded', function(){ wire(); newRoom(); });
-            } else {
-              wire(); newRoom();
-            }
-          })();
-          </script>
+          <!-- CONFIRM MODAL (for leaving crown seat) -->
+          <div class="pl-modal hidden" id="pl-confirm-modal">
+            <div class="pl-modal-box">
+              <div class="pl-modal-title">LEAVE OWNER SEAT?</div>
+              <div class="pl-modal-text">Are you sure you want to leave the owner position? Another player may take it.</div>
+              <div class="pl-modal-actions">
+                <button class="pl-btn pl-btn-red" id="pl-confirm-yes">YES, LEAVE</button>
+                <button class="pl-btn pl-btn-gray" id="pl-confirm-no">CANCEL</button>
+              </div>
+            </div>
+          </div>
 
         </div>
       </div>
     </div>
-    <!-- HUD -->
+<!-- HUD -->
 
     <div id="hud" class="hidden">
+
+      <!-- MATCH COUNTDOWN (5s before battle) -->
+      <div class="match-cd hidden" id="match-cd">
+        <div class="match-cd-box">
+          <div class="match-cd-label">GET READY</div>
+          <div class="match-cd-num">5</div>
+        </div>
+      </div>
 
       <div id="minimap-btn" title="Open map"><svg width="39" height="39" viewBox="0 0 24 24" fill="none" stroke="#ffb12b" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg><span class="map-key-hint">M</span></div>
 
@@ -1855,6 +1734,8 @@
   <script src="js/game.js?v=1786502000"></script>
 
   <script src="js/auth.js?v=1784320000"></script>
+
+  <script src="js/platoon.js?v=1786502000"></script>
 
   <!-- Account login overlay -->
   <div class="auth-overlay hidden" id="auth-overlay">

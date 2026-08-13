@@ -1,4 +1,4 @@
-/* ============================================================
+﻿﻿/* ============================================================
    game.js — main controller: renderer, scene, world, tanks,
    projectiles, camera, loop, HUD, minimap, entry modes
    (singleplayer / host / client).
@@ -91,6 +91,100 @@ class Game {
     };
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('keyup', this._onKeyUp);
+    
+    // F11 fullscreen support (delegates to Menu._initFullscreen's handlers)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        const inFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        if (inFS) {
+          document.exitFullscreen();
+        } else {
+          document.documentElement.requestFullscreen().catch(()=>{});
+        }
+      }
+    });
+    
+    // Hide fullscreen prompt when entering fullscreen (also handled by Menu, but add safety)
+    document.addEventListener('fullscreenchange', () => {
+      const prompt = document.getElementById('menu-fullscreen-prompt');
+      if (prompt) {
+        const inFS = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        if (inFS) {
+          prompt.classList.add('hidden');
+        }
+      }
+    });
+    
+    // Hide fullscreen prompt on desktop by default - use DOM ready check
+    const checkAndHideDesktopPrompt = () => {
+      const prompt = document.getElementById('menu-fullscreen-prompt');
+      if (prompt) {
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isAndroid = /Android/.test(ua);
+        const isDesktop = !isIOS && !isAndroid;
+        if (isDesktop) {
+          // Set Menu's _fsDismissed flag so it doesn't re-show
+          if (window.Menu && window.Menu._initFullscreen) {
+            // Temporarily prevent Menu from showing overlay
+            window.Menu._desktopNoPrompt = true;
+          }
+          prompt.classList.add('hidden');
+        }
+      }
+    };
+    
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', checkAndHideDesktopPrompt);
+    } else {
+      checkAndHideDesktopPrompt();
+    }
+    
+    // Ensure fullscreen buttons work even if DOM loaded later
+    document.addEventListener('DOMContentLoaded', () => {
+      const enterBtn = document.getElementById('btn-enter-fullscreen');
+      if (enterBtn && !enterBtn._onclickAttached) {
+        enterBtn._onclickAttached = true;
+        enterBtn.onclick = (e) => {
+          e.preventDefault();
+          document.documentElement.requestFullscreen().catch(()=>{});
+          const prompt = document.getElementById('menu-fullscreen-prompt');
+          if (prompt) prompt.classList.add('hidden');
+          if (window.Menu) {
+            window.Menu._fsDismissed = true;
+            window.Menu._checkRenderingTips && window.Menu._checkRenderingTips();
+          }
+        };
+      }
+      const dismissBtn = document.getElementById('btn-dismiss-fullscreen');
+      if (dismissBtn && !dismissBtn._onclickAttached) {
+        dismissBtn._onclickAttached = true;
+        dismissBtn.onclick = (e) => {
+          e.preventDefault();
+          const prompt = document.getElementById('menu-fullscreen-prompt');
+          if (prompt) prompt.classList.add('hidden');
+          if (window.Menu) {
+            window.Menu._fsDismissed = true;
+            window.Menu._checkRenderingTips && window.Menu._checkRenderingTips();
+          }
+        };
+      }
+      const closeBtn = document.getElementById('btn-fs-close');
+      if (closeBtn && !closeBtn._onclickAttached) {
+        closeBtn._onclickAttached = true;
+        closeBtn.onclick = (e) => {
+          e.preventDefault();
+          const prompt = document.getElementById('menu-fullscreen-prompt');
+          if (prompt) prompt.classList.add('hidden');
+          if (window.Menu) {
+            window.Menu._fsDismissed = true;
+            window.Menu._checkRenderingTips && window.Menu._checkRenderingTips();
+          }
+        };
+      }
+    });
   }
 
   /** Build the custom full-screen performance overlay DOM */
@@ -497,6 +591,15 @@ class Game {
     };
     this._gladBoxes = [];
     this._gladPickups = [];
+    
+    // ZONE SYSTEM - CHUNK-BASED GRID
+    this._gladZoneChunks = null;
+    this._gladChunkMeshes = [];
+    this._gladChunkOverlays = [];
+    this._gladCorruptedChunks = new Set(); // chunks that have turned red
+    this._gladNextCorruptionIndex = 0;
+    this._gladChunkGlowTime = 0;
+    
     // Zone ground overlay (canvas texture, regenerated on state change)
     this._gladZoneCanvas = document.createElement('canvas');
     this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
@@ -508,6 +611,10 @@ class Game {
     this._gladZoneMesh.position.y = 0.06;
     this._gladZoneMesh.renderOrder = 5;
     this.scene.add(this._gladZoneMesh);
+    
+    // Initialize chunk grid for zone representation
+    this._initGladChunkGrid();
+    
     this._refreshGladZone();
     // Blue boxes placed via the map editor
     (this.world.blueBoxes || []).forEach(b => this._gladSpawnBox(b.x, b.z));
@@ -515,22 +622,44 @@ class Game {
     if(gh) gh.classList.remove('hidden');
   }
 
-  _clearGladState(){
-    this.glad = null;
-    if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
-    if(this._gladZoneTex) this._gladZoneTex.dispose();
-    this._gladBoxes.forEach(b => { if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); } });
-    this._gladBoxes = [];
-    this._gladPickups.forEach(p => { if(p.mesh){ this.scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); } });
-    this._gladPickups = [];
-    this._gladClearAirdropVisuals();
-    const gh = document.getElementById('glad-hud');
-    if(gh) gh.classList.add('hidden');
-    const gb = document.getElementById('glad-banner');
-    if(gb) gb.classList.add('hidden');
-    const gr = document.getElementById('glad-result');
-    if(gr) gr.classList.add('hidden');
-  }
+   _clearGladState(){
+     this.glad = null;
+     if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
+     if(this._gladZoneTex) this._gladZoneTex.dispose();
+     this._gladBoxes.forEach(b => { if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); } });
+     this._gladBoxes = [];
+     this._gladPickups.forEach(p => { if(p.mesh){ this.scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); } });
+     this._gladPickups = [];
+     this._gladClearAirdropVisuals();
+     
+     // Clean up chunk system
+     if(this._gladChunkMeshes){
+       this._gladChunkMeshes.forEach(mesh => {
+         if(mesh){ this.scene.remove(mesh); if(mesh.geometry) mesh.geometry.dispose(); if(mesh.material) mesh.material.dispose(); }
+       });
+       this._gladChunkMeshes = [];
+     }
+     if(this._gladChunkOverlays){
+       this._gladChunkOverlays.forEach(overlay => {
+         if(overlay){ this.scene.remove(overlay); if(overlay.geometry) overlay.geometry.dispose(); if(overlay.material) overlay.material.dispose(); }
+       });
+       this._gladChunkOverlays = [];
+     }
+     this._gladZoneChunks = null;
+     this._gladCorruptedChunks.clear();
+     this._gladNextCorruptionIndex = 0;
+     this._gladChunkGlowTime = 0;
+     this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+     if(this._gladZoneTex) this._gladZoneTex.dispose();
+     this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+     
+     const gh = document.getElementById('glad-hud');
+     if(gh) gh.classList.add('hidden');
+     const gb = document.getElementById('glad-banner');
+     if(gb) gb.classList.add('hidden');
+     const gr = document.getElementById('glad-result');
+     if(gr) gr.classList.add('hidden');
+   }
 
   _gladClearAirdropVisuals(){
     if(this._gladAirBeam){ this.scene.remove(this._gladAirBeam); this._gladAirBeam.geometry.dispose(); this._gladAirBeam.material.dispose(); this._gladAirBeam = null; }
@@ -595,29 +724,177 @@ class Game {
     return Math.abs(x) > h || Math.abs(z) > h;
   }
 
-  _refreshGladZone(){
-    if(!this._gladZoneMesh || !this._gladZoneCanvas) return;
-    const g = this.glad, ctx = this._gladZoneCanvas.getContext('2d'), S = this._gladZoneCanvas.width;
-    const scale = S / this.world.size;
-    const toPx = (v) => S/2 + v * scale;
-    ctx.clearRect(0, 0, S, S);
-    if(g.phase === 'grace'){ this._gladZoneMesh.visible = false; return; }
-    this._gladZoneMesh.visible = true;
-    // Red zone: outline only + an X marking the shrink target (map center)
-    ctx.strokeStyle = 'rgba(255,40,40,0.95)';
-    ctx.lineWidth = Math.max(3, S * 0.012);
-    const sh = Math.max(0, g.safeHalf);
-    const sX = toPx(-sh), sW = Math.max(1, toPx(sh) - sX);
-    ctx.strokeRect(sX, sX, sW, sW);
-    const c = S / 2, xr = Math.max(14, sW * 0.35);
-    ctx.beginPath();
-    ctx.moveTo(c - xr, c - xr); ctx.lineTo(c + xr, c + xr);
-    ctx.moveTo(c - xr, c + xr); ctx.lineTo(c + xr, c - xr);
-    ctx.stroke();
-    this._gladZoneTex.needsUpdate = true;
-  }
+   _initGladChunkGrid(){
+     const g = this.glad;
+     const cfg = g.cfg;
+     const zoneHalf = this.world.half;
+     const chunkSize = cfg.zone.chunk;
+     
+     // Create a chunk grid covering the entire map
+     // Each chunk is a rectangle of the map grid
+     const chunkGridSize = Math.ceil(zoneHalf / chunkSize) + 1;
+     
+     this._gladZoneChunks = [];
+     for(let gx = -chunkGridSize; gx <= chunkGridSize; gx++){
+       for(let gz = -chunkGridSize; gz <= chunkGridSize; gz++){
+         const cx = gx * chunkSize;
+         const cz = gz * chunkSize;
+         // Check if this chunk is within the world
+         if(this.world._inLake(cx, cz, 1) || this.world.collidesWallsOnly(cx, cz, 1)) continue;
+         this._gladZoneChunks.push({
+           x: cx, z: cz,
+           id: gx + ',' + gz,
+           state: 'grace', // 'grace' | 'orange' | 'red'
+           glowTime: 0,
+           edgeDist: Infinity,
+         });
+       }
+     }
+     // Track which chunks are close to player for countdown
+     this._gladPlayerChunkDist = null;
+   }
 
-  _gladSpawnForNew(){
+   _refreshGladZone(){
+     if(!this._gladZoneMesh || !this._gladZoneCanvas) return;
+     const g = this.glad, ctx = this._gladZoneCanvas.getContext('2d'), S = this._gladZoneCanvas.width;
+     const scale = S / this.world.size;
+     const toPx = (v) => S/2 + v * scale;
+     ctx.clearRect(0, 0, S, S);
+     if(g.phase === 'grace'){ this._gladZoneMesh.visible = false; return; }
+     this._gladZoneMesh.visible = true;
+     // Draw zone boundaries and chunk overlays
+     this._drawGladZone();
+     this._gladZoneTex.needsUpdate = true;
+   }
+
+   _drawGladZone(){
+     const g = this.glad;
+     if(!g || g.phase === 'grace') return;
+     const ctx = this._gladZoneCanvas.getContext('2d');
+     const S = this._gladZoneCanvas.width;
+     const scale = S / this.world.size;
+     const toPx = (v) => S/2 + v * scale;
+     const safeHalf = Math.max(0, g.safeHalf);
+     
+     // Draw the zone boundary (green line for orange, red line for red)
+     const isRed = g.phase === 'red';
+     const zoneColor = isRed ? [255, 40, 40] : [255, 165, 0];
+     const zoneAlpha = isRed ? 0.95 : 0.75;
+     
+     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},${zoneAlpha})`;
+     ctx.lineWidth = Math.max(3, S * 0.008);
+     
+     // Draw zone edge
+     const sh = Math.max(0, safeHalf);
+     const sX = toPx(-sh), sW = Math.max(1, toPx(sh) - sX);
+     ctx.strokeRect(sX, sX, sW, sW);
+     
+     // Draw glow outline for zone
+     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},0.3)`;
+     ctx.lineWidth = Math.max(5, S * 0.02);
+     ctx.strokeRect(sX, sX, sW, sW);
+     
+     // Draw chunk overlays
+     for(const chunk of this._gladZoneChunks){
+       const cx = toPx(chunk.x);
+       const cz = toPx(chunk.z);
+       // Check if chunk is in current zone
+       const inZone = this._gladChunkInZone(chunk);
+       const isRed = inZone && (g.phase === 'red');
+       const isOrange = inZone && (g.phase === 'orange');
+       
+       if(inZone && !isRed){
+         // Orange zone - draw chunk with orange indicator
+         ctx.fillStyle = 'rgba(255,165,0,0.15)';
+         ctx.fillRect(cx - 3, cz - 3, 6, 6);
+         // Add glow
+         ctx.fillStyle = 'rgba(255,165,0,0.4)';
+         ctx.fillRect(cx - 6, cz - 6, 12, 12);
+       } else if(inZone && isRed){
+         // Red zone - draw chunk with red glowing X
+         // Glow outline
+         ctx.fillStyle = 'rgba(255,40,40,0.25)';
+         ctx.fillRect(cx - 3, cz - 3, 6, 6);
+         ctx.fillStyle = 'rgba(255,40,40,0.5)';
+         ctx.fillRect(cx - 6, cz - 6, 12, 12);
+         // Glowing X mark
+         this._drawGlowX(ctx, cx, cz, 12, 16, isRed);
+       } else {
+         // Outside zone
+         ctx.fillStyle = 'rgba(0,0,0,0.1)';
+         ctx.fillRect(cx - 3, cz - 3, 6, 6);
+       }
+     }
+   }
+
+   _drawGlowX(ctx, cx, cz, size, gap, isRed){
+     // Draw a glowing X mark in the center of each chunk
+     const lineThickness = isRed ? 4 : 3;
+     ctx.strokeStyle = isRed ? '#ff0000' : '#ff8800';
+     ctx.lineWidth = lineThickness;
+     ctx.lineCap = 'round';
+     
+     const s = gap;
+     ctx.beginPath();
+     ctx.moveTo(cx - s, cz - s);
+     ctx.lineTo(cx + s, cz + s);
+     ctx.moveTo(cx + s, cz - s);
+     ctx.lineTo(cx - s, cz + s);
+     ctx.stroke();
+     
+     // Glow effect
+     ctx.strokeStyle = isRed ? 'rgba(255,0,0,0.2)' : 'rgba(255,140,0,0.2)';
+     ctx.lineWidth = lineThickness + 4;
+     ctx.stroke();
+   }
+
+   _gladChunkInZone(chunk){
+     const g = this.glad;
+     if(!g) return false;
+     const h = Math.max(0, g.safeHalf);
+     // Chunk center is at (chunk.x, chunk.z) which is in world coordinates
+     // The zone is a square from -h to h
+     return Math.abs(chunk.x) <= h && Math.abs(chunk.z) <= h;
+   }
+
+_gladZoneNotice(text){
+     Menu.toast(text);
+   }
+
+   _drawCountdownPlaceholder(ctx, x, z, orangeHalf){
+     const g = this.glad;
+     if(!g || !this.localTank || !this.localTank.alive) return;
+     
+     const S = this._gladZoneCanvas.width;
+     const scale = S / this.world.size;
+     const px = S/2 + x * scale;
+     const pz = S/2 + z * scale;
+     const radius = Math.max(8, (orangeHalf - g.safeHalf) * scale * 0.4);
+     const countdown = Math.max(0, g.phaseTimer);
+     const seconds = Math.ceil(countdown);
+     
+     // Orange ring
+     ctx.beginPath();
+     ctx.arc(px, pz, radius, 0, Math.PI * 2);
+     ctx.strokeStyle = 'rgba(255,165,0,0.9)';
+     ctx.lineWidth = 3;
+     ctx.stroke();
+     
+     // Inner red fill
+     ctx.beginPath();
+     ctx.arc(px, pz, radius - 4, 0, Math.PI * 2);
+     ctx.fillStyle = 'rgba(255,40,40,0.5)';
+     ctx.fill();
+     
+     // Countdown number
+     ctx.fillStyle = 'rgba(255,255,255,0.95)';
+     ctx.font = 'bold 14px Arial';
+     ctx.textAlign = 'center';
+     ctx.textBaseline = 'middle';
+     ctx.fillText(seconds, px, pz);
+   }
+
+   _gladSpawnForNew(){
     const pts = this._gladSpawnList();
     const taken = this.tanks.filter(t=>t.alive).map(t=>({x:t.x, z:t.z}));
     let best = null, bestD = -1;
@@ -631,11 +908,12 @@ class Game {
 
   /* ---------- GLADIATOR per-frame engine ---------- */
   _gladUpdate(dt){
+    if(this._matchStartDelay > 0) return;
     const g = this.glad;
     if(!g || g.ended) return;
     const cfg = g.cfg;
 
-    // Zone stage machine: grace -> orange (warning) -> shrink -> orange...
+    // Zone stage machine: grace -> orange (warning) -> corruption -> red -> shrink -> orange...
     g.phaseTimer -= dt;
     if(g.phase === 'grace' && g.phaseTimer <= 0){
       g.phase = 'orange';
@@ -644,14 +922,88 @@ class Game {
       this._refreshGladZone();
       Menu.toast('Zone incoming!');
     } else if(g.phase === 'orange' && g.phaseTimer <= 0){
+      g.corruptionTimer = 0;
       let next = g.safeHalf - cfg.zone.chunk;
       if(next < cfg.zone.minHalf) next = (g.safeHalf <= cfg.zone.minHalf) ? cfg.zone.finalHalf : cfg.zone.minHalf;
       g.safeHalf = Math.max(0, next);
-      g.orangeHalf = g.safeHalf + cfg.zone.chunk; // orange warning ring ahead of the red
+      g.orangeHalf = g.safeHalf + cfg.zone.chunk;
       g.stage++;
       g.phaseTimer = cfg.zone.stageTime;
       this._refreshGladZone();
       Menu.toast('Zone shrinking!');
+    }
+
+    // Corruption phase: one chunk at a time from edges, one by one
+    if(g.phase === 'orange' && g.corruptionTimer <= 0){
+      // Start corrupting
+      g.corruptionTimer = 5; // 5 seconds before corruption starts
+    }
+
+    // Update corruption state
+    if(g.phase === 'orange'){
+      g.corruptionTimer -= dt;
+      if(g.corruptionTimer <= 0){
+        // Corrupt one random edge chunk
+        const edgeChunks = this._gladZoneChunks.filter(c =>
+          Math.abs(c.x) >= g.safeHalf - this.glad.cfg.zone.chunk ||
+          Math.abs(c.z) >= g.safeHalf - this.glad.cfg.zone.chunk
+        );
+        if(edgeChunks.length > 0){
+          // Random order corruption
+          const idx = Math.floor(Math.random() * edgeChunks.length);
+          const chunk = edgeChunks[idx];
+          chunk.state = 'red';
+          chunk.corruptionTime = 0;
+          this._gladCorruptedChunks.add(chunk.id);
+          this._refreshGladZone();
+          Menu.toast('Zone shifting...');
+        }
+      }
+    }
+
+    // Countdown placeholder: show orange zone hint at player's edge location
+    if(g.phase === 'orange' && this.localTank && this.localTank.alive){
+      const orangeHalf = g.orangeHalf;
+      let px = this.localTank.x, pz = this.localTank.z;
+      
+      // Project to orange zone boundary: find the nearest point on orange boundary
+      if(px > -orangeHalf && px < orangeHalf && pz > -orangeHalf && pz < orangeHalf){
+        // Inside orange zone, push to boundary
+        const distX = orangeHalf - Math.abs(px);
+        const distZ = orangeHalf - Math.abs(pz);
+        if(distX < distZ) px = (px >= 0 ? orangeHalf : -orangeHalf);
+        else pz = (pz >= 0 ? orangeHalf : -orangeHalf);
+      } else {
+        // Outside orange zone - find nearest point on boundary rectangle
+        const closestX = Math.max(-orangeHalf, Math.min(orangeHalf, px));
+        const closestZ = Math.max(-orangeHalf, Math.min(orangeHalf, pz));
+        px = closestX;
+        pz = closestZ;
+      }
+      
+// Find which chunk this placeholder is in (chunk size available for future use)
+      // const chunkX = Math.round(px / chunkSize) * chunkSize;
+      // const chunkZ = Math.round(pz / chunkSize) * chunkSize;
+      
+      // Display countdown for this chunk area
+      this._drawCountdownPlaceholder(ctx, px, pz, orangeHalf);
+    }
+
+    // Handle red zone chunks: update corruption time and apply damage visuals
+    if(g.phase === 'orange' || g.phase === 'red'){
+      for(const chunk of this._gladZoneChunks){
+        if(chunk.state === 'red'){
+          chunk.corruptionTime += dt;
+          // Red chunks glow more as they "corrupt"
+          const glowIntensity = Math.min(1, chunk.corruptionTime / 30);
+          ctx.fillStyle = `rgba(255,40,40,${0.25 + glowIntensity * 0.3})`;
+          ctx.fillRect(
+            toPx(chunk.x) - 3,
+            toPx(chunk.z) - 3,
+            6, 6
+          );
+        }
+      }
     }
 
     // Red zone damage (10 HP/s while outside the safe square)
@@ -1190,9 +1542,10 @@ class Game {
         t = new Tank(def, {id:s.id, name:s.name, x:s.x, z:s.z, heading:s.h, color:s.col});
         this._finalizeTank(t);
         this.tanks.push(t);
+        t.beginNetDriven();
       }
       const wasAlive = t.alive;
-      t.applyPartialSnapshot(s);
+      t.applyNetSnapshot(s);
       if(wasAlive && !t.alive && !t.dying){
         t._startDeath(this, null);
       }
@@ -1363,6 +1716,9 @@ class Game {
     document.getElementById('ui-layer').classList.add('game-active');
     this.running = true;
     this._last = performance.now();
+    // Match start countdown (5s before play)
+    this._matchStartDelay = 5;
+    this._matchCdShown = false;
     // Show touch joysticks when game starts (only on mobile)
     if(this.input && this.input.setJoysticksVisible){
       this.input.setJoysticksVisible(true);
@@ -1382,9 +1738,12 @@ class Game {
     // Hide all overlays
     document.getElementById('esc-menu').classList.add('hidden');
     document.getElementById('bigmap').classList.add('hidden');
+    var _mc = document.getElementById('match-cd');
+    if(_mc) _mc.classList.add('hidden');
+    this._matchStartDelay = 0; this._matchCdShown = false;
     if (this._perfOverlay) this._perfOverlay.style.display = 'none';
     if(Menu.escOpen) Menu.escOpen = false;
-    Menu.show('menu-main');
+    Menu.show(window.__PLATOON_BATTLE ? 'menu-platoon' : 'menu-main');
     // Hide touch joysticks when returning to menu
     if(this.input && this.input.setJoysticksVisible){
       this.input.setJoysticksVisible(false);
@@ -1412,6 +1771,35 @@ class Game {
     if (this._perfFpsHistory.length > 60) this._perfFpsHistory.shift();
 
     if(this.running){
+      // Match start countdown: freeze input for 5s
+      if(this._matchStartDelay > 0){
+        this._matchStartDelay -= dt;
+        if(this._matchStartDelay <= 0){
+          this._matchStartDelay = 0;
+          var mc = document.getElementById('match-cd');
+          if(mc) mc.classList.add('hidden');
+        } else {
+          var mc = document.getElementById('match-cd');
+          if(mc && !this._matchCdShown){
+            mc.classList.remove('hidden');
+            this._matchCdShown = true;
+          }
+          var num = document.querySelector('.match-cd-num');
+          var label = document.querySelector('.match-cd-label');
+          var go = document.querySelector('.match-cd-go');
+          if(num){
+            if(this._matchStartDelay > 0.5){
+              num.textContent = Math.ceil(this._matchStartDelay);
+              if(label) label.style.display = '';
+              if(go) go.style.display = 'none';
+            } else {
+              num.style.display = 'none';
+              if(label) label.style.display = 'none';
+              if(go) go.style.display = 'block';
+            }
+          }
+        }
+      }
       this.dt = dt; this.time += dt;
       // Play-time stats: +1s while a match runs
       this._playAcc = (this._playAcc || 0) + dt;
@@ -1434,7 +1822,19 @@ class Game {
           });
         }
       } catch(e){ console.warn('Physics step:', e); }
-      this._update(dt);
+      if(this._matchStartDelay <= 0){
+        this._update(dt);
+      } else {
+        // During countdown: still step physics but skip input/bot updates
+        if(this.physicsWorld){
+          this.physicsWorld.timestep = Math.min(dt, 0.033);
+          this.physicsWorld.step(this._eventQueue);
+          if(this._eventQueue) this._eventQueue.drainCollisionEvents((h1, h2, started) => {
+            if(!started) return;
+            this._onCollision(h1, h2);
+          });
+        }
+      }
     }
     this._perfUpdateEnd = performance.now();
 
@@ -1489,7 +1889,9 @@ class Game {
     }
 
     // Local tank input (keyboard/mouse OR touch)
-    if(this.localTank && this.localTank.alive && !this.localTank.dying && !(this.glad && this.glad.ended)){
+    if(this._matchStartDelay > 0){
+      // Skip all input during match start countdown
+    } else if(this.localTank && this.localTank.alive && !this.localTank.dying && !(this.glad && this.glad.ended)){
       let throttle, turn, turretAngle, fire, handbrake;
       
       const touchInput = this.input.getTouchInput();
@@ -1545,6 +1947,12 @@ class Game {
 
     // Update all tanks
     this.tanks.forEach(t=>{
+      if(this._matchStartDelay > 0 && t.brain){
+        // Skip bot AI during match start countdown
+        t.setInput({throttle:0,turn:0,turretWorldAngle:t.turretAngle,fire:false});
+        t.update(dt, this.world, this);
+        return;
+      }
       if(t.brain){
         t.setInput(t.brain.decide(this));
       } else if(t.ownerPeer && this.clientTankInputs[t.ownerPeer]){
@@ -1811,6 +2219,9 @@ class Game {
       if(this._netSendAcc > 0.05){ // ~20Hz
         this._netSendAcc = 0;
         Net.broadcast({time:this.time, glad:this.glad ? this._gladSnapshot() : null, tanks:this.tanks.map(t=>t.snapshot()), projs:this.projectiles.filter(p=>!p.dead).map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,dx:p.dir.x,dz:p.dir.z,type:p.type,life:p.life}))});
+        if(window.__PLATOON_BATTLE){
+          window.__PLATOON_BATTLE.score = this.tanks.filter(t=>!t.isDummy).map(t=>({name:t.name||'Player', kills:t.kills||0, dd:Math.round(t.damageDealt||0)}));
+        }
       }
     } else if(this.mode==='freeroam' && NakamaNet.isHost){
       this._netSendAcc += dt;

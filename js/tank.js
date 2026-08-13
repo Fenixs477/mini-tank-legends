@@ -27,7 +27,6 @@ class Tank {
     this.reloadLeft = 0;
     this.mag = def.magSize || 1;
     this.magReloadLeft = 0;
-    this._shellShot = null;
 
     // Super ability state
     this.superCdLeft = 0;
@@ -177,7 +176,15 @@ class Tank {
   }
 
   _addOutline(mesh, group, thickness){
-    group.add(Tank.createOutlineMesh(mesh, thickness));
+    // Parent the outline INTO the mesh itself (identity local transform) so it
+    // inherits the mesh's own rotation — turret-pivot meshes rotate with the
+    // turretAngle, and the outline must follow instead of staying fixed as a
+    // group sibling.
+    const outline = Tank.createOutlineMesh(mesh, thickness);
+    outline.position.set(0, 0, 0);
+    outline.rotation.set(0, 0, 0);
+    outline.scale.set(1, 1, 1);
+    mesh.add(outline);
   }
 
   _loadModel(){
@@ -261,8 +268,15 @@ class Tank {
       });
 
       const outlineT = 0.04 / scale;
-      bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
-      turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
+      // Collect meshes first, then add outlines afterwards: a traverse that
+      // adds a child INTO a visited mesh would descend into the fresh outline
+      // and recurse forever, so never add outlines during a live traversal.
+      let srcMeshes = [];
+      bodyParts.traverse(o => { if(o.isMesh) srcMeshes.push(o); });
+      srcMeshes.forEach(m => this._addOutline(m, m.parent, outlineT));
+      srcMeshes = [];
+      turretParts.traverse(o => { if(o.isMesh) srcMeshes.push(o); });
+      srcMeshes.forEach(m => this._addOutline(m, m.parent, outlineT));
 
       this.bodyGroup.add(bodyParts);
       this.turretGroup.add(turretParts);
@@ -301,24 +315,37 @@ class Tank {
     const c = bb.getCenter(new THREE.Vector3());
     grp.position.set(grp.position.x - c.x, grp.position.y - bb.min.y, grp.position.z - c.z);
     // The game aims turrets along +Z. The coolbuddy model is authored with
-    // the whole tank's toward/back sides swapped relative to the game, so
-    // for def.modelFlipY we invert BOTH the hull AND the turret visuals
-    // (front↔back for each, flipped in place about its own pivot) so the
-    // barrel and the hull's front both face the game's +Z forward while the
-    // turret rotation still works. Other models keep the auto whole-model flip.
+    // the whole tank's front/back sides swapped relative to the game AND the
+    // barrel is baked into the turret mesh itself, so for def.modelFlipY we
+    // bake a 180° Y-flip into the hull and turret MESH GEOMETRIES (each about
+    // its own center, so pivots stay put) — the barrel/mantlet and the hull
+    // front then face the game's +Z forward while the turret rotation still
+    // works. Other models keep the auto whole-model flip.
     let flippedTurret = false;
     if(this.def.modelFlipY && turretG && hullG){
-      // Turret: flip its children 180° INSIDE the pivot so syncTransform's
-      //   rotation.y = turretAngle still aims the barrel correctly.
+      const bakeFlip = (g) => {
+        const a = g.geometry ? g.geometry.attributes.position : null;
+        if(!a) return;
+        const box = new THREE.Box3();
+        const v = new THREE.Vector3();
+        for(let i=0;i<a.count;i++){
+          v.fromBufferAttribute(a, i);
+          box.expandByPoint(v);
+        }
+        const ctr = box.getCenter(new THREE.Vector3());
+        g.geometry.translate(-ctr.x, -ctr.y, -ctr.z)
+          .rotateY(Math.PI)
+          .translate(ctr.x, ctr.y, ctr.z);
+      };
+      bakeFlip(turretG);
+      bakeFlip(hullG);
+      // Marker empties (gun muzzle / shell port) ride inside the turret
+      // pivot: flip them with a 180° group so they sit at the flipped
+      // barrel tip and shell port positions.
       const flipT = new THREE.Group();
       flipT.rotation.y = Math.PI;
       turretG.children.slice().forEach(ch => flipT.add(ch));
       turretG.add(flipT);
-      // Hull: flip its children 180° in place about the hull's own center
-      const flipH = new THREE.Group();
-      flipH.rotation.y = Math.PI;
-      hullG.children.slice().forEach(ch => flipH.add(ch));
-      hullG.add(flipH);
       flippedTurret = true;
     } else if(shellG){
       grp.updateMatrixWorld(true);
@@ -352,8 +379,12 @@ class Tank {
     // Outlines are inflated in authored units, but the model is scaled
     // ~9x in world units: shrink the inflation so the rim stays thin
     const outlineT = 0.04 / (scale || 1);
-    bodyParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
-    turretParts.traverse(o => { if(o.isMesh) this._addOutline(o, o.parent, outlineT); });
+    let srcMeshes = [];
+    bodyParts.traverse(o => { if(o.isMesh) srcMeshes.push(o); });
+    srcMeshes.forEach(m => this._addOutline(m, m.parent, outlineT));
+    srcMeshes = [];
+    turretParts.traverse(o => { if(o.isMesh) srcMeshes.push(o); });
+    srcMeshes.forEach(m => this._addOutline(m, m.parent, outlineT));
     this.bodyGroup.add(bodyParts);
     this.turretGroup.add(turretParts);
 
@@ -541,6 +572,7 @@ class Tank {
     if(this.netDriven){
       // Position/heading come from host snapshots (interpolated every frame);
       // skip local movement integration so snapshots don't fight the sim.
+      this._netSmoothTick();
       if(world){
         this.camoState = world.hidingIn(this.x, this.z);
         this.camoFactor = world.camoFactor(this.x, this.z);
@@ -664,15 +696,6 @@ class Tank {
 
     if(this.reloadLeft > 0) this.reloadLeft -= dt;
 
-    // Delayed shot: a casing was ejected moments ago; fire the real shell.
-    if(this._shellShot != null){
-      this._shellShot -= dt;
-      if(this._shellShot <= 0){
-        this._shellShot = null;
-        if(game) game.spawnShot(this);
-      }
-    }
-
     if(this.superCdLeft > 0) this.superCdLeft -= dt;
 
     if(this.magReloadLeft > 0){
@@ -734,13 +757,11 @@ class Tank {
       }
       if(this.superState === 'cloaked') this.endCloak();
       if(d.ejectShell && this._shellNode && game){
-        // Eject a physical shell casing from the "shell" port now, then
-        // actually fire the projectile from the muzzle after shellDelay.
+        // Eject a physical shell casing from the "shell" port and fire the
+        // projectile from the muzzle immediately (no artificial delay).
         game.ejectShell(this);
-        this._shellShot = (d.shellDelay != null ? d.shellDelay : 1.0);
-      } else {
-        if(game) game.spawnShot(this);
       }
+      if(game) game.spawnShot(this);
     }
   }
 
@@ -912,7 +933,7 @@ class Tank {
   _applyOutlineScale(scale){
     [this.bodyGroup, this.turretGroup].forEach(group => {
       if(!group) return;
-      group.children.forEach(child => {
+      group.traverse(child => {
         if(child.userData && child.userData.isOutline) child.scale.setScalar(scale);
       });
     });
