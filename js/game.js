@@ -1845,6 +1845,10 @@ _gladZoneNotice(text){
             this._onCollision(h1, h2);
           });
         }
+        // Cinematic intro camera: sweep from the tank's left side, rise and
+        // rotate around behind it to exactly the follow-cam position, so the
+        // handoff to the normal camera when the countdown ends is seamless.
+        if(this.localTank) this._updateCinematicCamera();
       }
     }
     this._perfUpdateEnd = performance.now();
@@ -1872,6 +1876,31 @@ _gladZoneNotice(text){
 
     this._updatePerfOverlay(now);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /* Cinematic intro camera (runs during the match-start countdown).
+     Progress 0→1 maps to the countdown duration (5s). The camera starts
+     at the tank's left side, low and close, then rises while rotating
+     around to the standard follow position, ending exactly there. */
+  _updateCinematicCamera(){
+    if(!this.localTank || !this.localTank.alive || this.localTank.dying) return;
+    const t = this.localTank;
+    const dur = this._matchStartDelay; // 5 → 0
+    const p = Math.min(1, Math.max(0, (5 - dur) / 5));
+    // Smooth easing so launch and handoff feel natural
+    const e = p * p * (3 - 2 * p);
+    if((this.camMode || 'arrows') === 'auto') this.camAngle = t.heading + Math.PI;
+    // Orbit from the left side (heading + PI/2) around to the back (camAngle)
+    const endA = this.camAngle;
+    const startA = endA - Math.PI / 2;
+    const ang = startA + (endA - startA) * e;
+    const dist = this.camDist * (0.7 + 0.3 * e);
+    const h = 3 + (this.camDist * 1.43 + 1.2 - 3) * e;
+    const camLim = (this.world && this.world.half || 75) - 8;
+    const cx = Math.max(-camLim, Math.min(camLim, t.x + Math.sin(ang) * dist));
+    const cz = Math.max(-camLim, Math.min(camLim, t.z + Math.cos(ang) * dist));
+    this.camera.position.set(cx, h, cz);
+    this.camera.lookAt(t.x, 1.2, t.z);
   }
 
   _update(dt){

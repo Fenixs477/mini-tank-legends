@@ -26,7 +26,11 @@
   function el(tag, cls, txt){
     var n = document.createElement(tag);
     if(cls) n.className = cls;
-    if(txt !== undefined) n.textContent = txt;
+    if(txt !== undefined){
+      // '<svg...' strings are HTML markup for icons, everything else is text
+      if(typeof txt === 'string' && txt.indexOf('<svg') === 0) n.innerHTML = txt;
+      else n.textContent = txt;
+    }
     return n;
   }
   function myUid(){
