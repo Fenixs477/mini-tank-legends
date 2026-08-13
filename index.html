@@ -864,7 +864,7 @@
               background: radial-gradient(120% 90% at 50% 0%, #232834 0%, #101318 62%, #0b0e12 100%);
               display: flex; flex-direction: column; gap: clamp(4px, .9vmin, 10px);
               text-align: left; box-sizing: border-box;
-              --pl-sq: clamp(46px, 15vmin, 128px);
+              --pl-sq: clamp(64px, 17vmin, 190px);
             }
             .pl-lobby * { box-sizing: border-box; font-family: 'Lilita One', sans-serif; margin: 0; }
             .pl-lobby button { cursor: pointer; }
@@ -895,21 +895,27 @@
             .pl-switch:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
             .pl-switch:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
 
-            /* MIDDLE: two teams + center column */
+/* MIDDLE: two teams + center column */
             .pl-middle { flex: 1; min-height: 0; display: flex; gap: clamp(6px, 1.2vmin, 14px); }
-            .pl-team { flex: 1; min-width: 0; display: flex; flex-direction: column; background: rgba(255,255,255,.03); border: 2px solid rgba(255,255,255,.08); border-radius: 12px; padding: clamp(6px, 1vmin, 10px); }
+            .pl-team { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: rgba(255,255,255,.03); border: 2px solid rgba(255,255,255,.08); border-radius: 12px; padding: clamp(6px, 1vmin, 10px); }
             .pl-team-head { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
             .pl-team-head b { font-size: 14px; letter-spacing: 2px; color: #fff; }
             .pl-team-1 .pl-team-head b { color: #fbbf24; }
             .pl-team-2 .pl-team-head b { color: #60a5fa; }
             .pl-team-count { font-size: 10px; color: #9aa0ab; }
             .pl-ghost-hint { display: none; font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,.55); background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 2px 8px; }
-            .pl-slots { display: grid; gap: clamp(4px, .8vmin, 8px); justify-content: center; align-content: center; margin: auto; }
-            .pl-slot { width: var(--pl-sq); height: var(--pl-sq); background: #161a21; border: 2px solid #000; border-radius: 12px; box-shadow: 0 4px 0 #000; position: relative; display: flex; align-items: center; justify-content: center; transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+            /* 12 rows per team: 9 main/locked + divider + 2 spectators, stretched to fill the column */
+            .pl-slots { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(2px, .5vmin, 6px); align-items: center; justify-content: space-evenly; }
+            .pl-slot { width: min(100%, var(--pl-sq)); flex: 1 1 0; min-height: 0; max-height: 92px; background: #161a21; border: 2px solid #000; border-radius: 12px; box-shadow: 0 4px 0 #000; position: relative; display: flex; align-items: center; justify-content: center; transition: transform .15s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease; }
             .pl-slot.pl-open { border: 2px dashed rgba(255,255,255,.35); background: rgba(255,255,255,.02); box-shadow: none; cursor: pointer; }
             .pl-slot.pl-open:hover { transform: translateY(-3px) scale(1.03); border-color: #fbbf24; background: rgba(251,191,36,.06); box-shadow: 0 6px 0 #000, 0 0 20px rgba(251,191,36,.25); }
             .pl-slot.pl-you { border-color: #fbbf24; box-shadow: 0 4px 0 #000, 0 0 16px rgba(251,191,36,.4); }
             .pl-slot.pl-lock { cursor: not-allowed; filter: grayscale(.5) brightness(.85); }
+            .pl-slot.pl-spec { border-style: dashed; border-color: rgba(154,160,171,.55); background: rgba(154,160,171,.07); box-shadow: none; }
+            .pl-slot.pl-spec .pl-plus { color: rgba(154,160,171,.8); font-size: clamp(14px, 3.4vmin, 24px); }
+            .pl-slot.pl-spec .pl-open-label { color: rgba(154,160,171,.85); }
+            /* divider above the spectator slots */
+            .pl-spec-div { width: calc(100% - 6px); flex: 0 0 auto; text-align: center; font-size: 8px; letter-spacing: 3px; color: rgba(154,160,171,.8); border-top: 2px dashed rgba(154,160,171,.3); padding: 1px 0 0; margin: 2px 0 1px; }
             .pl-slot.pl-pop { animation: plSlotPop .35s cubic-bezier(.34,1.56,.64,1); }
             @keyframes plSlotPop { 0% { transform: scale(1.14); } 100% { transform: scale(1); } }
             .pl-slot-body { display: flex; flex-direction: column; align-items: center; gap: clamp(3px, .6vmin, 6px); }
@@ -940,15 +946,9 @@
             .pl-team.pl-ghost:hover { opacity: .55; filter: grayscale(.3); }
             .pl-team.pl-ghost .pl-ghost-hint { display: inline; }
 
-            /* CENTER COLUMN */
+/* CENTER COLUMN */
             .pl-center { width: clamp(170px, 26vw, 340px); flex-shrink: 0; display: flex; flex-direction: column; gap: clamp(4px, .8vmin, 8px); min-height: 0; }
-            /* spectators, single centered row */
-            .pl-spec { background: rgba(255,255,255,.02); border: 2px dashed rgba(255,255,255,.12); border-radius: 12px; padding: clamp(4px, .8vmin, 8px); flex-shrink: 0; }
-            .pl-spec .pl-team-head { margin-bottom: 4px; }
-            .pl-spec .pl-team-head b { color: #9aa0ab; font-size: 11px; }
-            .pl-spec-row { display: flex; justify-content: center; gap: clamp(4px, .8vmin, 8px); }
-            .pl-spec-row .pl-slots { display: flex; }
-            /* chat, centered on screen */
+            /* chat, fills the column — voice pinned at the bottom */
             .pl-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.1); border-radius: 10px; padding: clamp(4px, .7vmin, 7px); }
             .pl-chat-list { flex: 1; min-height: 0; overflow-y: auto; font-size: 11px; line-height: 1.45; color: #cbd5e1; scrollbar-width: thin; }
             .pl-chat-row b { color: #fbbf24; font-weight: normal; }
@@ -994,7 +994,7 @@
             .pl-ready-wrap .pl-btn { min-width: 116px; }
             #pl-start.pl-btn { font-size: 13px; padding: 9px 12px; animation: plPulse .9s infinite alternate; }
             @keyframes plPulse { from { box-shadow: 0 4px 0 #000, 0 0 0 rgba(251,191,36,0); } to { box-shadow: 0 4px 0 #000, 0 0 18px rgba(251,191,36,.55); } }
-            .pl-status { font-size: 11px; color: #9aa0ab; letter-spacing: 1px; text-align: center; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .pl-status { font-size: 11px; color: #9aa0ab; letter-spacing: 1px; text-align: center; flex-shrink: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
             .pl-toast-anim { animation: plToast .35s ease; }
             @keyframes plToast { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
@@ -1016,19 +1016,21 @@
             .pl-vote-btn:disabled { filter: grayscale(.6) brightness(.7); cursor: not-allowed; }
             .pl-vote-btn.pl-vote-on { background: linear-gradient(160deg, #fbbf24 0%, #f97316 100%); color: #241505; }
 
-            /* tiny screens */
+/* tiny screens */
             @media (max-width: 420px) {
-              .pl-lobby { --pl-sq: clamp(42px, 13.5vmin, 62px); gap: 4px; padding: 5px; }
+              .pl-lobby { --pl-sq: clamp(42px, 12vw, 56px); gap: 4px; padding: 5px; }
               .pl-mode-wrap label, .pl-room-label { display: none; }
               .pl-team { padding: 5px; }
               .pl-center { width: clamp(128px, 34vw, 170px); }
               .pl-top .pl-btn { padding: 5px 8px; font-size: 10px; }
+              .pl-slot { max-height: 64px; }
             }
             /* very short landscape */
             @media (max-height: 420px) {
-              .pl-lobby { --pl-sq: clamp(34px, 13vh, 58px); }
+              .pl-lobby { --pl-sq: clamp(34px, 11vh, 48px); }
               .pl-center { width: clamp(140px, 30vw, 240px); }
               .pl-chat-list { font-size: 10px; }
+              .pl-slot { max-height: 44px; }
             }
           </style>
 
@@ -1036,10 +1038,10 @@
           <div class="pl-top">
             <div class="pl-mode-wrap">
               <label>GAME MODE</label>
-              <select id="pl-mode">
-                <option value="tdm">TEAM DEATHMATCH</option>
-                <option value="ctf">CAPTURE THE FLAG</option>
-                <option value="ffa">FREE FOR ALL</option>
+<select id="pl-mode">
+                <option value="gladiator">GLADIATOR</option>
+                <option value="sandbox">SANDBOX</option>
+                <option value="platform-king">PLATFORM KING</option>
                 <option value="custom">CUSTOM</option>
               </select>
               <button class="pl-vote-btn" id="pl-vote" title="Host: enable player voting. Locks until the battle ends.">ENABLE VOTING</button>
@@ -1056,25 +1058,12 @@
 
           <!-- MIDDLE: TEAM 1 (left) + center + TEAM 2 (right) -->
           <div class="pl-middle">
-            <div class="pl-team pl-team-1" id="pl-team-1">
-              <div class="pl-team-head"><b>TEAM 1</b><span class="pl-team-count" id="pl-c1">0/3</span></div>
+<div class="pl-team pl-team-1" id="pl-team-1">
+              <div class="pl-team-head"><b>TEAM 1</b><span class="pl-team-count" id="pl-c1">0/12</span></div>
               <div class="pl-slots" id="pl-slots-1"></div>
             </div>
 
             <div class="pl-center">
-              <!-- SHARED SPECTATORS row -->
-              <div class="pl-spec" id="pl-spec-shared">
-                <div class="pl-team-head"><b>SPECTATORS</b><span class="pl-team-count" id="pl-cs-total">0/5</span></div>
-                <div class="pl-spec-row">
-                  <div class="pl-slots" id="pl-slots-s1"></div>
-                  <div class="pl-slots" id="pl-slots-s2"></div>
-                  <div class="pl-slots" id="pl-slots-s0"></div>
-                </div>
-                <span id="pl-cs1" class="pl-hidden"></span>
-                <span id="pl-cs2" class="pl-hidden"></span>
-                <span id="pl-cs0" class="pl-hidden"></span>
-              </div>
-
               <!-- CHAT (center of the screen, both teams talk here) -->
               <div class="pl-chat">
                 <div class="pl-chat-list" id="pl-chat-list"></div>
@@ -1094,7 +1083,7 @@
             </div>
 
             <div class="pl-team pl-team-2 pl-ghost" id="pl-team-2">
-              <div class="pl-team-head"><b>TEAM 2</b><span class="pl-ghost-hint">LOCKED — CLICK TO ENABLE CUSTOM</span><span class="pl-team-count" id="pl-c2">0/3</span></div>
+              <div class="pl-team-head"><b>TEAM 2</b><span class="pl-ghost-hint">LOCKED — CLICK TO ENABLE CUSTOM</span><span class="pl-team-count" id="pl-c2">0/12</span></div>
               <div class="pl-slots" id="pl-slots-2"></div>
             </div>
           </div>

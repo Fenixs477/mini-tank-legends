@@ -16,10 +16,10 @@
   function voiceId(code){ return PFX + 'platoon-' + code; }
 
   var MODES = {
-    tdm:    { label: 'TEAM DEATHMATCH', custom: false },
-    ctf:    { label: 'CAPTURE THE FLAG', custom: false },
-    ffa:    { label: 'FREE FOR ALL',     custom: false },
-    custom: { label: 'CUSTOM',           custom: true  }
+    gladiator:     { label: 'GLADIATOR',     custom: false },
+    sandbox:       { label: 'SANDBOX',       custom: false },
+    'platform-king': { label: 'PLATFORM KING', custom: false },
+    custom:        { label: 'CUSTOM',        custom: true  }
   };
 
   var $ = function(id){ return document.getElementById(id); };
@@ -60,7 +60,7 @@
   }
 
   var S = {
-    code: null, mode: 'tdm', vote: false, votes: {}, lock: false, counting: null,
+    code: null, mode: 'gladiator', vote: false, votes: {}, lock: false, counting: null,
     host: null, you: null, members: {}, online: false, peer: null, conn: null, retries: 0,
     youLocal: { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: true },
     voice: { on: false, deafen: false, ptt: false, pttActive: false, stream: null, ctx: null, analyser: null,
@@ -71,14 +71,31 @@
   function youM(){ return S.online ? S.members[S.you.uid] : S.youLocal; }
   function isHostYou(){ var y = youM(); return !!(y && y.host); }
   function arrKey(team){
-    if(team === '1' || team === 's1') return 'L';
-    if(team === 's0') return 'C';
+    if(team === '1') return 'L';
     return 'R';
   }
-function slotCount(team){
-    if(team === 's0') return 1;
-    if(team === 's1' || team === 's2') return 2;
-    return MODES[S.mode].custom ? 10 : 3;
+  // 12 slots per team: 0-2 main, 3-9 locked middle, 10-11 spectators
+  function slotCount(team){ return 12; }
+  function isSpecSlot(i){ return i >= 10; }
+  function isSpecMember(m){ return !!(m && m.slot >= 10); }
+  function isLockedSlot(team, i){
+    if(MODES[S.mode].custom) return false;
+    if(team === '2') return true;          // team 2: every slot locked until custom
+    return i >= 3 && i < 10;               // team 1: 7 locked middle slots
+  }
+  function emptyArr(team, at){
+    var a = [];
+    for(var i = 0; i < slotCount(team); i++) a.push(null);
+    if(at && isSpecSlot(at.slot)) at.slot = 0;
+    if(at){ a[at.slot] = at; }
+    return a;
+  }
+  function firstOpen(team, source){
+    var arr = source || arrOf(team);
+    for(var i = 0; i < arr.length; i++){
+      if(!arr[i] && !isLockedSlot(team, i)) return i;
+    }
+    return -1;
   }
   function teamMembers(team){
     var k = arrKey(team), out = [];
@@ -112,12 +129,12 @@ function slotCount(team){
   function toast(msg){ if(window.Menu && Menu.toast) Menu.toast(msg); }
 
   /* ================= render ================= */
-  var nodes = { '1': [], 's1': [], '2': [], 's2': [], 's0': [] };
+  var nodes = { '1': [], '2': [] };
   var built = false;
 
   function sig(m, pos){
-    if(!m) return 'o' + (S.lock ? 'L' : '');
-    return (m.host ? 'H' : 'P') + (m.ready ? 'R' : '') + (pos === (S.online ? S.host : S.youLocal.uid) ? 'C' : '') + (S.lock ? 'L' : '');
+    if(!m) return 'o' + (S.lock ? 'L' : '') + S.mode;
+    return (m.host ? 'H' : 'P') + (m.ready ? 'R' : '') + (pos === (S.online ? S.host : S.youLocal.uid) ? 'C' : '') + (S.lock ? 'L' : '') + S.mode;
   }
 
   function buildSlot(pos, t, i){
@@ -139,10 +156,16 @@ function slotCount(team){
   }
 
   function applySlot(d, m, pos){
+    var parts = pos.split('-');
+    var t = parts[0], i = +parts[1];
+    var locked = isLockedSlot(t, i);
+    var spec = isSpecSlot(i);
     var youUid = S.online ? S.you.uid : S.youLocal.uid;
     var isYou = m && m.uid === youUid;
     d.className = 'pl-slot'
       + (m ? (isYou ? ' pl-you' : ' pl-player') : ' pl-open')
+      + (locked ? ' pl-lock' : '')
+      + (spec && !m ? ' pl-spec' : '')
       + (pos === '1-0' ? ' pl-crown-slot' : '')
       + (S.lock ? ' pl-lock' : '');
     var crown = d.querySelector('.pl-crown');
@@ -152,6 +175,10 @@ function slotCount(team){
     var name = d.querySelector('.pl-slot-name');
     var ready = d.querySelector('.pl-slot-ready');
     var tk = d.querySelector('.pl-tk');
+    if(!m){
+      plus.textContent = locked ? '\uD83D\uDD12' : (spec ? '\uD83C\uDFA5' : '+');
+      label.textContent = locked ? 'LOCKED' : (spec ? 'SPECTATOR' : 'OPEN');
+    }
     plus.style.display = m ? 'none' : '';
     label.style.display = m ? 'none' : '';
     name.style.display = m ? '' : 'none';
@@ -197,10 +224,10 @@ function slotCount(team){
     var t2 = $('pl-team-2');
     t2.classList.remove('pl-hidden');
     t2.classList.toggle('pl-ghost', !custom);
-    $('pl-switch').disabled = !(custom || (you && isSpecTeam(you.team)));
+    $('pl-switch').disabled = !(custom || (you && isSpecMember(you)));
     $('pl-delete').style.display = isHostYou() ? '' : 'none';
-    $('pl-ready').disabled = !you || isSpecTeam(you.team);
-    $('pl-ready').textContent = (you && isSpecTeam(you.team))
+    $('pl-ready').disabled = !you || isSpecMember(you);
+    $('pl-ready').textContent = (you && isSpecMember(you))
       ? 'SPECTATING'
       : (you && you.ready ? 'READY \u2713' : 'READY');
     $('pl-ready').classList.toggle('pl-btn-gold', !!(you && you.ready));
@@ -214,15 +241,16 @@ function slotCount(team){
     $('pl-mode').disabled = !(isHostYou() || S.vote);
     $('pl-mode').value = S.mode;
 
-    var groups = [['1', 'pl-slots-1', 'pl-c1'], ['s1', 'pl-slots-s1', 'pl-cs1'],
-                  ['2', 'pl-slots-2', 'pl-c2'], ['s2', 'pl-slots-s2', 'pl-cs2'],
-                  ['s0', 'pl-slots-s0', 'pl-cs0']];
+    var groups = [['1', 'pl-slots-1', 'pl-c1'], ['2', 'pl-slots-2', 'pl-c2']];
     for(var g = 0; g < groups.length; g++){
       var t = groups[g][0], wrapId = groups[g][1], cntId = groups[g][2];
       var arr = arrOf(t);
       var wrap = $(wrapId);
       if(!built){
+        wrap.innerHTML = '';
+        nodes[t] = [];
         for(var i = 0; i < arr.length; i++){
+          if(i === 10) wrap.appendChild(el('div', 'pl-spec-div', 'SPECTATORS'));
           var d = buildSlot(t + '-' + i, t, i);
           nodes[t].push({ el: d, last: null });
           wrap.appendChild(d);
@@ -286,7 +314,7 @@ function slotCount(team){
       row.dataset.uid = m.uid;
       var info = el('div', 'pl-vinfo');
       info.appendChild(el('span', 'pl-vname', (m.uid === youUid ? 'YOU \u00B7 ' : '') + m.name));
-      info.appendChild(el('span', 'pl-vteam', (m.team === 's1' || m.team === 's2' || m.team === 's0') ? 'SPEC' : 'T' + m.team));
+      info.appendChild(el('span', 'pl-vteam', isSpecMember(m) ? 'SPEC' : 'T' + m.team));
       row.appendChild(info);
       if(m.uid === youUid){
         var mBtn = el('button', 'pl-btn pl-btn-sm pl-btn-gray', S.voice.micOn ? 'MUTE' : 'UNMUTE');
@@ -509,25 +537,21 @@ function slotCount(team){
   /* ================= HOST side ================= */
   function hostAssign(uid3, name){
     var m = { uid: uid3, name: name, team: '1', slot: 0, ready: false, host: false, peerId: null, conn: null };
-    var teams = ['1', '2', 's1', 's2', 's0'];
+    var teams = ['1', '2'];
     for(var i = 0; i < teams.length; i++){
       var t = teams[i];
-      if((t === '2' || t === 's2') && !MODES[S.mode].custom) continue;
       var arr = arrOf(t);
-      var ix = firstEmpty(arr);
-      if(ix >= 0){ m.team = t; m.slot = ix; return m; }
+      for(var j = 0; j < arr.length; j++){
+        if(!arr[j] && !isLockedSlot(t, j)){ m.team = t; m.slot = j; return m; }
+      }
     }
-    m.team = 's1';
-    var a2 = arrOf('s1');
-    for(var j = 0; j < a2.length; j++){ if(!a2[j]){ m.slot = j; return m; } }
-    m.slot = 0;
     return m;
   }
   function hostMove(uid3, dest, i){
     if(S.lock) return;
     var m = S.members[uid3];
     if(!m) return;
-    if((dest === '2' || dest === 's2') && !MODES[S.mode].custom) return;
+    if(isLockedSlot(dest, i)) return;
     if(i < 0 || i >= slotCount(dest)) return;
     var conflicts = teamMembers(dest).filter(function(x){ return x.slot === i && x.uid !== uid3; });
     if(conflicts.length) return;
@@ -540,7 +564,7 @@ function slotCount(team){
     if(!m) return;
     if(msg.t === 'move'){ hostMove(uid3, msg.team, msg.slot); }
     else if(msg.t === 'ready'){
-      if(m.team === 's1' || m.team === 's2') return;
+      if(isSpecMember(m)) return;
       m.ready = !m.ready;
       broadcast({ t: 'st', room: roomState() });
       render();
@@ -587,15 +611,16 @@ function slotCount(team){
     if(!MODES[mode]) return;
     S.mode = mode;
     if(!MODES[mode].custom){
+      var open = [];
+      var t1 = arrOf('1');
+      for(var j = 0; j < t1.length; j++){
+        if(!t1[j] && !isLockedSlot('1', j)) open.push(j);
+      }
       for(var uid3 in S.members){
         var m = S.members[uid3];
-        if(m.team === '2' || m.team === 's2'){
-          var arr = arrOf('1');
-          var ix = firstEmpty(arr);
-          if(ix >= 0){ m.team = '1'; m.slot = ix; continue; }
-          var sarr = arrOf('s1');
-          var six = firstEmpty(sarr);
-          if(six >= 0){ m.team = 's1'; m.slot = six; }
+        var lockedNow = m.team === '2' || (m.team === '1' && isLockedSlot('1', m.slot));
+        if(lockedNow && open.length){
+          m.team = '1'; m.slot = open.shift(); m.ready = false;
         }
       }
     }
@@ -904,22 +929,21 @@ function slotCount(team){
       return;
     }
     var you = S.youLocal;
-    if((t === '2' || t === 's2') && !MODES[S.mode].custom) return;
+    if(isLockedSlot(t, i)) return;
     if(you.team === t && you.slot === i) return;
     if(S.localArr && S.localArr[t] && S.localArr[t][i]) return;
     if(you.team && S.localArr && S.localArr[you.team]) S.localArr[you.team][you.slot] = null;
     you.team = t; you.slot = i; you.ready = false;
     if(S.localArr) S.localArr[t][i] = you;
     status(you.host ? 'You are the HOST'
-      : (isSpecTeam(t) ? 'You are now SPECTATING' : 'Moved'));
+      : (isSpecSlot(i) ? 'You are now SPECTATING' : 'Moved'));
     render();
   }
-  function isSpecTeam(t){ return t === 's1' || t === 's2' || t === 's0'; }
   function toggleReady(){
     if(S.online){
       if(isHostYou()){
         var m = S.members[S.you.uid];
-        if(!m || isSpecTeam(m.team)) return;
+        if(!m || isSpecMember(m)) return;
         m.ready = !m.ready;
         status(m.ready ? 'READY' : 'NOT ready');
         broadcast({ t: 'st', room: roomState() });
@@ -930,7 +954,7 @@ function slotCount(team){
       return;
     }
     var you = S.youLocal;
-    if(isSpecTeam(you.team)) return;
+    if(isSpecMember(you)) return;
     you.ready = !you.ready;
     status(you.ready ? 'READY' : 'NOT ready');
     render();
@@ -939,13 +963,17 @@ function slotCount(team){
     if(S.online){
       var you = S.members[S.you.uid];
       if(!you) return;
-      if(isSpecTeam(you.team)){ requestMove('1', firstEmpty(arrOf('1'))); return; }
-      requestMove(you.team === '1' ? '2' : '1', firstEmpty(arrOf(you.team === '1' ? '2' : '1')));
+      if(isSpecMember(you)){ var m1 = firstOpen('1'); if(m1 >= 0) requestMove('1', m1); return; }
+      var dst = you.team === '1' ? '2' : '1';
+      var ix = firstOpen(dst);
+      if(ix >= 0) requestMove(dst, ix);
       return;
     }
     var y = S.youLocal;
-    if(isSpecTeam(y.team)){ requestMove('1', 0); return; }
-    requestMove(y.team === '1' ? '2' : '1', firstEmpty(S.localArr[y.team === '1' ? '2' : '1']));
+    if(isSpecMember(y)){ var m2 = firstOpen('1', S.localArr['1']); if(m2 >= 0) requestMove('1', m2); return; }
+    var dst2 = y.team === '1' ? '2' : '1';
+    var ix2 = firstOpen(dst2, S.localArr[dst2]);
+    if(ix2 >= 0) requestMove(dst2, ix2);
   }
   function newRoom(){
     stopCountdown();
@@ -953,7 +981,7 @@ function slotCount(team){
     S.peer = null; S.conn = null;
     S.members = {}; S.votes = {}; S.vote = false; S.lock = false; S.results = null;
     S.youLocal = { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: true };
-    S.localArr = { '1': [S.youLocal, null, null], '2': [null, null, null], 's1': [null, null], 's2': [null, null], 's0': [null] };
+    S.localArr = { '1': emptyArr('1', S.youLocal), '2': emptyArr('2') };
     S.code = rndCode();
     built = false;
     render();
@@ -970,7 +998,7 @@ function slotCount(team){
     S.peer = null; S.conn = null;
     S.members = {}; S.votes = {}; S.vote = false; S.lock = false; S.results = null;
     S.youLocal = { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: false };
-    S.localArr = { '1': [S.youLocal, null, null], '2': [null, null, null], 's1': [null, null], 's2': [null, null], 's0': [null] };
+    S.localArr = { '1': emptyArr('1', S.youLocal), '2': emptyArr('2') };
     S.code = code;
     built = false;
     render();
@@ -1023,7 +1051,7 @@ function slotCount(team){
     var list = S.online ? S.members : { [S.youLocal.uid]: S.youLocal };
     for(var uid3 in list){
       var m = list[uid3];
-      if(m.team === 's1' || m.team === 's2') continue;
+      if(isSpecMember(m)) continue;
       if(!m.ready && m.uid !== you.uid) unready.push(m.name);
     }
     if(unready.length){ status('Waiting for: ' + unready.join(', ')); return; }
@@ -1090,7 +1118,7 @@ function slotCount(team){
     if(S.lock){ S.lock = false; if(S.online) broadcast({ t: 'lock', on: false }); }
     var mode = resolvedMode();
     var you = youM();
-    var isSpec = you && (you.team === 's1' || you.team === 's2' || you.team === 's0');
+    var isSpec = you && isSpecMember(you);
     if(S.online) broadcast({ t: 'launch', mode: mode, code: S.code });
     window.__PLATOON_BATTLE = { code: S.code, mode: mode, score: null, launchedAt: Date.now() };
     var Game = window.__game || window.Game;
@@ -1105,7 +1133,7 @@ function slotCount(team){
   }
   function launchBattle(msg){
     var you = youM();
-    var isSpec = you && isSpecTeam(you.team);
+    var isSpec = you && isSpecMember(you);
     window.__PLATOON_BATTLE = { code: msg.code || S.code, mode: msg.mode || S.mode, score: null, launchedAt: Date.now() };
     var Game = window.__game || window.Game;
     if(!isSpec && Game && Game.startClient){
@@ -1127,7 +1155,7 @@ function slotCount(team){
       }
       if(S.vote){ S.vote = false; S.votes = {}; if(S.online) broadcast({ t: 'vote', on: false }); }
       var y = youM();
-      if(y && !isSpecTeam(y.team)){
+      if(y && !isSpecMember(y)){
         if(S.online){ y.ready = false; broadcast({ t: 'st', room: roomState() }); }
         else { S.youLocal.ready = false; }
       }
