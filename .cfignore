@@ -1,0 +1,10 @@
+node_modules/
+.git/
+.wrangler/
+MTL_project_TS/
+uploads/
+dist/
+vfx/
+clan-api-worker/
+*.log
+*.err
