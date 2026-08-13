@@ -1,4 +1,4 @@
-﻿﻿/* ============================================================
+﻿/* ============================================================
    game.js — main controller: renderer, scene, world, tanks,
    projectiles, camera, loop, HUD, minimap, entry modes
    (singleplayer / host / client).
@@ -31,6 +31,14 @@ class Game {
     this._gladBoxes = [];
     this._gladPickups = [];
     this._adapT = 0;
+    this._gladChunkMeshes = [];
+    this._gladChunkOverlays = [];
+    this._gladCorruptedChunks = new Set();
+    this._gladNextCorruptionIndex = 0;
+    this._gladChunkGlowTime = 0;
+    this._gladZoneCanvas = null;
+    this._gladZoneTex = null;
+    this._gladZoneMesh = null;
   }
 
   /* ---------- Three.js bootstrap ---------- */
@@ -649,9 +657,11 @@ class Game {
      this._gladCorruptedChunks.clear();
      this._gladNextCorruptionIndex = 0;
      this._gladChunkGlowTime = 0;
-     this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
-     if(this._gladZoneTex) this._gladZoneTex.dispose();
-     this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+     if(this._gladZoneCanvas){
+       this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+       if(this._gladZoneTex) this._gladZoneTex.dispose();
+       this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+     }
      
      const gh = document.getElementById('glad-hud');
      if(gh) gh.classList.add('hidden');
