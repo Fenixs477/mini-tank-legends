@@ -894,6 +894,25 @@
             .pl-switch:hover { filter: brightness(1.15); }
             .pl-switch:active { transform: translateY(2px); box-shadow: 0 2px 0 #000; }
             .pl-switch:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
+            /* switch team + mini spectator slot below it */
+            .pl-switch-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+            .pl-switch-wrap .pl-slots { flex: none; display: flex; }
+            .pl-switch-wrap .pl-slot { flex: none; width: clamp(34px, 5vmin, 52px); height: clamp(34px, 5vmin, 52px); max-height: none; border-radius: 9px; }
+            .pl-switch-wrap .pl-plus { font-size: clamp(12px, 2.6vmin, 20px); }
+            .pl-switch-wrap .pl-open-label { font-size: 7px; letter-spacing: 1px; }
+            .pl-switch-wrap .pl-slot-name { font-size: 8px; }
+            .pl-switch-wrap .pl-slot.pl-spec { border-color: rgba(154,160,171,.55); background: rgba(154,160,171,.07); }
+            .pl-switch-wrap .pl-vico, .pl-switch-wrap .pl-tk { display: none !important; }
+            /* drag grips — grab the menu by its edges to move it */
+            .pl-grip { position: absolute; z-index: 61; touch-action: none; cursor: move; }
+            .pl-grip-t, .pl-grip-b { left: 14px; right: 14px; height: 9px; }
+            .pl-grip-t { top: 0; } .pl-grip-b { bottom: 0; }
+            .pl-grip-l, .pl-grip-r { top: 14px; bottom: 14px; width: 9px; }
+            .pl-grip-l { left: 0; } .pl-grip-r { right: 0; }
+            .pl-grip-tl, .pl-grip-tr, .pl-grip-bl, .pl-grip-br { width: 14px; height: 14px; }
+            .pl-grip-tl { top: 0; left: 0; } .pl-grip-tr { top: 0; right: 0; }
+            .pl-grip-bl { bottom: 0; left: 0; } .pl-grip-br { bottom: 0; right: 0; }
+            .pl-grip:hover { background: rgba(251,191,36,.18); }
 
 /* MIDDLE: two teams + center column */
             .pl-middle { flex: 1; min-height: 0; display: flex; gap: clamp(6px, 1.2vmin, 14px); }
@@ -947,9 +966,9 @@
             .pl-team.pl-ghost .pl-ghost-hint { display: inline; }
 
 /* CENTER COLUMN */
-            .pl-center { width: clamp(170px, 26vw, 340px); flex-shrink: 0; display: flex; flex-direction: column; gap: clamp(4px, .8vmin, 8px); min-height: 0; }
-            /* chat, fills the column — voice pinned at the bottom */
-            .pl-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.1); border-radius: 10px; padding: clamp(4px, .7vmin, 7px); }
+            .pl-center { width: clamp(200px, 34vw, 500px); flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(4px, .8vmin, 8px); min-height: 0; }
+            /* chat, wide square frame */
+            .pl-chat { width: 100%; aspect-ratio: 1 / 1; max-height: 62vh; flex: none; display: flex; flex-direction: column; background: rgba(0,0,0,.35); border: 2px solid rgba(255,255,255,.1); border-radius: 10px; padding: clamp(4px, .7vmin, 7px); }
             .pl-chat-list { flex: 1; min-height: 0; overflow-y: auto; font-size: 11px; line-height: 1.45; color: #cbd5e1; scrollbar-width: thin; }
             .pl-chat-row b { color: #fbbf24; font-weight: normal; }
             .pl-chat-self b { color: #38bdf8; }
@@ -1021,14 +1040,18 @@
               .pl-lobby { --pl-sq: clamp(42px, 12vw, 56px); gap: 4px; padding: 5px; }
               .pl-mode-wrap label, .pl-room-label { display: none; }
               .pl-team { padding: 5px; }
-              .pl-center { width: clamp(128px, 34vw, 170px); }
+              .pl-center { width: clamp(150px, 40vw, 190px); }
               .pl-top .pl-btn { padding: 5px 8px; font-size: 10px; }
               .pl-slot { max-height: 64px; }
+              .pl-grip-t, .pl-grip-b { height: 13px; }
+              .pl-grip-l, .pl-grip-r { width: 13px; }
+              .pl-grip-tl, .pl-grip-tr, .pl-grip-bl, .pl-grip-br { width: 18px; height: 18px; }
             }
             /* very short landscape */
             @media (max-height: 420px) {
               .pl-lobby { --pl-sq: clamp(34px, 11vh, 48px); }
               .pl-center { width: clamp(140px, 30vw, 240px); }
+              .pl-chat { max-height: 46vh; }
               .pl-chat-list { font-size: 10px; }
               .pl-slot { max-height: 44px; }
             }
@@ -1046,7 +1069,11 @@
               </select>
               <button class="pl-vote-btn" id="pl-vote" title="Host: enable player voting. Locks until the battle ends.">ENABLE VOTING</button>
             </div>
-            <button class="pl-switch" id="pl-switch" title="Move to the other team (custom mode only)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/><path d="M15.41 7.66l-4.58 4.59 4.58 4.59L14 18.25l-6-6 6-6z"/></svg> SWITCH TEAM</button>
+            <div class="pl-switch-wrap">
+              <button class="pl-switch" id="pl-switch" title="Move to the other team (custom mode only)"><svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/><path d="M15.41 7.66l-4.58 4.59 4.58 4.59L14 18.25l-6-6 6-6z"/></svg> SWITCH TEAM</button>
+              <div class="pl-slots" id="pl-slots-0"></div>
+              <span id="pl-cs0" class="pl-hidden"></span>
+            </div>
             <div class="pl-room-box">
               <span class="pl-room-label">GAME CODE</span>
               <span class="pl-room-code" id="pl-room-code">----</span>
@@ -1139,6 +1166,16 @@
             </div>
             <div class="pl-vlist" id="pl-vlist"></div>
           </div>
+
+          <!-- DRAG GRIPS (grab the menu by its edges to move it) -->
+          <div class="pl-grip pl-grip-t" data-dir="t"></div>
+          <div class="pl-grip pl-grip-b" data-dir="b"></div>
+          <div class="pl-grip pl-grip-l" data-dir="l"></div>
+          <div class="pl-grip pl-grip-r" data-dir="r"></div>
+          <div class="pl-grip pl-grip-tl" data-dir="tl"></div>
+          <div class="pl-grip pl-grip-tr" data-dir="tr"></div>
+          <div class="pl-grip pl-grip-bl" data-dir="bl"></div>
+          <div class="pl-grip pl-grip-br" data-dir="br"></div>
 
         </div>
       </div>

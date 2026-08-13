@@ -72,12 +72,14 @@
   function isHostYou(){ var y = youM(); return !!(y && y.host); }
   function arrKey(team){
     if(team === '1') return 'L';
-    return 'R';
+    if(team === '2') return 'R';
+    return 'C'; // '0' = shared spectator (watches both teams)
   }
-  // 12 slots per team: 0-2 main, 3-9 locked middle, 10-11 spectators
-  function slotCount(team){ return 12; }
-  function isSpecSlot(i){ return i >= 10; }
-  function isSpecMember(m){ return !!(m && m.slot >= 10); }
+  // 12 slots per team: 0-2 main, 3-9 locked middle, 10-11 spectators.
+  // Team '0' = 1 shared spectator slot below the SWITCH TEAM button.
+  function slotCount(team){ return team === '0' ? 1 : 12; }
+  function isSpecSlot(team, i){ return team === '0' || i >= 10; }
+  function isSpecMember(m){ return !!(m && (m.team === '0' || m.slot >= 10)); }
   function isLockedSlot(team, i){
     if(MODES[S.mode].custom) return false;
     if(team === '2') return true;          // team 2: every slot locked until custom
@@ -86,7 +88,7 @@
   function emptyArr(team, at){
     var a = [];
     for(var i = 0; i < slotCount(team); i++) a.push(null);
-    if(at && isSpecSlot(at.slot)) at.slot = 0;
+    if(at && isSpecSlot(at.team, at.slot)) at.slot = 0;
     if(at){ a[at.slot] = at; }
     return a;
   }
@@ -129,7 +131,7 @@
   function toast(msg){ if(window.Menu && Menu.toast) Menu.toast(msg); }
 
   /* ================= render ================= */
-  var nodes = { '1': [], '2': [] };
+  var nodes = { '1': [], '2': [], '0': [] };
   var built = false;
 
   function sig(m, pos){
@@ -138,7 +140,7 @@
   }
 
   function buildSlot(pos, t, i){
-    var d = el('div', 'pl-slot pl-open');
+    var d = el('div', 'pl-slot pl-open' + (t === '0' ? ' pl-slot-mini' : ''));
     d.dataset.pos = pos;
     d.appendChild(el('div', 'pl-crown', '<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 2C9.24 2 7 4.24 7 7c0 2.07 1.2 3.82 3 4.65V20h2v-8.35c1.8-.83 3-2.58 3-4.65C13 4.24 10.76 2 12 2zm0 3.5c.83 0 1.5.67 1.5 1.5S12.83 7 12 7s-1.5-.67-1.5-1.5S11.17 4 12 4z"/></svg>'));
     var body = el('div', 'pl-slot-body');
@@ -159,13 +161,14 @@
     var parts = pos.split('-');
     var t = parts[0], i = +parts[1];
     var locked = isLockedSlot(t, i);
-    var spec = isSpecSlot(i);
+    var spec = isSpecSlot(t, i);
     var youUid = S.online ? S.you.uid : S.youLocal.uid;
     var isYou = m && m.uid === youUid;
     d.className = 'pl-slot'
       + (m ? (isYou ? ' pl-you' : ' pl-player') : ' pl-open')
       + (locked ? ' pl-lock' : '')
       + (spec && !m ? ' pl-spec' : '')
+      + (t === '0' ? ' pl-slot-mini' : '')
       + (pos === '1-0' ? ' pl-crown-slot' : '')
       + (S.lock ? ' pl-lock' : '');
     var crown = d.querySelector('.pl-crown');
@@ -177,7 +180,7 @@
     var tk = d.querySelector('.pl-tk');
     if(!m){
       plus.textContent = locked ? '\uD83D\uDD12' : (spec ? '\uD83C\uDFA5' : '+');
-      label.textContent = locked ? 'LOCKED' : (spec ? 'SPECTATOR' : 'OPEN');
+      label.textContent = locked ? 'LOCKED' : (t === '0' ? 'SPEC' : (spec ? 'SPECTATOR' : 'OPEN'));
     }
     plus.style.display = m ? 'none' : '';
     label.style.display = m ? 'none' : '';
@@ -241,7 +244,7 @@
     $('pl-mode').disabled = !(isHostYou() || S.vote);
     $('pl-mode').value = S.mode;
 
-    var groups = [['1', 'pl-slots-1', 'pl-c1'], ['2', 'pl-slots-2', 'pl-c2']];
+    var groups = [['1', 'pl-slots-1', 'pl-c1'], ['2', 'pl-slots-2', 'pl-c2'], ['0', 'pl-slots-0', 'pl-cs0']];
     for(var g = 0; g < groups.length; g++){
       var t = groups[g][0], wrapId = groups[g][1], cntId = groups[g][2];
       var arr = arrOf(t);
@@ -537,7 +540,7 @@
   /* ================= HOST side ================= */
   function hostAssign(uid3, name){
     var m = { uid: uid3, name: name, team: '1', slot: 0, ready: false, host: false, peerId: null, conn: null };
-    var teams = ['1', '2'];
+    var teams = ['1', '2', '0'];
     for(var i = 0; i < teams.length; i++){
       var t = teams[i];
       var arr = arrOf(t);
@@ -936,7 +939,7 @@
     you.team = t; you.slot = i; you.ready = false;
     if(S.localArr) S.localArr[t][i] = you;
     status(you.host ? 'You are the HOST'
-      : (isSpecSlot(i) ? 'You are now SPECTATING' : 'Moved'));
+      : (isSpecSlot(t, i) ? 'You are now SPECTATING' : 'Moved'));
     render();
   }
   function toggleReady(){
@@ -1246,6 +1249,10 @@
       $('pl-vopts').classList.toggle('pl-btn-gold', on);
       renderVoicePanel();
     });
+    $('pl-vclose').addEventListener('click', function(){
+      $('pl-vpanel').classList.remove('pl-vpanel-on');
+      $('pl-vopts').classList.remove('pl-btn-gold');
+    });
     $('pl-vdeaf').addEventListener('click', function(){
       S.voice.deafen = !S.voice.deafen;
       for(var u in S.voice.audio) applyRemoteVolume(u);
@@ -1308,6 +1315,49 @@
         return r;
       };
     }
+
+    // drag the lobby around by its edges (pointer events: PC + mobile)
+    (function(){
+      var lobby = document.querySelector('.pl-lobby');
+      if(!lobby) return;
+      var undocked = false, active = null, dx = 0, dy = 0;
+      function undock(){
+        if(undocked) return;
+        undocked = true; dx = 0; dy = 0;
+        lobby.style.position = 'fixed';
+        lobby.style.left = '8px'; lobby.style.top = '8px';
+        lobby.style.right = ''; lobby.style.bottom = '';
+        lobby.style.width = 'calc(100vw - 16px)';
+        lobby.style.height = 'calc(100vh - 16px)';
+        lobby.style.height = 'calc(100dvh - 16px)';
+        lobby.style.transform = '';
+      }
+      function dock(){
+        undocked = false; dx = 0; dy = 0;
+        lobby.style.position = '';
+        lobby.style.left = ''; lobby.style.top = '';
+        lobby.style.right = ''; lobby.style.bottom = '';
+        lobby.style.width = ''; lobby.style.height = ''; lobby.style.transform = '';
+      }
+      document.querySelectorAll('.pl-grip').forEach(function(g){
+        g.addEventListener('pointerdown', function(e){
+          e.preventDefault();
+          active = { x: e.clientX, y: e.clientY };
+          try{ g.setPointerCapture(e.pointerId); }catch(err){}
+          undock();
+        });
+        g.addEventListener('pointermove', function(e){
+          if(!active) return;
+          dx += e.clientX - active.x;
+          dy += e.clientY - active.y;
+          active = { x: e.clientX, y: e.clientY };
+          lobby.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+        });
+        g.addEventListener('pointerup', function(){ active = null; });
+        g.addEventListener('pointercancel', function(){ active = null; });
+        g.addEventListener('dblclick', function(e){ e.stopPropagation(); dock(); });
+      });
+    })();
   }
 
   window.PlatoonLobby = {
