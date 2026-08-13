@@ -55,6 +55,58 @@
       return parts.join(' ');
     }catch(e){ return 'Player'; }
   }
+
+  /* ================= silent profile refresh =================
+     Re-reads the saved profile (nickname / clan / trophies) from
+     localStorage every few seconds and repaints ONLY the own name
+     labels when something changed. Never touches the lobby while a
+     battle is running and never rebuilds the room or slots, so bots
+     / matches / connections stay completely untouched. */
+  function profileMismatch(raw, cur){
+    if(typeof raw.playerName === 'string' && raw.playerName !== (cur.playerName || '')) return true;
+    if(typeof raw.playerClan === 'string' && (raw.playerClan || '') !== (cur.playerClan || '')) return true;
+    if(typeof raw.trophyCount === 'number' && (raw.trophyCount || 0) !== (cur.trophyCount || 0)) return true;
+    return false;
+  }
+  function syncProfile(){
+    try{
+      if(!window.Menu || !Menu.settings) return;
+      var raw = null;
+      try{ raw = JSON.parse(localStorage.getItem('tankparty_settings') || 'null'); }catch(e){ raw = null; }
+      if(!raw || typeof raw !== 'object') return;
+      var cur = Menu.settings;
+      if(!profileMismatch(raw, cur)) return;
+      if(typeof raw.playerName === 'string') cur.playerName = raw.playerName;
+      if(typeof raw.playerClan === 'string') cur.playerClan = raw.playerClan;
+      if(typeof raw.trophyCount === 'number') cur.trophyCount = raw.trophyCount;
+      if(Menu.refreshProfile) Menu.refreshProfile();
+      applyProfilePaint();
+    }catch(e){}
+  }
+  function applyProfilePaint(){
+    try{
+      var n = myName();
+      if(S.youLocal) S.youLocal.name = n;
+      if(S.you) S.you.name = n;
+      var u = S.you && S.you.uid;
+      if(u && S.members[u]) S.members[u].name = n;
+      if(window.__PLATOON_BATTLE) return; /* battle running — never touch lobby UI */
+      var lobby = document.getElementById('menu-platoon');
+      if(!lobby || lobby.classList.contains('hidden')) return;
+      var slots = lobby.querySelectorAll('.pl-slot.pl-you');
+      for(var i = 0; i < slots.length; i++){
+        var nm = slots[i].querySelector('.pl-slot-name');
+        if(nm){ nm.textContent = n; nm.title = n; }
+      }
+      var rows = lobby.querySelectorAll('.pl-vrow');
+      for(var j = 0; j < rows.length; j++){
+        if(rows[j].dataset.uid === u || rows[j].dataset.uid === S.youLocal.uid){
+          var vn = rows[j].querySelector('.pl-vname');
+          if(vn) vn.textContent = 'YOU \u00B7 ' + n;
+        }
+      }
+    }catch(e){}
+  }
   function peerOpts(){
     var h = window.location.hostname;
     if(h === 'localhost' || h === '127.0.0.1'){
@@ -1169,6 +1221,8 @@
       }
       window.__PLATOON_BATTLE = null;
       render();
+      syncProfile();
+      applyProfilePaint();
     }
   }
   function renderResults(){
@@ -1383,6 +1437,7 @@
   function boot(){
     wire();
     newRoom();
+    setInterval(syncProfile, 10000);
   }
 
   if(document.readyState === 'loading'){
