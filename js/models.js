@@ -39,13 +39,17 @@ const Models = {
 
   /* Probe which model files exist. We can't list a dir from the
      browser, so we HEAD each candidate URL once and cache the result. */
+  _url(name, ext){
+    return CONFIG.MODEL_DIR + name + ext + '?v=' + CONFIG.MODEL_VER;
+  },
+
   async probe(names){
     const out = {};
     await Promise.all(names.map(async n=>{
       // Check .glb first, then .gltf, then .dae
-      out[n] = await this._exists(CONFIG.MODEL_DIR + n + '.glb');
-      if(!out[n]) out[n] = await this._exists(CONFIG.MODEL_DIR + n + '.gltf');
-      if(!out[n]) out[n] = await this._exists(CONFIG.MODEL_DIR + n + '.dae');
+      out[n] = await this._exists(this._url(n, '.glb'));
+      if(!out[n]) out[n] = await this._exists(this._url(n, '.gltf'));
+      if(!out[n]) out[n] = await this._exists(this._url(n, '.dae'));
     }));
     this._available = out;
     return out;
@@ -117,7 +121,7 @@ const Models = {
       }
       // Fall back to XHR load
       this.loader().load(
-        CONFIG.MODEL_DIR + name + ext,
+        this._url(name, ext),
         (gltf)=>{
           this._stripSkins(gltf.scene);
           this._cache[name].gltf = gltf.scene;
@@ -135,7 +139,7 @@ const Models = {
       const loader = this.colladaLoader();
       if(!loader){ this._cache[name].tried = true; resolve(null); return; }
       loader.load(
-        CONFIG.MODEL_DIR + name + '.dae',
+        this._url(name, '.dae'),
         (result)=>{
           const scene = result.scene;
           if(!scene){ this._cache[name].tried = true; resolve(null); return; }

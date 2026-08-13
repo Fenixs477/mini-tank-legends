@@ -67,6 +67,10 @@ const CONFIG = {
   // Models
   MODEL_DIR:   'mini_tank_legends_models/',
   MODEL_EXT:   '.gltf',
+  // Bump when any tank model file changes. Appended as ?v= to every
+  // model request so browsers bypass the 7-day Cache-Control on
+  // mini_tank_legends_models/*.
+  MODEL_VER:   3,
 
   // Supers
   SUPER_COOLDOWN: 60,   // seconds between super uses

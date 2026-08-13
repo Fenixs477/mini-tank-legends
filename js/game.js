@@ -1772,7 +1772,8 @@ _gladZoneNotice(text){
      =========================================================== */
   _loop(now){
     requestAnimationFrame(this._loop);
-    const dt = Math.min(0.05, (now - this._last)/1000 || 0);
+    const rawDt = Math.max(0, (now - this._last)/1000) || 0;
+    const dt = Math.min(0.05, rawDt);
     this._last = now;
     this._perfFrameStart = performance.now();
 
@@ -1783,7 +1784,7 @@ _gladZoneNotice(text){
     if(this.running){
       // Match start countdown: freeze input for 5s
       if(this._matchStartDelay > 0){
-        this._matchStartDelay -= dt;
+        this._matchStartDelay -= rawDt;
         if(this._matchStartDelay <= 0){
           this._matchStartDelay = 0;
           var mc = document.getElementById('match-cd');
