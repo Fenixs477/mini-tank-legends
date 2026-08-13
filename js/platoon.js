@@ -45,10 +45,15 @@
     }catch(e){ return 'u' + Math.random().toString(36).slice(2, 10); }
   }
   function myName(){
+    // main player nickname placeholder: %trophy% %clan% %nickname%
     try{
-      var s = (window.Menu && Menu.settings && Menu.settings.playerName);
-      return s || 'YOU';
-    }catch(e){ return 'YOU'; }
+      var s = (window.Menu && Menu.settings) || {};
+      var parts = [];
+      if((s.trophyCount || 0) > 0) parts.push('\u{1F3C6}');
+      if(s.playerClan) parts.push('[' + s.playerClan + ']');
+      parts.push(s.playerName || 'Player');
+      return parts.join(' ');
+    }catch(e){ return 'Player'; }
   }
   function peerOpts(){
     var h = window.location.hostname;
@@ -67,7 +72,6 @@
              micOn: false, muted: {}, forceMuted: {}, audio: {}, calls: {}, levelTimer: null },
     chat: [], results: null, battle: null
   };
-
   function youM(){ return S.online ? S.members[S.you.uid] : S.youLocal; }
   function isHostYou(){ var y = youM(); return !!(y && y.host); }
   function arrKey(team){
@@ -186,7 +190,8 @@
     label.style.display = m ? 'none' : '';
     name.style.display = m ? '' : 'none';
     ready.style.display = (m && m.ready) ? '' : 'none';
-    name.textContent = isYou ? 'YOU' : (m ? m.name : '');
+    name.textContent = m ? m.name : '';
+    name.title = m ? m.name : '';
     var muted = m && (S.voice.muted[m.uid] || S.voice.forceMuted[m.uid]);
     tk.style.display = m ? '' : 'none';
     tk.classList.toggle('pl-tk-muted', !!muted);
@@ -909,7 +914,7 @@
     S.members = {}; S.votes = {}; S.vote = false; S.lock = false;
     stopCountdown();
     stopMic();
-    S.youLocal = { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: true };
+    S.youLocal = { uid: 'you', name: myName(), team: '1', slot: 0, ready: false, host: true };
     built = false;
     render();
     status('LOCAL MODE — host a room to play online');
@@ -983,7 +988,7 @@
     if(S.peer && !S.peer.destroyed){ try{ S.peer.destroy(); }catch(e){} }
     S.peer = null; S.conn = null;
     S.members = {}; S.votes = {}; S.vote = false; S.lock = false; S.results = null;
-    S.youLocal = { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: true };
+    S.youLocal = { uid: 'you', name: myName(), team: '1', slot: 0, ready: false, host: true };
     S.localArr = { '1': emptyArr('1', S.youLocal), '2': emptyArr('2') };
     S.code = rndCode();
     built = false;
@@ -1000,7 +1005,7 @@
     if(S.peer && !S.peer.destroyed){ try{ S.peer.destroy(); }catch(e){} }
     S.peer = null; S.conn = null;
     S.members = {}; S.votes = {}; S.vote = false; S.lock = false; S.results = null;
-    S.youLocal = { uid: 'you', name: 'YOU', team: '1', slot: 0, ready: false, host: false };
+    S.youLocal = { uid: 'you', name: myName(), team: '1', slot: 0, ready: false, host: false };
     S.localArr = { '1': emptyArr('1', S.youLocal), '2': emptyArr('2') };
     S.code = code;
     built = false;
