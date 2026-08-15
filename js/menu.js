@@ -2379,6 +2379,14 @@ this._renderCamSettings();
         this.show('menu-main');
       } else if(code === 'revertmap'){
         this._revertMap();
+      } else if(code.toLowerCase() === 'fc'){
+        input.value = '';
+        if(!(window.Garage && Garage.active)){
+          this.toast('Freecam needs the menu preview open');
+        }else{
+          const on = Garage.freecam();
+          this.toast(on ? 'Freecam ON — WASD/arrows move, drag look, wheel speed, ESC exit' : 'Freecam OFF');
+        }
       } else if(code === '/code'){
         // Handle clan code command
         if(this._handleCodeCommand(code)){

@@ -15,6 +15,7 @@ window.Garage = (function(){
   const MARKER_Z = -1.7285100221633911;
   const FALLBACK_FLOOR_Y = 9.48; // hangar floor slab top (from the GLB)
   const PROC_FLOOR_Y = 0;        // procedural hangar floor slab top
+  const _upVec = new THREE.Vector3(0, 1, 0);
 
   let _gltfScene = null;   // cached parsed garage scene
   let _procedural = null;  // cached procedural fallback scene
@@ -217,6 +218,7 @@ window.Garage = (function(){
       focusX: MARKER_X, focusZ: MARKER_Z,
       yaw: Math.PI * 0.22, pitch: 0.22, radius: 9.5,
       dragging: false, lastX: 0, lastY: 0, t: 0, ready: false,
+      fcMode: false, fc: null, fcTag: null, fcHandlers: null,
     };
     _state = _;
 
@@ -273,13 +275,22 @@ window.Garage = (function(){
       if(!_.dragging) return;
       const dx = e.clientX - _.lastX, dy = e.clientY - _.lastY;
       _.lastX = e.clientX; _.lastY = e.clientY;
-      _.yaw -= dx * 0.006;
-      _.pitch = Math.min(0.75, Math.max(0.05, _.pitch + dy * 0.006));
+      if(_.fcMode && _.fc){
+        _.fc.yaw -= dx * 0.006;
+        _.fc.pitch = Math.min(1.5, Math.max(-1.5, _.fc.pitch + dy * 0.006));
+      }else{
+        _.yaw -= dx * 0.006;
+        _.pitch = Math.min(0.75, Math.max(0.05, _.pitch + dy * 0.006));
+      }
     };
     const onUp = () => { _.dragging = false; host.style.cursor = 'grab'; };
     const onWheel = e => {
       e.preventDefault();
-      _.radius = Math.min(17, Math.max(5, _.radius + e.deltaY * 0.008));
+      if(_.fcMode && _.fc){
+        _.fc.speed = Math.min(60, Math.max(0.4, _.fc.speed * (e.deltaY > 0 ? 1.12 : 0.89)));
+      }else{
+        _.radius = Math.min(17, Math.max(5, _.radius + e.deltaY * 0.008));
+      }
     };
     host.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
@@ -338,6 +349,26 @@ window.Garage = (function(){
       // Turret lazily scans
       if(_.turretGroup) _.turretGroup.rotation.y = Math.sin(_.t * 0.25) * 0.55;
 
+      if(_.fcMode && _.fc){
+        const f = _.fc;
+        const fcy = Math.cos(f.pitch), fsy = Math.sin(f.pitch);
+        const fcx = Math.cos(f.yaw), fsx = Math.sin(f.yaw);
+        const fwd = new THREE.Vector3(fsx * fcy, fsy, fcx * fcy);
+        const right = new THREE.Vector3().crossVectors(fwd, _upVec).normalize();
+        const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+        const sp = f.speed * 0.016;
+        const k = f.keys;
+        if(k.KeyW || k.ArrowUp) cam.position.addScaledVector(fwd, sp);
+        if(k.KeyS || k.ArrowDown) cam.position.addScaledVector(fwd, -sp);
+        if(k.KeyD || k.ArrowRight) cam.position.addScaledVector(right, sp);
+        if(k.KeyA || k.ArrowLeft) cam.position.addScaledVector(right, -sp);
+        if(k.Space) cam.position.addScaledVector(up, sp);
+        if(k.ShiftLeft || k.ShiftRight || k.KeyC) cam.position.addScaledVector(up, -sp);
+        cam.lookAt(cam.position.clone().add(fwd));
+        renderer.render(scene, cam);
+        return;
+      }
+
       const cy = Math.cos(_.pitch), sy = Math.sin(_.pitch);
       const cx = Math.cos(_.yaw), sx = Math.sin(_.yaw);
       const tgtY = _.floorY + 1.6;
@@ -353,6 +384,42 @@ window.Garage = (function(){
     return true;
   }
 
+  /* Freecam: detach from the orbit and fly around (code "fc" from the menu).
+     WASD/arrows move, drag looks, wheel changes speed, ESC exits. */
+  function freecam(){
+    const _ = _state;
+    if(!_ || !_.ready) return false;
+    if(_.fcMode){
+      _.fcMode = false;
+      if(_.fcHandlers){
+        window.removeEventListener('keydown', _.fcHandlers.kd);
+        window.removeEventListener('keyup', _.fcHandlers.ku);
+        window.removeEventListener('keydown', _.fcHandlers.esc);
+        _.fcHandlers = null;
+      }
+      _.fc = null;
+      if(_.fcTag && _.fcTag.parentNode) _.fcTag.parentNode.removeChild(_.fcTag);
+      _.fcTag = null;
+      _.dragging = false;
+      return false;
+    }
+    _.fcMode = true;
+    _.fc = { yaw: _.yaw % (Math.PI * 2), pitch: _.pitch, speed: 4, keys: {} };
+    const kd = e => { if(_.fc && _.fc.keys) _.fc.keys[e.code] = true; };
+    const ku = e => { if(_.fc && _.fc.keys) _.fc.keys[e.code] = false; };
+    const esc = e => { if(e.code === 'Escape' && _.fcMode) freecam(); };
+    window.addEventListener('keydown', kd);
+    window.addEventListener('keyup', ku);
+    window.addEventListener('keydown', esc);
+    _.fcHandlers = { kd, ku, esc };
+    const tag = document.createElement('div');
+    tag.textContent = 'FREECAM — WASD/arrows move • drag look • wheel speed • SPACE up / SHIFT down • ESC exit';
+    tag.style.cssText = 'position:absolute;left:10px;bottom:8px;z-index:5;font:11px monospace;color:#9fb3c8;background:rgba(0,0,0,.5);padding:3px 8px;border-radius:6px;pointer-events:none;';
+    _.host.appendChild(tag);
+    _.fcTag = tag;
+    return true;
+  }
+
   function stop(){
     const _ = _state;
     if(!_) return;
@@ -364,6 +431,12 @@ window.Garage = (function(){
       window.removeEventListener('pointerup', _.handlers.onUp);
       _.host.removeEventListener('wheel', _.handlers.onWheel);
     }
+    if(_.fcHandlers){
+      window.removeEventListener('keydown', _.fcHandlers.kd);
+      window.removeEventListener('keyup', _.fcHandlers.ku);
+      window.removeEventListener('keydown', _.fcHandlers.esc);
+    }
+    if(_.fcTag && _.fcTag.parentNode) _.fcTag.parentNode.removeChild(_.fcTag);
     if(_.onResize) window.removeEventListener('resize', _.onResize);
     if(_.renderer){ _.renderer.dispose(); }
     if(_.host){
@@ -375,7 +448,7 @@ window.Garage = (function(){
   }
 
   return {
-    start, stop,
+    start, stop, freecam,
     get ready(){ return !!_gltfScene || !!_procedural; },
     get active(){ return !!_state; },
     get state(){ return _state; }
