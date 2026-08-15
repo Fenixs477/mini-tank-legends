@@ -234,7 +234,9 @@ class Input {
     // Camera swipe (one-finger drag to rotate camera in swipe mode)
     this._camSwipeId = null;
     this._camSwipeLastX = 0;
+    this._camSwipeLastY = 0;
     this._camSwipeAccum = 0;
+    this._camSwipeAccumY = 0;
     const isControlSurface = (target) => {
       return !!(target && target.closest && target.closest('.joystick-container, .cam-rotate-btns, #cam-rotate-btns, .hud, #hud'));
     };
@@ -244,7 +246,9 @@ class Input {
           if(!isControlSurface(e.target)){
             this._camSwipeId = t.identifier;
             this._camSwipeLastX = t.clientX;
+            this._camSwipeLastY = t.clientY;
             this._camSwipeAccum = 0;
+            this._camSwipeAccumY = 0;
             break;
           }
         }
@@ -255,7 +259,9 @@ class Input {
       for(let t of e.changedTouches){
         if(t.identifier === this._camSwipeId){
           this._camSwipeAccum += t.clientX - this._camSwipeLastX;
+          this._camSwipeAccumY += t.clientY - this._camSwipeLastY;
           this._camSwipeLastX = t.clientX;
+          this._camSwipeLastY = t.clientY;
         }
       }
     }, {passive: true});
@@ -264,6 +270,7 @@ class Input {
         if(t.identifier === this._camSwipeId){
           this._camSwipeId = null;
           this._camSwipeAccum = 0;
+          this._camSwipeAccumY = 0;
         }
       }
     }, {passive: true});
@@ -272,6 +279,7 @@ class Input {
         if(t.identifier === this._camSwipeId){
           this._camSwipeId = null;
           this._camSwipeAccum = 0;
+          this._camSwipeAccumY = 0;
         }
       }
     }, {passive: true});
@@ -284,21 +292,25 @@ class Input {
     // Mouse drag (desktop testing / desktop swipe mode)
     this._camSwipeMouseDown = false;
     this._camSwipeMouseLastX = 0;
+    this._camSwipeMouseLastY = 0;
     document.addEventListener('mousedown', (e) => {
       if(e.button !== 0) return;
       if(isControlSurface(e.target)) return;
       this._camSwipeMouseDown = true;
       this._camSwipeMouseLastX = e.clientX;
+      this._camSwipeMouseLastY = e.clientY;
     });
     document.addEventListener('mousemove', (e) => {
       if(!this._camSwipeMouseDown) return;
       this._camSwipeAccum += e.clientX - this._camSwipeMouseLastX;
+      this._camSwipeAccumY += e.clientY - this._camSwipeMouseLastY;
       this._camSwipeMouseLastX = e.clientX;
+      this._camSwipeMouseLastY = e.clientY;
     });
     document.addEventListener('mouseup', (e) => {
       if(e.button === 0) this._camSwipeMouseDown = false;
     });
-    this.resetCamSwipe = () => { this._camSwipeAccum = 0; };
+    this.resetCamSwipe = () => { this._camSwipeAccum = 0; this._camSwipeAccumY = 0; };
 
     // Prevent iOS in standalone mode (home screen) from intercepting
     // the first touch as a system gesture
@@ -418,6 +430,13 @@ class Input {
   consumeCamSwipe(){
     const a = this._camSwipeAccum || 0;
     this._camSwipeAccum = 0;
+    return a;
+  }
+
+  /* Vertical drag delta (screen px) — used by the spectator freecam pitch */
+  consumeCamSwipePitch(){
+    const a = this._camSwipeAccumY || 0;
+    this._camSwipeAccumY = 0;
     return a;
   }
 

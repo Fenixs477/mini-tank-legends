@@ -1055,6 +1055,12 @@
               .pl-chat-list { font-size: 10px; }
               .pl-slot { max-height: 44px; }
             }
+            /* mobile: 12 slots as 2 columns x 6 rows so taps are big; spectators end up on the bottom row */
+            @media (max-width: 768px) {
+              .pl-team .pl-slots { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: clamp(3px, .6vmin, 7px); }
+              .pl-team .pl-slots .pl-spec-div { grid-column: 1 / -1; width: auto; }
+              .pl-team .pl-slot { width: 100%; }
+            }
           </style>
 
           <!-- TOP BAR -->
@@ -1241,6 +1247,26 @@
 
       <div id="glad-banner" class="hidden"></div>
 
+      <!-- Zone placeholders: nearest orange cell (countdown) + nearest red cell (danger) -->
+      <div id="glad-mark-orange" class="glad-mark glad-mark-hidden">
+        <span class="glad-mark-dot" style="background:#ffa500"></span>
+        <span id="glad-mark-orange-txt">RED IN 30s</span>
+      </div>
+      <div id="glad-mark-red" class="glad-mark glad-mark-hidden">
+        <span class="glad-mark-dot" style="background:#ff3535"></span>
+        <span id="glad-mark-red-txt">DANGER ZONE</span>
+      </div>
+
+      <!-- Spectator HUD (platoon spectator slots) -->
+      <div id="spectator-hud" class="hidden">
+        <div id="spectator-hud-box">
+          <span id="spec-hud-label">SPECTATOR</span>
+          <button id="spec-player-btn" class="spec-btn"><span class="spec-ico">&#128065;</span><span id="spec-target-name">NO TARGET</span></button>
+          <button id="spec-free-btn" class="spec-btn"><span class="spec-ico">&#127916;</span>FREECAM</button>
+          <span id="spec-hud-hint">WASD move · SHIFT down · SPACE up · drag to rotate</span>
+        </div>
+      </div>
+
       <!-- Gladiator result overlay -->
 
       <div id="glad-result" class="hidden">
@@ -1250,6 +1276,8 @@
           <div id="glad-result-text">MATCH OVER</div>
 
           <div class="glad-result-btns">
+
+            <button id="glad-play-btn">Play again</button>
 
             <button id="glad-watch-btn">Keep watching</button>
 
@@ -1491,7 +1519,9 @@
 
           <canvas id="clan-ui-canvas"></canvas>
 
-          <input type="text" id="clan-canvas-input" maxlength="200" autocomplete="off" spellcheck="false">
+          <textarea id="clan-canvas-input" maxlength="200" autocomplete="off" spellcheck="false" rows="1"></textarea>
+
+          <div id="clan-canvas-ph" class="hidden"><span id="clan-canvas-ph-text"></span><span class="clan-ph-dot"></span><span class="clan-ph-dot"></span><span class="clan-ph-dot"></span></div>
 
         </div>
 
@@ -1746,6 +1776,7 @@
   <script src="js/clan-default-layout.js?v=7"></script>
 
   <script src="js/menu.js?v=1786501000"></script>
+  <script src="js/garage.js?v=1786519000"></script>
   <script src="js/menu-editor.js?v=1784319500"></script>
 
   <script src="js/editor123.js?v=1786346038"></script>

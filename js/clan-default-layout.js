@@ -1,7 +1,7 @@
 // Clan UI default layout — embedded in the game so it works on ANY origin
 // (local file, deployed site, any browser). Loaded when no layout is saved
 // in localStorage yet.
-var CLAN_LAYOUT_VERSION = 6;
+var CLAN_LAYOUT_VERSION = 7;
 var CLAN_DEFAULT_LAYOUT = [
   {
     "type": "member",
@@ -71,7 +71,7 @@ var CLAN_DEFAULT_LAYOUT = [
     "y": 97,
     "w": 57,
     "h": 55,
-    "label": "collected",
+    "label": "xp",
     "value": "5",
     "color": "#ffffff"
   },

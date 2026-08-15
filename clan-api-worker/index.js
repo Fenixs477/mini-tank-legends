@@ -284,6 +284,13 @@ export default {
             chatSeq: Math.max(stored.chatSeq || 0, clan.chatSeq || 0),
           }
         : clan;
+      // Presence: the announcing device stamps its own member's last-seen so
+      // the member list can show online/offline for everyone
+      if (clan.me) {
+        (merged.members || []).forEach(m => {
+          if (m && m.name === clan.me) m.lastSeen = Date.now();
+        });
+      }
       await env.CLAN_KV.put('clan:' + code, JSON.stringify(merged), { expirationTtl: 15552000 });
       return json(merged);
     }
@@ -304,7 +311,9 @@ function mergeMembers(local, remote) {
   remote.forEach(m => {
     if (!m || !m.name) return;
     const cur = map.get(m.name);
-    if (!cur || (cur.rank === 'member' && m.rank === 'owner')) map.set(m.name, m);
+    // Adopt a remote entry when it is new, when the owner promoted a member,
+    // or when it carries fresher presence data (lastSeen)
+    if (!cur || (cur.rank === 'member' && m.rank === 'owner') || (m.lastSeen || 0) > (cur.lastSeen || 0)) map.set(m.name, m);
   });
   return Array.from(map.values());
 }

@@ -82,18 +82,21 @@ const CONFIG = {
 /* ---------- GAMEMODES ---------- */
 const GAMEMODES = {
   // Gladiator: 10-player free-for-all on one map.
-  // Square safe zone shrinks from the edges toward the center in chunks:
-  // each chunk shows an ORANGE warning band first, which turns RED after
-  // stageTime seconds. Red zone deals redDps HP per second.
+  // Steel-Hunter style grid storm: random cells at the edge of the red
+  // zone turn ORANGE first (warning), then turn RED after orangeTime
+  // seconds. Red cells deal redDps HP per second.
   gladiator: {
     id:'gladiator', name:'Gladiator', maxTanks:10, botCount:9,
     spawnSubType:'gladiator', boxSubType:'gladiatorbox',
     zone:{
-      graceTime:20,   // seconds before first orange band appears
-      stageTime:60,   // orange -> red transition time per chunk
-      chunk:12,       // safe square half-size reduction per stage
-      minHalf:8,      // stop shrinking at this safe half-size
-      finalHalf:0,    // final collapse: whole map turns red
+      graceTime:20,   // seconds before the first orange cells appear
+      stageTime:60,   // (legacy) unused — kept for compat
+      chunk:12,       // base cell size, scaled to the world in-game
+      cellTick:6,     // seconds between picking the next batch
+      batch:3,        // cells picked per tick from the frontier
+      orangeTime:30,  // orange -> red transition time (Steel Hunter cadence)
+      minHalf:8,      // (legacy) unused — kept for compat
+      finalHalf:0,    // (legacy) unused — kept for compat
     },
     power:{ kill:20, box:5, airdrop:40 },
     airdrop:{ firstDelay:45, interval:40, countdown:30, holdTime:10 },

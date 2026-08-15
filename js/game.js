@@ -31,11 +31,6 @@ class Game {
     this._gladBoxes = [];
     this._gladPickups = [];
     this._adapT = 0;
-    this._gladChunkMeshes = [];
-    this._gladChunkOverlays = [];
-    this._gladCorruptedChunks = new Set();
-    this._gladNextCorruptionIndex = 0;
-    this._gladChunkGlowTime = 0;
     this._gladZoneCanvas = null;
     this._gladZoneTex = null;
     this._gladZoneMesh = null;
@@ -586,11 +581,8 @@ class Game {
 
   _initGladiator(){
     const cfg = Object.assign({}, GAMEMODES.gladiator);
-    // Scale the zone shrink to the world size so matches keep a sane length
-    cfg.zone = Object.assign({}, cfg.zone, {
-      chunk: Math.max(12, Math.round(this.world.half / 5)),
-      minHalf: Math.round(this.world.half * 0.1),
-    });
+    // Scale the zone grid to the world size so matches keep a sane length
+    cfg.zone = Object.assign({}, cfg.zone, this._gladScaledZoneCfg());
     this.glad = {
       cfg, stage:0,
       safeHalf: this.world.half, orangeHalf: null, phase:'grace', phaseTimer: cfg.zone.graceTime,
@@ -600,19 +592,23 @@ class Game {
     this._gladBoxes = [];
     this._gladPickups = [];
     
-    // ZONE SYSTEM - CHUNK-BASED GRID
+    // ZONE SYSTEM - STEEL HUNTER GRID CELLS
     this._gladZoneChunks = null;
-    this._gladChunkMeshes = [];
-    this._gladChunkOverlays = [];
-    this._gladCorruptedChunks = new Set(); // chunks that have turned red
-    this._gladNextCorruptionIndex = 0;
-    this._gladChunkGlowTime = 0;
+    this._gladCellById = new Map();
+    this._gladCols = 0; this._gladRows = 0;
+    this._gladChunkSize = cfg.zone.chunk;
+    this._gladCorruptedChunks = new Set(); // cells that have turned red
+    this._gladOrangeBatch = [];            // cells currently orange (warning)
+    this._gladZoneDirty = false;
     
     // Zone ground overlay (canvas texture, regenerated on state change)
     this._gladZoneCanvas = document.createElement('canvas');
-    this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+    this._gladZoneCanvas.width = this._gladZoneCanvas.height = 1024;
     this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
-    const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.55, depthWrite:false});
+        this._gladZoneTex.generateMipmaps = false;
+        this._gladZoneTex.minFilter = THREE.LinearFilter;
+        this._gladZoneTex.magFilter = THREE.LinearFilter;
+    const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.8, depthWrite:false});
     const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
     zgeo.rotateX(-Math.PI/2);
     this._gladZoneMesh = new THREE.Mesh(zgeo, zmat);
@@ -630,8 +626,33 @@ class Game {
     if(gh) gh.classList.remove('hidden');
   }
 
+  _gladScaledZoneCfg(){
+    const base = GAMEMODES.gladiator.zone;
+    return {
+      chunk: Math.max(14, Math.round(this.world.half / 6)),
+      cellTick: base.cellTick,
+      batch: base.batch,
+      orangeTime: base.orangeTime,
+      graceTime: base.graceTime,
+      stageTime: base.stageTime,
+      minHalf: base.minHalf,
+      finalHalf: base.finalHalf,
+    };
+  }
+
    _clearGladState(){
      this.glad = null;
+     if(this._gladMarkers){
+       this._gladMarkers.orange.ring.visible = false;
+       this._gladMarkers.orange.glow.visible = false;
+       this._gladMarkers.red.ring.visible = false;
+       this._gladMarkers.red.glow.visible = false;
+       this._gladMarkers = null;
+     }
+     const mO = document.getElementById('glad-mark-orange');
+     const mR = document.getElementById('glad-mark-red');
+     if(mO) mO.classList.add('glad-mark-hidden');
+     if(mR) mR.classList.add('glad-mark-hidden');
      if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
      if(this._gladZoneTex) this._gladZoneTex.dispose();
      this._gladBoxes.forEach(b => { if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); } });
@@ -641,27 +662,20 @@ class Game {
      this._gladClearAirdropVisuals();
      
      // Clean up chunk system
-     if(this._gladChunkMeshes){
-       this._gladChunkMeshes.forEach(mesh => {
-         if(mesh){ this.scene.remove(mesh); if(mesh.geometry) mesh.geometry.dispose(); if(mesh.material) mesh.material.dispose(); }
-       });
-       this._gladChunkMeshes = [];
-     }
-     if(this._gladChunkOverlays){
-       this._gladChunkOverlays.forEach(overlay => {
-         if(overlay){ this.scene.remove(overlay); if(overlay.geometry) overlay.geometry.dispose(); if(overlay.material) overlay.material.dispose(); }
-       });
-       this._gladChunkOverlays = [];
-     }
      this._gladZoneChunks = null;
-     this._gladCorruptedChunks.clear();
-     this._gladNextCorruptionIndex = 0;
-     this._gladChunkGlowTime = 0;
-     if(this._gladZoneCanvas){
-       this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
-       if(this._gladZoneTex) this._gladZoneTex.dispose();
-       this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
-     }
+     this._gladCellById = new Map();
+     this._gladCols = 0; this._gladRows = 0;
+     this._gladChunkSize = 0;
+     if(this._gladCorruptedChunks) this._gladCorruptedChunks.clear();
+     this._gladOrangeBatch = [];
+if(this._gladZoneCanvas){
+        this._gladZoneCanvas.width = this._gladZoneCanvas.height = 1024;
+        if(this._gladZoneTex) this._gladZoneTex.dispose();
+this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+    this._gladZoneTex.generateMipmaps = false;
+    this._gladZoneTex.minFilter = THREE.LinearFilter;
+    this._gladZoneTex.magFilter = THREE.LinearFilter;
+      }
      
      const gh = document.getElementById('glad-hud');
      if(gh) gh.classList.add('hidden');
@@ -705,6 +719,13 @@ class Game {
     return this._gladPickups[this._gladPickups.length-1];
   }
 
+  _gladKillBox(b){
+    if(!b.alive) return;
+    b.alive = false;
+    if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.mesh = null; }
+    this._gladDropPickup(b.x, b.z, GAMEMODES.gladiator.power.box);
+  }
+
   _gladBoxHit(shell){
     if(!this._gladBoxes) return false;
     for(const b of this._gladBoxes){
@@ -715,9 +736,7 @@ class Game {
         b.hp -= shell.damage;
         this.spawnExplosion(b.x, 1.5, b.z, 0x44ccff, 6);
         if(b.hp <= 0){
-          b.alive = false;
-          if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.mesh = null; }
-          this._gladDropPickup(b.x, b.z, GAMEMODES.gladiator.power.box);
+          this._gladKillBox(b);
           if(shell.owner === this.localTank) Menu.toast('\u26A1 Blue box destroyed! +5 power dropped');
         }
         return true;
@@ -729,39 +748,177 @@ class Game {
   _inGladRed(x, z){
     const g = this.glad;
     if(!g) return false;
-    const h = g.safeHalf;
-    if(h <= 0) return true;
-    return Math.abs(x) > h || Math.abs(z) > h;
+    if(g.phase === 'red') return true;
+    const cell = this._gladCellAt(x, z);
+    return cell ? cell.state === 'red' : false;
   }
 
    _initGladChunkGrid(){
      const g = this.glad;
      const cfg = g.cfg;
-     const zoneHalf = this.world.half;
+     const half = this.world.half;
      const chunkSize = cfg.zone.chunk;
      
-     // Create a chunk grid covering the entire map
-     // Each chunk is a rectangle of the map grid
-     const chunkGridSize = Math.ceil(zoneHalf / chunkSize) + 1;
+     // Steel-Hunter grid: square cells covering the whole map, aligned to
+     // the map corner so every client computes identical cell rects.
+     const cols = Math.ceil((half * 2) / chunkSize);
+     const rows = cols;
+     this._gladCols = cols; this._gladRows = rows;
+     this._gladChunkSize = chunkSize;
+     this._gladCellById = new Map();
      
      this._gladZoneChunks = [];
-     for(let gx = -chunkGridSize; gx <= chunkGridSize; gx++){
-       for(let gz = -chunkGridSize; gz <= chunkGridSize; gz++){
-         const cx = gx * chunkSize;
-         const cz = gz * chunkSize;
-         // Check if this chunk is within the world
-         if(this.world._inLake(cx, cz, 1) || this.world.collidesWallsOnly(cx, cz, 1)) continue;
-         this._gladZoneChunks.push({
-           x: cx, z: cz,
-           id: gx + ',' + gz,
-           state: 'grace', // 'grace' | 'orange' | 'red'
-           glowTime: 0,
-           edgeDist: Infinity,
-         });
+     for(let c = 0; c < cols; c++){
+       for(let r = 0; r < rows; r++){
+         const x0 = -half + c * chunkSize;
+         const z0 = -half + r * chunkSize;
+         const x1 = Math.min(half, x0 + chunkSize);
+         const z1 = Math.min(half, z0 + chunkSize);
+         // Keep every cell — the storm covers the whole map (water and
+         // cliffs included), like Steel Hunter.
+         const cell = {
+           col: c, row: r, x0, z0, x1, z1,
+           id: c + ',' + r,
+           state: 'safe', // 'safe' | 'orange' | 'red'
+           redAt: 0,
+         };
+         this._gladZoneChunks.push(cell);
+         this._gladCellById.set(cell.id, cell);
        }
      }
-     // Track which chunks are close to player for countdown
-     this._gladPlayerChunkDist = null;
+   }
+
+   _gladCellAt(x, z){
+     if(!this._gladZoneChunks || !this._gladChunkSize) return null;
+     const half = this.world.half;
+     const cs = this._gladChunkSize;
+     let c = Math.floor((x + half) / cs);
+     let r = Math.floor((z + half) / cs);
+     if(c < 0 || r < 0 || c >= this._gladCols || r >= this._gladRows) return null;
+     return this._gladCellById.get(c + ',' + r) || null;
+   }
+
+   /* Cells with at least one red or off-map 4-neighbour: the next candidates */
+   _gladFrontierCells(){
+     const cells = this._gladZoneChunks;
+     const red = this._gladCorruptedChunks;
+     const out = [];
+     for(const cell of cells){
+       if(cell.state === 'red') continue;
+       let edge = false;
+       if(cell.col === 0 || cell.row === 0 || cell.col === this._gladCols - 1 || cell.row === this._gladRows - 1) edge = true;
+       if(!edge){
+         const n = this._gladCellById.get((cell.col - 1) + ',' + cell.row);
+         const s = this._gladCellById.get((cell.col + 1) + ',' + cell.row);
+         const w = this._gladCellById.get(cell.col + ',' + (cell.row - 1));
+         const e = this._gladCellById.get(cell.col + ',' + (cell.row + 1));
+         edge = !!(n && red.has(n.id)) || !!(s && red.has(s.id)) || !!(w && red.has(w.id)) || !!(e && red.has(e.id));
+       }
+       if(edge) out.push(cell);
+     }
+     return out;
+   }
+
+   /* Random batch of frontier cells -> orange (warning) */
+   _pickGladBatch(n){
+     const frontier = this._gladFrontierCells().filter(c => c.state !== 'orange');
+     // Fisher-Yates shuffle, take n
+     for(let i = frontier.length - 1; i > 0; i--){
+       const j = Math.floor(Math.random() * (i + 1));
+       const t = frontier[i]; frontier[i] = frontier[j]; frontier[j] = t;
+     }
+     return frontier.slice(0, n);
+   }
+
+   _gladSafePercent(){
+     if(!this._gladZoneChunks || !this._gladZoneChunks.length) return 100;
+     const red = this._gladCorruptedChunks.size;
+     return Math.max(0, Math.round(100 - red * 100 / this._gladZoneChunks.length));
+   }
+
+   /* ---------- Zone placeholders (nearest orange + red cells) ---------- */
+   _ensureGladMarkerRings(){
+     if(this._gladMarkers) return;
+     const mk = (color) => {
+       const ring = new THREE.Mesh(
+         new THREE.RingGeometry(0.7, 1, 48),
+         new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.9, side:THREE.DoubleSide, depthWrite:false})
+       );
+       ring.rotation.x = -Math.PI / 2;
+       const glow = new THREE.Mesh(
+         new THREE.PlaneGeometry(1, 1),
+         new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.28, depthWrite:false, blending:THREE.AdditiveBlending})
+       );
+       glow.rotation.x = -Math.PI / 2;
+       this.scene.add(ring); this.scene.add(glow);
+       return { ring, glow };
+     };
+     this._gladMarkers = { orange: mk(0xffa500), red: mk(0xff3030) };
+   }
+
+   _updateGladMarkers(dt){
+     const elO = document.getElementById('glad-mark-orange');
+     const elR = document.getElementById('glad-mark-red');
+     const hide = (el) => { if(el && !el.classList.contains('glad-mark-hidden')) el.classList.add('glad-mark-hidden'); };
+     if(!this.glad || this.glad.phase === 'grace' || !this.localTank || !this.localTank.alive){
+       hide(elO); hide(elR);
+       if(this._gladMarkers){
+         this._gladMarkers.orange.ring.visible = false;
+         this._gladMarkers.orange.glow.visible = false;
+         this._gladMarkers.red.ring.visible = false;
+         this._gladMarkers.red.glow.visible = false;
+       }
+       return;
+     }
+     this._ensureGladMarkerRings();
+     this._gladMarkers.orange.ring.visible = true;
+     this._gladMarkers.orange.glow.visible = true;
+     this._gladMarkers.red.ring.visible = true;
+     this._gladMarkers.red.glow.visible = true;
+
+     // Nearest orange cell to the player, nearest red cell to the player
+     let oCell = null, oDist = Infinity, rCell = null, rDist = Infinity;
+     const px = this.localTank.x, pz = this.localTank.z;
+     for(const c of this._gladZoneChunks){
+       const cx = (c.x0 + c.x1) / 2, cz = (c.z0 + c.z1) / 2;
+       const d = Math.hypot(cx - px, cz - pz);
+       if(c.state === 'orange' && d < oDist){ oDist = d; oCell = c; }
+       if(c.state === 'red' && d < rDist){ rDist = d; rCell = c; }
+     }
+
+     const pulse = 0.55 + 0.4 * Math.sin(this.time * 5);
+     const project = (cx, cz, mesh, glow, el, txt) => {
+       const v = this._placeVec || new THREE.Vector3();
+       this._placeVec = v;
+       v.set(cx, 1.4, cz).project(this.camera);
+       if(v.z > 1){ hide(el); mesh.visible = false; glow.visible = false; return; }
+       mesh.visible = true; glow.visible = true;
+       mesh.position.set(cx, 0.35, cz);
+       glow.position.set(cx, 0.45, cz);
+       mesh.material.opacity = pulse;
+       glow.material.opacity = 0.2 + 0.15 * Math.sin(this.time * 5 + 1.2);
+const lx = (v.x * 0.5 + 0.5) * window.innerWidth;
+        const ly = (-v.y * 0.5 + 0.5) * window.innerHeight;
+        el.style.left = Math.min(Math.max(lx, 40), window.innerWidth - 40) + 'px';
+        el.style.top = Math.min(Math.max(ly, 40), window.innerHeight - 40) + 'px';
+        el.classList.remove('glad-mark-hidden');
+       if(txt) el.querySelector('span:last-child').textContent = txt;
+     };
+
+     const cs = this._gladChunkSize;
+     if(oCell){
+       const sec = Math.max(0, Math.ceil(oCell.redAt - this.time));
+       project((oCell.x0 + oCell.x1) / 2, (oCell.z0 + oCell.z1) / 2,
+         this._gladMarkers.orange.ring, this._gladMarkers.orange.glow, elO, 'ZONE RED IN ' + sec + 's');
+       this._gladMarkers.orange.ring.scale.set(cs * 0.5, cs * 0.5, 1);
+       this._gladMarkers.orange.glow.scale.set(cs, cs, 1);
+     } else hide(elO);
+     if(rCell){
+       project((rCell.x0 + rCell.x1) / 2, (rCell.z0 + rCell.z1) / 2,
+         this._gladMarkers.red.ring, this._gladMarkers.red.glow, elR, 'DANGER ZONE');
+       this._gladMarkers.red.ring.scale.set(cs * 0.5, cs * 0.5, 1);
+       this._gladMarkers.red.glow.scale.set(cs, cs, 1);
+     } else hide(elR);
    }
 
    _refreshGladZone(){
@@ -777,131 +934,45 @@ class Game {
      this._gladZoneTex.needsUpdate = true;
    }
 
-   _drawGladZone(){
+_drawGladZone(){
      const g = this.glad;
      if(!g || g.phase === 'grace') return;
      const ctx = this._gladZoneCanvas.getContext('2d');
      const S = this._gladZoneCanvas.width;
      const scale = S / this.world.size;
      const toPx = (v) => S/2 + v * scale;
-     const safeHalf = Math.max(0, g.safeHalf);
+     const cs = this._gladChunkSize * scale; // cell size in px
      
-     // Draw the zone boundary (green line for orange, red line for red)
-     const isRed = g.phase === 'red';
-     const zoneColor = isRed ? [255, 40, 40] : [255, 165, 0];
-     const zoneAlpha = isRed ? 0.95 : 0.75;
+     // Faint grid lines first: the whole map reads as a board of cubes
+     ctx.strokeStyle = 'rgba(15,15,20,0.35)';
+     ctx.lineWidth = 1;
+     ctx.beginPath();
+     for(const cell of this._gladZoneChunks){
+       const x0 = Math.round(toPx(cell.x0)), z0 = Math.round(toPx(cell.z0));
+       const x1 = Math.round(toPx(cell.x1)), z1 = Math.round(toPx(cell.z1));
+       ctx.moveTo(x0, z0); ctx.lineTo(x1, z0);
+       ctx.moveTo(x0, z0); ctx.lineTo(x0, z1);
+     }
+     ctx.stroke();
      
-     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},${zoneAlpha})`;
-     ctx.lineWidth = Math.max(3, S * 0.008);
-     
-     // Draw zone edge
-     const sh = Math.max(0, safeHalf);
-     const sX = toPx(-sh), sW = Math.max(1, toPx(sh) - sX);
-     ctx.strokeRect(sX, sX, sW, sW);
-     
-     // Draw glow outline for zone
-     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},0.3)`;
-     ctx.lineWidth = Math.max(5, S * 0.02);
-     ctx.strokeRect(sX, sX, sW, sW);
-     
-     // Draw chunk overlays
-     for(const chunk of this._gladZoneChunks){
-       const cx = toPx(chunk.x);
-       const cz = toPx(chunk.z);
-       // Check if chunk is in current zone
-       const inZone = this._gladChunkInZone(chunk);
-       const isRed = inZone && (g.phase === 'red');
-       const isOrange = inZone && (g.phase === 'orange');
-       
-       if(inZone && !isRed){
-         // Orange zone - draw chunk with orange indicator
-         ctx.fillStyle = 'rgba(255,165,0,0.15)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
-         // Add glow
-         ctx.fillStyle = 'rgba(255,165,0,0.4)';
-         ctx.fillRect(cx - 6, cz - 6, 12, 12);
-       } else if(inZone && isRed){
-         // Red zone - draw chunk with red glowing X
-         // Glow outline
-         ctx.fillStyle = 'rgba(255,40,40,0.25)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
-         ctx.fillStyle = 'rgba(255,40,40,0.5)';
-         ctx.fillRect(cx - 6, cz - 6, 12, 12);
-         // Glowing X mark
-         this._drawGlowX(ctx, cx, cz, 12, 16, isRed);
-       } else {
-         // Outside zone
-         ctx.fillStyle = 'rgba(0,0,0,0.1)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
+     // Cell fills: orange = warning, red = deadly storm
+     for(const cell of this._gladZoneChunks){
+       const x0 = toPx(cell.x0), z0 = toPx(cell.z0);
+       const w = (cell.x1 - cell.x0) * scale - 1.5;
+       if(cell.state === 'orange'){
+         ctx.fillStyle = 'rgba(255,165,0,0.5)';
+         ctx.fillRect(x0 + 1, z0 + 1, Math.max(1, w), Math.max(1, w));
+         ctx.strokeStyle = 'rgba(255,235,160,0.9)';
+         ctx.lineWidth = 2;
+         ctx.strokeRect(x0 + 1, z0 + 1, Math.max(1, w), Math.max(1, w));
+       } else if(cell.state === 'red'){
+         ctx.fillStyle = 'rgba(235,40,40,0.62)';
+         ctx.fillRect(x0 + 1, z0 + 1, Math.max(1, w), Math.max(1, w));
+         ctx.strokeStyle = 'rgba(255,190,170,0.9)';
+         ctx.lineWidth = 2;
+         ctx.strokeRect(x0 + 1, z0 + 1, Math.max(1, w), Math.max(1, w));
        }
      }
-   }
-
-   _drawGlowX(ctx, cx, cz, size, gap, isRed){
-     // Draw a glowing X mark in the center of each chunk
-     const lineThickness = isRed ? 4 : 3;
-     ctx.strokeStyle = isRed ? '#ff0000' : '#ff8800';
-     ctx.lineWidth = lineThickness;
-     ctx.lineCap = 'round';
-     
-     const s = gap;
-     ctx.beginPath();
-     ctx.moveTo(cx - s, cz - s);
-     ctx.lineTo(cx + s, cz + s);
-     ctx.moveTo(cx + s, cz - s);
-     ctx.lineTo(cx - s, cz + s);
-     ctx.stroke();
-     
-     // Glow effect
-     ctx.strokeStyle = isRed ? 'rgba(255,0,0,0.2)' : 'rgba(255,140,0,0.2)';
-     ctx.lineWidth = lineThickness + 4;
-     ctx.stroke();
-   }
-
-   _gladChunkInZone(chunk){
-     const g = this.glad;
-     if(!g) return false;
-     const h = Math.max(0, g.safeHalf);
-     // Chunk center is at (chunk.x, chunk.z) which is in world coordinates
-     // The zone is a square from -h to h
-     return Math.abs(chunk.x) <= h && Math.abs(chunk.z) <= h;
-   }
-
-_gladZoneNotice(text){
-     Menu.toast(text);
-   }
-
-   _drawCountdownPlaceholder(ctx, x, z, orangeHalf){
-     const g = this.glad;
-     if(!g || !this.localTank || !this.localTank.alive) return;
-     
-     const S = this._gladZoneCanvas.width;
-     const scale = S / this.world.size;
-     const px = S/2 + x * scale;
-     const pz = S/2 + z * scale;
-     const radius = Math.max(8, (orangeHalf - g.safeHalf) * scale * 0.4);
-     const countdown = Math.max(0, g.phaseTimer);
-     const seconds = Math.ceil(countdown);
-     
-     // Orange ring
-     ctx.beginPath();
-     ctx.arc(px, pz, radius, 0, Math.PI * 2);
-     ctx.strokeStyle = 'rgba(255,165,0,0.9)';
-     ctx.lineWidth = 3;
-     ctx.stroke();
-     
-     // Inner red fill
-     ctx.beginPath();
-     ctx.arc(px, pz, radius - 4, 0, Math.PI * 2);
-     ctx.fillStyle = 'rgba(255,40,40,0.5)';
-     ctx.fill();
-     
-     // Countdown number
-     ctx.fillStyle = 'rgba(255,255,255,0.95)';
-     ctx.font = 'bold 14px Arial';
-     ctx.textAlign = 'center';
-     ctx.textBaseline = 'middle';
-     ctx.fillText(seconds, px, pz);
    }
 
    _gladSpawnForNew(){
@@ -920,112 +991,69 @@ _gladZoneNotice(text){
   _gladUpdate(dt){
     if(this._matchStartDelay > 0) return;
     const g = this.glad;
-    if(!g || g.ended) return;
+    if(!g) return;
+    if(g.ended){ this._updateGladMarkers(dt); return; }
     const cfg = g.cfg;
 
-    // Zone stage machine: grace -> orange (warning) -> corruption -> red -> shrink -> orange...
-    g.phaseTimer -= dt;
-    if(g.phase === 'grace' && g.phaseTimer <= 0){
-      g.phase = 'orange';
-      g.orangeHalf = this.world.half;
-      g.phaseTimer = cfg.zone.stageTime;
-      this._refreshGladZone();
-      Menu.toast('Zone incoming!');
-    } else if(g.phase === 'orange' && g.phaseTimer <= 0){
-      g.corruptionTimer = 0;
-      let next = g.safeHalf - cfg.zone.chunk;
-      if(next < cfg.zone.minHalf) next = (g.safeHalf <= cfg.zone.minHalf) ? cfg.zone.finalHalf : cfg.zone.minHalf;
-      g.safeHalf = Math.max(0, next);
-      g.orangeHalf = g.safeHalf + cfg.zone.chunk;
-      g.stage++;
-      g.phaseTimer = cfg.zone.stageTime;
-      this._refreshGladZone();
-      Menu.toast('Zone shrinking!');
-    }
-
-    // Corruption phase: one chunk at a time from edges, one by one
-    if(g.phase === 'orange' && g.corruptionTimer <= 0){
-      // Start corrupting
-      g.corruptionTimer = 5; // 5 seconds before corruption starts
-    }
-
-    // Update corruption state
-    if(g.phase === 'orange'){
-      g.corruptionTimer -= dt;
-      if(g.corruptionTimer <= 0){
-        // Corrupt one random edge chunk
-        const edgeChunks = this._gladZoneChunks.filter(c =>
-          Math.abs(c.x) >= g.safeHalf - this.glad.cfg.zone.chunk ||
-          Math.abs(c.z) >= g.safeHalf - this.glad.cfg.zone.chunk
-        );
-        if(edgeChunks.length > 0){
-          // Random order corruption
-          const idx = Math.floor(Math.random() * edgeChunks.length);
-          const chunk = edgeChunks[idx];
-          chunk.state = 'red';
-          chunk.corruptionTime = 0;
-          this._gladCorruptedChunks.add(chunk.id);
-          this._refreshGladZone();
-          Menu.toast('Zone shifting...');
+    // Zone stage machine (Steel Hunter): random frontier cells turn
+    // ORANGE first, then RED after orangeTime seconds. Host-authoritative;
+    // clients receive cell states via _gladApplyHostSnapshot.
+    if(!g._client){
+      if(g.phase === 'grace'){
+      g.phaseTimer -= dt;
+      if(g.phaseTimer <= 0){
+        g.phase = 'orange';
+        g.phaseTimer = cfg.zone.cellTick;
+        this._refreshGladZone();
+        Menu.toast('Zone incoming!');
+      }
+    } else if(g.phase === 'orange' || g.phase === 'red'){
+      g.phaseTimer -= dt;
+      // Orange cells whose deadline passed turn red.
+      let changed = false;
+      for(const c of this._gladZoneChunks){
+        if(c.state === 'orange' && this.time >= c.redAt){
+          c.state = 'red';
+          this._gladCorruptedChunks.add(c.id);
+          changed = true;
         }
       }
-    }
-
-    // Countdown placeholder: show orange zone hint at player's edge location
-    if(g.phase === 'orange' && this.localTank && this.localTank.alive){
-      const orangeHalf = g.orangeHalf;
-      let px = this.localTank.x, pz = this.localTank.z;
-      
-      // Project to orange zone boundary: find the nearest point on orange boundary
-      if(px > -orangeHalf && px < orangeHalf && pz > -orangeHalf && pz < orangeHalf){
-        // Inside orange zone, push to boundary
-        const distX = orangeHalf - Math.abs(px);
-        const distZ = orangeHalf - Math.abs(pz);
-        if(distX < distZ) px = (px >= 0 ? orangeHalf : -orangeHalf);
-        else pz = (pz >= 0 ? orangeHalf : -orangeHalf);
-      } else {
-        // Outside orange zone - find nearest point on boundary rectangle
-        const closestX = Math.max(-orangeHalf, Math.min(orangeHalf, px));
-        const closestZ = Math.max(-orangeHalf, Math.min(orangeHalf, pz));
-        px = closestX;
-        pz = closestZ;
-      }
-      
-// Find which chunk this placeholder is in (chunk size available for future use)
-      // const chunkX = Math.round(px / chunkSize) * chunkSize;
-      // const chunkZ = Math.round(pz / chunkSize) * chunkSize;
-      
-      // Display countdown for this chunk area
-      this._drawCountdownPlaceholder(ctx, px, pz, orangeHalf);
-    }
-
-    // Handle red zone chunks: update corruption time and apply damage visuals
-    if(g.phase === 'orange' || g.phase === 'red'){
-      for(const chunk of this._gladZoneChunks){
-        if(chunk.state === 'red'){
-          chunk.corruptionTime += dt;
-          // Red chunks glow more as they "corrupt"
-          const glowIntensity = Math.min(1, chunk.corruptionTime / 30);
-          ctx.fillStyle = `rgba(255,40,40,${0.25 + glowIntensity * 0.3})`;
-          ctx.fillRect(
-            toPx(chunk.x) - 3,
-            toPx(chunk.z) - 3,
-            6, 6
-          );
+      // Periodically mark the next random batch at the frontier as orange.
+      if(g.phaseTimer <= 0 && g.phase === 'orange'){
+        const picked = this._pickGladBatch(cfg.zone.batch);
+        for(const c of picked){
+          c.state = 'orange';
+          c.redAt = this.time + cfg.zone.orangeTime;
+        }
+        g.phaseTimer = cfg.zone.cellTick;
+        if(picked.length > 0){
+          g.stage++;
+          changed = true;
+        }
+        // Full collapse: no safe cells at all — everyone takes damage
+        if(this._gladCorruptedChunks.size >= this._gladZoneChunks.length){
+          g.phase = 'red';
+          changed = true;
+          Menu.toast('The storm has swallowed the map!');
         }
       }
+      if(changed) this._refreshGladZone();
+      }
     }
 
-    // Red zone damage (10 HP/s while outside the safe square)
+    // Red zone damage (redDps HP/s inside red cells / when fully collapsed)
     if(g.phase !== 'grace'){
       for(const t of this.tanks){
         if(!t.alive || t.dying || t.isDummy) continue;
         if(this._inGladRed(t.x, t.z)){
-          t.takeDamage(cfg.redDps * dt, null, this, true);
-          if(t.alive && !t.dying) this.spawnExplosion(t.x, 0.5, t.z, 0xff3030, 2);
+          t.takeDamage(cfg.redDps * Math.min(dt, 0.5), null, this, true);
+          if(t.alive && !t.dying && Math.random() < dt * 6) this.spawnExplosion(t.x, 0.5, t.z, 0xff3030, 2);
         }
       }
     }
+
+    // Nearest-zone-cell placeholders (orange countdown + red danger)
+    this._updateGladMarkers(dt);
 
     // Airdrops
     g.airdropTimer -= dt;
@@ -1122,13 +1150,24 @@ _gladZoneNotice(text){
 
   _gladSpawnAirdrop(){
     const cfg = this.glad.cfg;
-    const half = Math.max(12, this.glad.safeHalf - 10);
-    let x = 0, z = 0, tries = 0;
-    do {
-      x = (Math.random() * 2 - 1) * half;
-      z = (Math.random() * 2 - 1) * half;
+    // Drop inside a non-red cell (Steel Hunter: orange is still survivable)
+    const safe = this._gladZoneChunks.filter(c => c.state !== 'red');
+    const cell = safe.length ? safe[Math.floor(Math.random() * safe.length)] : null;
+    const cs = this._gladChunkSize;
+    let x = 0, z = 0;
+    if(cell){
+      x = cell.x0 + cs * (0.25 + Math.random() * 0.5);
+      z = cell.z0 + cs * (0.25 + Math.random() * 0.5);
+    } else {
+      x = (Math.random() * 2 - 1) * 40;
+      z = (Math.random() * 2 - 1) * 40;
+    }
+    let tries = 0;
+    while(tries < 5 && (this.world._inLake(x, z, 4) || this.world.collidesWallsOnly(x, z, 5))){
+      x = (Math.random() * 2 - 1) * this.world.half * 0.8;
+      z = (Math.random() * 2 - 1) * this.world.half * 0.8;
       tries++;
-    } while(tries < 40 && (this.world._inLake(x, z, 4) || this.world.collidesWallsOnly(x, z, 5)));
+    }
     const geo = new THREE.CylinderGeometry(3.2, 3.2, 260, 20, 1, true);
     geo.translate(0, 130, 0);
     const mat = new THREE.MeshBasicMaterial({color:0x00ddff, transparent:true, opacity:0.35, depthWrite:false});
@@ -1158,22 +1197,37 @@ _gladZoneNotice(text){
       } : null,
       boxes: this._gladBoxes.filter(b => b.alive).map(b => ({id: b.id, x: b.x, z: b.z, hp: b.hp})),
       pickups: this._gladPickups.map(p => ({x: p.x, z: p.z, power: p.power})),
+      // Steel Hunter cell states: 0=safe, 1=orange, 2=red
+      cells: this._gladZoneChunks ? this._gladZoneChunks.map(c => c.state === 'red' ? 2 : (c.state === 'orange' ? 1 : 0)) : null,
+      cellTick: this._gladChunkSize || cfg.zone.chunk,
     };
   }
 
   _gladApplyHostSnapshot(gs){
     const cfg = GAMEMODES.gladiator;
     if(!this.glad){
+      // Scale the zone cfg the same way the host does, so the client grid matches
+      cfg.zone = Object.assign({}, cfg.zone, this._gladScaledZoneCfg());
       this.glad = {
         cfg, stage:0, safeHalf:this.world.half, orangeHalf:null, phase:'grace', phaseTimer:0,
         alive:0, winner:null, winnerId:null, ended:false, airdrop:null, airdropTimer:0, _client:true,
       };
       this._gladBoxes = [];
       this._gladPickups = [];
+      this._gladZoneChunks = null;
+      this._gladCellById = new Map();
+      this._gladCols = 0; this._gladRows = 0;
+      this._gladChunkSize = cfg.zone.chunk;
+      this._gladCorruptedChunks = new Set();
+      this._gladOrangeBatch = [];
+      this._initGladChunkGrid();
       this._gladZoneCanvas = document.createElement('canvas');
-      this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
+      this._gladZoneCanvas.width = this._gladZoneCanvas.height = 512;
       this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
-      const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.9, depthWrite:false});
+      this._gladZoneTex.generateMipmaps = false;
+      this._gladZoneTex.minFilter = THREE.LinearFilter;
+      this._gladZoneTex.magFilter = THREE.LinearFilter;
+      const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.8, depthWrite:false});
       const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
       zgeo.rotateX(-Math.PI/2);
       this._gladZoneMesh = new THREE.Mesh(zgeo, zmat);
@@ -1194,6 +1248,22 @@ _gladZoneNotice(text){
     g.winnerId = gs.winner;
     g.ended = !!gs.ended;
     g.airdropTimer = gs.airdropTimer;
+    // Steel Hunter: apply authoritative cell states from the host
+    if(gs.cells && this._gladZoneChunks && gs.cells.length === this._gladZoneChunks.length){
+      let changed = false;
+      for(let i = 0; i < this._gladZoneChunks.length; i++){
+        const c = this._gladZoneChunks[i];
+        const want = gs.cells[i];
+        const now = c.state === 'red' ? 2 : (c.state === 'orange' ? 1 : 0);
+        if(now !== want){
+          c.state = want === 2 ? 'red' : (want === 1 ? 'orange' : 'safe');
+          changed = true;
+        }
+        if(c.state === 'red') this._gladCorruptedChunks.add(c.id);
+        else this._gladCorruptedChunks.delete(c.id);
+      }
+      if(changed) this._refreshGladZone();
+    }
     if(gs.airdrop){
       if(!g.airdrop){
         g.airdrop = {x:0, z:0, countdown:0, landed:false, life:0, hold:0, localHold:0};
@@ -1258,10 +1328,6 @@ _gladZoneNotice(text){
 
   _refreshGladZoneClient(){
     this._refreshGladZone();
-  }
-
-  _gladZoneNotice(text){
-    Menu.toast(text);
   }
 
   _gladShowResult(eliminated){
@@ -1497,6 +1563,46 @@ _gladZoneNotice(text){
     // Spawn local tank (position will be corrected by host's spawn message)
     this._spawnLocal();
     this._begin();
+  }
+
+  /* ---------- SPECTATOR (platoon spectator slots) ---------- */
+  async startSpectator(cfg){
+    Menu.showConnecting('Joining as spectator…');
+    try{
+      await Net.joinRoom(cfg.code);
+    }catch(e){
+      Menu.hideConnecting();
+      Menu.toast(e.message||'Could not join room');
+      return;
+    }
+    Menu.hideConnecting();
+    this.isSpectator = true;
+    this.mode='client'; this._resetArena();
+
+    // Watch-only: never send join info and never spawn a local tank.
+    Net.onState = (snap)=> this._applyHostState(snap);
+    Net.onPlayerLeave = (peerId)=>{
+      if(peerId==='host'){
+        Menu.toast('Host disconnected');
+        this.leaveToMenu();
+      }
+    };
+
+    this.spectate = {
+      mode: 'player',      // 'player' = follow a tank, 'free' = freecam
+      targetId: null,
+      yaw: Math.PI,
+      pitch: -0.5,
+      spd: 28,
+    };
+
+    this._begin();
+    // Pure spectator — no tank HUD or touch joysticks
+    const hud = document.getElementById('hud');
+    if(hud) hud.classList.add('hidden');
+    if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+    this._initSpectatorHud();
+    Menu.toast('Spectating — pick a tank or use freecam at the bottom');
   }
 
   _onClientWelcome(msg){
@@ -1740,8 +1846,18 @@ _gladZoneNotice(text){
   }
 
   leaveToMenu(){
+    // Hide touch joysticks FIRST — nothing below may run (throws, early
+    // returns, async) while leaving the joysticks visible over the menus.
+    if(this.input && this.input.setJoysticksVisible){
+      this.input.setJoysticksVisible(false);
+    }
+    if(Menu && Menu.hideTouchControls) Menu.hideTouchControls();
     this.running = false;
     this.mode = null;
+    this.isSpectator = false;
+    this.spectate = null;
+    const specHud = document.getElementById('spectator-hud');
+    if(specHud) specHud.classList.add('hidden');
     try { Net.disconnect(); } catch(e){}
     try { NakamaNet.leaveMatch(); } catch(e){}
     this._resetArena();
@@ -1754,17 +1870,176 @@ _gladZoneNotice(text){
     if (this._perfOverlay) this._perfOverlay.style.display = 'none';
     if(Menu.escOpen) Menu.escOpen = false;
     Menu.show(window.__PLATOON_BATTLE ? 'menu-platoon' : 'menu-main');
-    // Hide touch joysticks when returning to menu
-    if(this.input && this.input.setJoysticksVisible){
-      this.input.setJoysticksVisible(false);
-    }
-    // Clean up orientation poll timer if any
+    // Unlock orientation
     Menu._stopOrientationPoll();
     // Remove in-game portrait warning
     const pw = document.getElementById('portrait-warning');
     if(pw) pw.classList.add('hidden');
     // Unlock orientation
     if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+  }
+
+  /* ---------- spectator camera + HUD ---------- */
+  _spectateAliveTanks(){
+    return this.tanks.filter(t => t && !t.isDummy && t.alive && !t.dying);
+  }
+
+  _pickSpectateTarget(jump){
+    const alive = this._spectateAliveTanks();
+    if(!alive.length){ this.spectate.targetId = null; return false; }
+    this.spectate.targetId = alive[0].id;
+    if(jump) this._jumpSpectateCamera(alive[0]);
+    return true;
+  }
+
+  _spectateCycleTarget(){
+    if(!this.spectate) return;
+    const alive = this._spectateAliveTanks();
+    if(!alive.length){
+      this.spectate.targetId = null;
+      this._refreshSpectateHud();
+      return;
+    }
+    const cur = alive.findIndex(t => t.id === this.spectate.targetId);
+    const next = alive[(cur + 1) % alive.length];
+    this.spectate.targetId = next.id;
+    this._jumpSpectateCamera(next);
+    this._refreshSpectateHud();
+  }
+
+  _jumpSpectateCamera(t){
+    if(!t) return;
+    this.camera.position.set(t.x, (t.def.body.h || 1) + 10, t.z);
+    if(this.spectate) this.camAngle = this.spectate.yaw;
+  }
+
+  _initSpectatorHud(){
+    const bar = document.getElementById('spectator-hud');
+    if(!bar) return;
+    bar.classList.remove('hidden');
+    if(this._specHudBound) return;
+    this._specHudBound = true;
+    const self = this;
+    const playerBtn = document.getElementById('spec-player-btn');
+    const freeBtn = document.getElementById('spec-free-btn');
+    if(playerBtn){
+      playerBtn.addEventListener('click', ()=>{
+        if(!self.spectate) return;
+        if(self.spectate.mode !== 'player'){
+          self.spectate.mode = 'player';
+          if(!self._pickSpectateTarget(true)) self._spectateCycleTarget();
+          self._refreshSpectateHud();
+          return;
+        }
+        self._spectateCycleTarget();
+      });
+    }
+    if(freeBtn){
+      freeBtn.addEventListener('click', ()=>{
+        if(!self.spectate) return;
+        self.spectate.mode = 'free';
+        self._refreshSpectateHud();
+      });
+    }
+    this._refreshSpectateHud();
+  }
+
+  _refreshSpectateHud(){
+    const bar = document.getElementById('spectator-hud');
+    if(!bar || !this.spectate) return;
+    const playerBtn = document.getElementById('spec-player-btn');
+    const freeBtn = document.getElementById('spec-free-btn');
+    const nameEl = document.getElementById('spec-target-name');
+    if(playerBtn) playerBtn.classList.toggle('spec-on', this.spectate.mode === 'player');
+    if(freeBtn) freeBtn.classList.toggle('spec-on', this.spectate.mode === 'free');
+    if(nameEl){
+      const t = this.spectate.mode === 'player' ? this.tanks.find(x => x.id === this.spectate.targetId) : null;
+      nameEl.textContent = (t && t.alive) ? (t.name || 'Player') : 'NO TARGET';
+    }
+  }
+
+  _updateSpectatorCamera(dt){
+    const sp = this.spectate;
+    if(!sp) return;
+    const inv = (this.settings && this.settings.invertCamRot) ? -1 : 1;
+    const zoom = this.input.consumeZoom();
+
+    if(sp.mode === 'player'){
+      // Orbit only — same rotate/zoom controls as the normal follow cam
+      if(zoom !== 0){
+        this.camDist = Math.max(CONFIG.CAM_DIST_MIN, Math.min(CONFIG.CAM_DIST_MAX,
+          this.camDist - zoom*CONFIG.CAM_ZOOM_STEP));
+      }
+      const camRot = this.input.consumeCamRotate();
+      if(camRot !== 0){
+        this.camAngle -= camRot * inv * CONFIG.CAM_ROTATE_SPEED * dt;
+      } else {
+        const swipe = this.input.consumeCamSwipe();
+        if(swipe !== 0) this.camAngle += swipe * CONFIG.CAM_SWIPE_SENSITIVITY;
+      }
+      sp.yaw = this.camAngle;
+
+      let t = this.tanks.find(x => x.id === sp.targetId);
+      if(!t || !t.alive || t.dying){
+        const alive = this._spectateAliveTanks();
+        t = alive.length ? alive[0] : null;
+        if(t) sp.targetId = t.id;
+      }
+      if(!t) return;
+
+      const angle = this.camAngle;
+      const camTarget = new THREE.Vector3(
+        t.x + Math.sin(angle)*this.camDist,
+        this.camDist*1.43 + 1.2,
+        t.z + Math.cos(angle)*this.camDist);
+      const camLim = (this.world && this.world.half || 75) - 8;
+      camTarget.x = Math.max(-camLim, Math.min(camLim, camTarget.x));
+      camTarget.z = Math.max(-camLim, Math.min(camLim, camTarget.z));
+      this.camera.position.lerp(camTarget, CONFIG.CAM_LERP);
+      this.camera.lookAt(t.x, 1.2, t.z);
+      this._refreshSpectateHud();
+      return;
+    }
+
+    // ---- freecam: WASD move, SHIFT down, SPACE up, drag to rotate ----
+    if(zoom !== 0) sp.spd = Math.max(6, Math.min(120, sp.spd + zoom*5));
+    const camRot = this.input.consumeCamRotate();
+    if(camRot !== 0) sp.yaw -= camRot * inv * CONFIG.CAM_ROTATE_SPEED * dt;
+    const swipe = this.input.consumeCamSwipe();
+    if(swipe !== 0) sp.yaw += swipe * CONFIG.CAM_SWIPE_SENSITIVITY;
+    const swY = this.input.consumeCamSwipePitch();
+    if(swY !== 0) sp.pitch = Math.max(-1.5, Math.min(1.5, sp.pitch - swY * CONFIG.CAM_SWIPE_SENSITIVITY));
+
+    const k = this.input.keys || {};
+    const fwd = { x: Math.sin(sp.yaw), z: Math.cos(sp.yaw) };
+    const right = { x: Math.cos(sp.yaw), z: -Math.sin(sp.yaw) };
+    let mvx = 0, mvz = 0;
+    if(k['KeyW']){ mvx += fwd.x; mvz += fwd.z; }
+    if(k['KeyS']){ mvx -= fwd.x; mvz -= fwd.z; }
+    if(k['KeyD']){ mvx += right.x; mvz += right.z; }
+    if(k['KeyA']){ mvx -= right.x; mvz -= right.z; }
+    const nl = Math.hypot(mvx, mvz);
+    if(nl > 0){
+      const s = sp.spd * dt / nl;
+      this.camera.position.x += mvx * s;
+      this.camera.position.z += mvz * s;
+    }
+    let vy = 0;
+    if(k['ShiftLeft'] || k['ShiftRight']) vy -= 1;
+    if(k['Space']) vy += 1;
+    if(vy) this.camera.position.y += vy * sp.spd * dt;
+
+    const lim = (this.world && this.world.half || 75) - 2;
+    this.camera.position.x = Math.max(-lim, Math.min(lim, this.camera.position.x));
+    this.camera.position.z = Math.max(-lim, Math.min(lim, this.camera.position.z));
+    this.camera.position.y = Math.max(0.8, Math.min(120, this.camera.position.y));
+
+    const look = new THREE.Vector3(fwd.x, Math.sin(sp.pitch), fwd.z).normalize();
+    this.camera.lookAt(
+      this.camera.position.x + look.x,
+      this.camera.position.y + look.y,
+      this.camera.position.z + look.z);
+    this._refreshSpectateHud();
   }
 
   /* ===========================================================
@@ -2216,7 +2491,9 @@ _gladZoneNotice(text){
     this.trailManager.update(dt, this.camera);
 
     // Camera (orbits around tank; auto mode locks behind hull front)
-    if(this.localTank && this.localTank.alive && !this.localTank.dying){
+    if(this.isSpectator){
+      this._updateSpectatorCamera(dt);
+    } else if(this.localTank && this.localTank.alive && !this.localTank.dying){
       const t = this.localTank;
       if((this.camMode || 'arrows') === 'auto'){
         this.camAngle = t.heading + Math.PI;
@@ -3172,8 +3449,13 @@ _gladZoneNotice(text){
   spawnShot(tank){
     const {pos, dir} = tank.muzzle();
     const y = pos.y;
-    // Gunshot sound: full volume from the local tank, quieter from others
-    if(window.Audio && Audio.click) Audio.click('gun', tank === this.localTank ? 1 : 0.5);
+    // Gunshot sound: full volume from the local tank, quieter from others.
+    // Helix flamethrower gets a whoosh instead of the AK-style gunshot.
+    if(window.Audio && Audio.click){
+      const vol = tank === this.localTank ? 1 : 0.45;
+      if(tank.def.shellType === 'flame'){ if(Audio.flame) Audio.flame(vol); }
+      else Audio.click('gun', vol);
+    }
     // Fancy-only: light recoil kick when the player's own tank fires
     if(this.isFancy && tank === this.localTank) this.addShake(0.12);
     // In client/freeroam mode, host sends projectiles via snapshots
@@ -3189,9 +3471,9 @@ _gladZoneNotice(text){
         );
       }
     }
+    if(tank.def.shellType === 'flame') this._ensureHelixVideo(tank);
     if(tank===this.localTank){
       this._muzzleFlash(pos, dir);
-      if(tank.def.shellType === 'flame') this._ensureHelixVideo(tank);
     }
   }
 
@@ -3425,6 +3707,9 @@ _gladZoneNotice(text){
 
   onLocalDeath(){
     if(this.glad){
+      // Eliminated — no longer controllable: take the touch controls away
+      if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+      if(Menu && Menu.hideTouchControls) Menu.hideTouchControls();
       this._gladShowResult(true);
       Menu.toast('Eliminated! You placed #' + (this.localTank ? (this.localTank.placement || '?') : '?'));
       return;
@@ -3590,8 +3875,9 @@ _gladZoneNotice(text){
       if(be){
         const g = this.glad;
         let txt = '';
-        if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's';
-        else txt = 'Zone closes in ' + Math.ceil(g.phaseTimer) + 's';
+        if(g.phase === 'grace') txt = 'Storm in ' + Math.ceil(g.phaseTimer) + 's';
+        else if(g.phase === 'red') txt = 'FULL COLLAPSE — no safe cells!';
+        else txt = 'Storm next shift in ' + Math.ceil(g.phaseTimer) + 's  |  Safe ' + this._gladSafePercent() + '%';
         if(g.airdrop){
           if(!g.airdrop.landed) txt += '  |  Airdrop in ' + Math.ceil(g.airdrop.countdown) + 's';
           else{
@@ -3635,15 +3921,15 @@ _gladZoneNotice(text){
     // GLADIATOR zone + airdrop markers on the big map
     if(this.glad){
       const g = this.glad;
-      const drawZone = (h, color, width) => {
-        const [x1, y1] = this.world.worldToMap(-h, -h, S);
-        const [x2, y2] = this.world.worldToMap(h, h, S);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-      };
       if(g.phase !== 'grace'){
-        drawZone(Math.max(0, g.safeHalf), '#ff3030', 6);
+        // Steel Hunter cells: orange warnings + red storm on the big map
+        for(const c of this._gladZoneChunks){
+          if(c.state === 'safe') continue;
+          const [x1, y1] = this.world.worldToMap(c.x0, c.z0, S);
+          const [x2, y2] = this.world.worldToMap(c.x1, c.z1, S);
+          ctx.fillStyle = c.state === 'red' ? 'rgba(255,40,40,0.85)' : 'rgba(255,165,0,0.75)';
+          ctx.fillRect(x1, y1, Math.max(1, x2 - x1 - 1), Math.max(1, y2 - y1 - 1));
+        }
         const [cx, cy] = this.world.worldToMap(0, 0, S);
         ctx.strokeStyle = '#ff3030';
         ctx.lineWidth = 8;
