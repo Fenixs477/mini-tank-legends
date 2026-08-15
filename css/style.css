@@ -5831,3 +5831,132 @@ html, body {
   transform: translateY(2px);
   box-shadow: 0 3px 0 #000, inset 0 1px 0 rgba(255,255,255,.14) !important;
 }
+
+/* ================= SPECTATOR BAR (WoT-style bottom tank switch) ================= */
+#spectate-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(92vw, 760px);
+  pointer-events: auto;
+  font-family: 'Lilita One', 'Arial Black', sans-serif;
+}
+.spectate-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(12,16,22,.82);
+  border: 2px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  padding: 4px 10px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  backdrop-filter: blur(3px);
+}
+.spectate-label {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #ffb12b;
+}
+.spectate-nav {
+  display: flex;
+  gap: 4px;
+}
+.spec-nav-btn {
+  background: linear-gradient(160deg, #4a4f58, #23262c);
+  border: 2px solid #000;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 3px 0 #000;
+  transition: transform .1s, filter .1s;
+}
+.spec-nav-btn:hover { filter: brightness(1.2); }
+.spec-nav-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 #000; }
+.spectate-chips {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px 6px;
+  scrollbar-width: thin;
+}
+.spec-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 74px;
+  flex-shrink: 0;
+  background: rgba(18,22,30,.9);
+  border: 2px solid rgba(255,255,255,.22);
+  border-radius: 10px;
+  padding: 6px 8px;
+  color: #fff;
+  font-family: 'Lilita One', 'Arial Black', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #000;
+  transition: transform .12s, border-color .12s, background .12s;
+}
+.spec-chip:hover { transform: translateY(-2px); border-color: #ffb12b; }
+.spec-chip.spec-active {
+  border-color: #ffb12b;
+  background: rgba(255,150,30,.16);
+  box-shadow: 0 3px 0 #000, 0 0 14px rgba(255,177,43,.45);
+}
+.spec-chip.spec-dead {
+  opacity: .5;
+  filter: grayscale(.7);
+  cursor: not-allowed;
+}
+.spec-chip-name {
+  font-size: 10px;
+  letter-spacing: .5px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spec-chip-hp {
+  font-size: 10px;
+  letter-spacing: .5px;
+}
+.spectate-exit {
+  background: rgba(12,16,22,.82);
+  border: 2px solid rgba(255,255,255,.18);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  backdrop-filter: blur(3px);
+}
+.spec-exit-btn {
+  background: linear-gradient(160deg, #f87171, #b91c1c);
+  border: 2px solid #000;
+  border-radius: 999px;
+  color: #fff;
+  font-family: 'Lilita One', 'Arial Black', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 6px 14px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #000;
+  transition: transform .1s, filter .1s;
+}
+.spec-exit-btn:hover { filter: brightness(1.15); }
+.spec-exit-btn:active { transform: translateY(1px); box-shadow: 0 2px 0 #000; }
+@media (max-width: 420px) {
+  #spectate-bar { bottom: 10px; }
+  .spec-chip { min-width: 62px; padding: 4px 6px; }
+  #spectate-bar { width: 96vw; }
+}

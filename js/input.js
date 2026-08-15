@@ -77,6 +77,7 @@ class TouchJoystick {
     // document-level handler to prevent iOS WKWebView from
     // stealing the gesture in standalone/PWA mode
     const preventDocMove = (e) => { e.preventDefault(); };
+    this._preventDocMove = preventDocMove;
 
     const onStart = (e) => {
       e.preventDefault();
@@ -184,6 +185,23 @@ class TouchJoystick {
 
   getValue(){
     return {x: this.dx, y: this.dy, firing: this.firing, relAngle: this.relAngle, armed: this.armed};
+  }
+
+  /* Force-clear any active touch and return the knob to center. Called when a
+     battle ends mid-drag so a finger still in the air can't keep driving. */
+  reset(){
+    if(this._preventDocMove){
+      try { document.removeEventListener('touchmove', this._preventDocMove, {passive: false}); } catch(e){}
+      this._preventDocMove = null;
+    }
+    this.active = false;
+    this.touchId = -1;
+    this.dx = 0;
+    this.dy = 0;
+    this.armed = false;
+    this.firePulse = false;
+    this.firing = false;
+    this._updateKnob(0, 0);
   }
 }
 
@@ -422,6 +440,7 @@ class Input {
   }
 
   setJoysticksVisible(visible){
+    if(!visible) this.resetTouch();
     const moveEl = document.getElementById('joystick-move');
     const turretEl = document.getElementById('joystick-turret');
     if(moveEl) moveEl.classList.toggle('joystick-hidden', !visible);
@@ -432,6 +451,26 @@ class Input {
       const arrowsMode = (this.settings && this.settings.camMode || 'arrows') === 'arrows';
       camBtns.classList.toggle('joystick-hidden', !(visible && arrowsMode));
     }
+  }
+
+  /* Clear all touch-driven state (joysticks, cam buttons, pinch, keys) so
+     nothing "sticks" after leaving a battle. Safe to call anytime. */
+  resetTouch(){
+    if(this._moveJoystick) this._moveJoystick.reset();
+    if(this._turretJoystick) this._turretJoystick.reset();
+    this._camRotateTouch = 0;
+    this._camSwipeAccum = 0;
+    this._pinchTouchIds = [];
+    this._pinchDist = 0;
+    this._pinchAccum = 0;
+    this._touchInput = { throttle: 0, turn: 0, turretAngle: 0, fire: false };
+  }
+
+  resetAll(){
+    this.keys = {};
+    this.mouse.down = false;
+    this.wheel = 0;
+    this.resetTouch();
   }
 
   consumeWheel(){

@@ -82,18 +82,20 @@ const CONFIG = {
 /* ---------- GAMEMODES ---------- */
 const GAMEMODES = {
   // Gladiator: 10-player free-for-all on one map.
-  // Square safe zone shrinks from the edges toward the center in chunks:
-  // each chunk shows an ORANGE warning band first, which turns RED after
-  // stageTime seconds. Red zone deals redDps HP per second.
+  // The map is a grid of chunks. Random chunks on the edge of the safe area
+  // get flagged ORANGE (countdown), then turn RED (danger, redDps HP/s) after
+  // chunkOrange seconds. Repeat chunk by chunk until the safe area collapses.
   gladiator: {
     id:'gladiator', name:'Gladiator', maxTanks:10, botCount:9,
     spawnSubType:'gladiator', boxSubType:'gladiatorbox',
     zone:{
-      graceTime:20,   // seconds before first orange band appears
-      stageTime:60,   // orange -> red transition time per chunk
-      chunk:12,       // safe square half-size reduction per stage
-      minHalf:8,      // stop shrinking at this safe half-size
-      finalHalf:0,    // final collapse: whole map turns red
+      graceTime:20,          // seconds before the zone starts eating chunks
+      chunkOrange:30,        // orange warning -> red transition time per chunk
+      pickTime:6.5,          // ~seconds between flagging a new random edge chunk
+      chunk:12,              // chunk size (scaled to world in _initGladiator)
+      minHalf:8,             // legacy: kept for compatibility
+      finalHalf:0,           // legacy: kept for compatibility
+      stageTime:60,          // legacy: kept for compatibility
     },
     power:{ kill:20, box:5, airdrop:40 },
     airdrop:{ firstDelay:45, interval:40, countdown:30, holdTime:10 },

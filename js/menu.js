@@ -707,7 +707,10 @@ const Menu = {
     );
     // Gladiator result overlay buttons
     const gladWatch = document.getElementById('glad-watch-btn');
-    if(gladWatch) gladWatch.onclick = ()=> document.getElementById('glad-result').classList.add('hidden');
+    if(gladWatch) gladWatch.onclick = ()=>{
+      document.getElementById('glad-result').classList.add('hidden');
+      if(this.game && this.game._startSpectate) this.game._startSpectate();
+    };
     const gladExit = document.getElementById('glad-exit-btn');
     if(gladExit) gladExit.onclick = ()=>{
       try { if(this.game) this.game.leaveToMenu(); }

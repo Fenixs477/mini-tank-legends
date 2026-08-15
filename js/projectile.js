@@ -115,6 +115,24 @@ class Shell {
         this.mesh.lookAt(this.x + this.dir.x, this.y, this.z + this.dir.z);
         game.spawnExplosion(this.x, 1.0, this.z, 0xffeeaa, 4);
 
+        // Stylized bounce sparks: bright flash kicked along the reflected path
+        if(game && game.spawnBurst){
+          game.spawnBurst(this.x, 1.25, this.z, {
+            count: 16, tex: 'flare',
+            speed: 13, size: 0.55, life: 0.5, rise: 2.6, gravity: 18,
+            biasX: this.dir.x, biasZ: this.dir.z, spread: 0.6,
+          });
+          game.spawnBurst(this.x, 1.15, this.z, {
+            count: 7, tex: 'smoke',
+            speed: 3.2, size: 0.7, life: 0.6, rise: 1.6, gravity: 4,
+            blend: 'normal', biasX: this.dir.x, biasZ: this.dir.z, spread: 1.0,
+          });
+          if(game.localTank && game.localTank.alive){
+            const d = Math.hypot(game.localTank.x - this.x, game.localTank.z - this.z);
+            if(d < 20) game.addShake(0.45 * (1 - d / 20));
+          }
+        }
+
         // Restart trail at ricochet point so it shows the bend
         if(this._trail && game.trailManager){
           game.trailManager.endTrail(this._trail);
@@ -197,6 +215,19 @@ class Shell {
         if(armor && this._tryRicochet(t, game)){ continue; }
         t.takeDamage(this.damage, this.owner, game);
         game.spawnExplosion(this.x, 1.2, this.z, 0xff6a2a, 8);
+        // Impact sparks + a puff of smoke so a landed hit feels meaty
+        if(game && game.spawnBurst){
+          game.spawnBurst(this.x, 1.2, this.z, {
+            count: 12, tex: 'flare', speed: 10, size: 0.5, life: 0.42, rise: 3.2, gravity: 16,
+          });
+          game.spawnBurst(this.x, 1.2, this.z, {
+            count: 6, tex: 'smoke', speed: 2.6, size: 0.9, life: 0.5, rise: 2, gravity: 4, blend: 'normal',
+          });
+          if(game.localTank && game.localTank.alive){
+            const d = Math.hypot(game.localTank.x - this.x, game.localTank.z - this.z);
+            if(d < 22) game.addShake(0.5 * (1 - d / 22));
+          }
+        }
         this.dead = true;
         return;
       }
@@ -271,25 +302,80 @@ class FlameCone {
   }
 }
 
-/* Visual-only explosion */class Explosion {
+/* Visual-only explosion: bright flash, expanding shockwave ring, fireball
+   blobs, star-shaped sparks, spinning debris shards and fluffy smoke. */
+class Explosion {
   constructor(x,y,z,color,count){
     this.x=x;this.y=y;this.z=z;this.life=0.5;this.maxLife=0.5;this.dead=false;
     this.group=new THREE.Group(); this.group.position.set(x,y,z);
     this.parts=[];
-    // Flash (flare sprite)
-    const flareTex = VFX.getTex('flare');
-    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
-    flash.scale.set(4,4,1);
+    const tint = new THREE.Color(color || 0xffaa33);
+    const n = Math.max(1, count|0 || 6);
+
+    // 0) Bright flash core (additive flare), tinted to the kind of explosion
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('flare'), color:tint, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
+    flash.scale.set(5,5,1);
+    flash.userData = {type:'flash'};
     this.group.add(flash); this.parts.push(flash);
-    // Smoke particles
-    const smokeTex = VFX.getTex('smoke');
-    for(let i=0;i<count;i++){
-      const mat = new THREE.SpriteMaterial({map:smokeTex, transparent:true, opacity:0.7, depthWrite:false});
-      const s = new THREE.Sprite(mat);
-      const dir=new THREE.Vector3((Math.random()-0.5),Math.random()*0.5,(Math.random()-0.5)).normalize();
-      s.userData.v=dir.multiplyScalar(3+Math.random()*4);
-      s.scale.set(0.5+Math.random()*0.5, 0.5+Math.random()*0.5, 1);
-      this.group.add(s); this.parts.push(s);
+
+    // 1) Expanding shockwave ring hugs the ground
+    const ring = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('ring'), color:tint, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
+    ring.scale.set(0.8,0.8,1);
+    ring.position.y = 0.02;
+    ring.userData = {type:'ring'};
+    this.group.add(ring); this.parts.push(ring);
+
+    // 2) Fireball blobs near the core (additive)
+    const fireN = n < 6 ? 2 : 3;
+    for(let i=0;i<fireN;i++){
+      const a = Math.random()*Math.PI*2;
+      const spd = 1.2 + Math.random()*1.6;
+      const sc = 1.1 + Math.random()*0.8;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('fire'), color:tint, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false}));
+      sp.position.set(Math.cos(a)*0.3, Math.random()*0.4, Math.sin(a)*0.3);
+      sp.scale.set(sc,sc,1);
+      sp.userData = {type:'fire', v:new THREE.Vector3(Math.cos(a)*spd, 1.5+Math.random(), Math.sin(a)*spd), base:sc};
+      this.group.add(sp); this.parts.push(sp);
+    }
+
+    // 3) Sparks: thin star shapes flying out fast, spinning, falling
+    for(let i=0;i<n;i++){
+      const a = Math.random()*Math.PI*2;
+      const spd = 3 + Math.random()*7;
+      const u = {type:'spark', v:new THREE.Vector3(Math.cos(a)*spd, Math.random()*0.6, Math.sin(a)*spd), g:11+Math.random()*5, spin:8+Math.random()*14, base:0.4+Math.random()*0.4};
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('spark'), color:tint, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+      sp.position.set((Math.random()-0.5)*0.4, Math.random()*0.4, (Math.random()-0.5)*0.4);
+      sp.rotation.z = Math.random()*Math.PI*2;
+      sp.scale.set(u.base,u.base,1);
+      sp.userData = u;
+      this.group.add(sp); this.parts.push(sp);
+    }
+
+    // 4) Debris shards: chunky triangles / hex plates, spinning, heavier fall
+    const shardN = Math.max(1, Math.ceil(n/2));
+    for(let i=0;i<shardN;i++){
+      const a = Math.random()*Math.PI*2;
+      const spd = 2 + Math.random()*4;
+      const u = {type:'shard', v:new THREE.Vector3(Math.cos(a)*spd, 1+Math.random()*2, Math.sin(a)*spd), g:6+Math.random()*3, spin:(Math.random()<0.5?-1:1)*(3+Math.random()*6), base:0.55+Math.random()*0.45};
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex(i%2===0?'shard':'hex'), color:tint, transparent:true, opacity:0.9, depthWrite:false}));
+      sp.position.set((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5);
+      sp.rotation.z = Math.random()*Math.PI*2;
+      sp.scale.set(u.base,u.base,1);
+      sp.userData = u;
+      this.group.add(sp); this.parts.push(sp);
+    }
+
+    // 5) Smoke puffs: fluffy gray lobes, slow drift, grow large
+    const puffN = Math.max(2, Math.ceil(n*0.7));
+    for(let i=0;i<puffN;i++){
+      const a = Math.random()*Math.PI*2;
+      const spd = 0.3 + Math.random()*0.8;
+      const sc = 0.8 + Math.random()*0.9;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('puff'), transparent:true, opacity:0.4, depthWrite:false}));
+      sp.position.set(Math.cos(a)*0.2, Math.random()*0.3, Math.sin(a)*0.2);
+      sp.scale.set(sc,sc,1);
+      sp.userData = {type:'smoke', v:new THREE.Vector3(Math.cos(a)*spd, 0.4+Math.random()*0.5, Math.sin(a)*spd), base:sc};
+      this.group.add(sp); this.parts.push(sp);
     }
   }
   attach(scene){ scene.add(this.group); this.scene=scene; }
@@ -300,19 +386,51 @@ class FlameCone {
   }
   update(dt){
     this.life-=dt;
-    this.parts.forEach((p,i)=>{
-      if(i===0){
-        // Flash: shrink fast
-        const sc = 4 * (this.life/this.maxLife);
-        p.scale.set(sc,sc,1);
-        p.material.opacity = this.life/this.maxLife;
-      } else {
-        // Smoke: fly outward, fade, grow
-        p.position.addScaledVector(p.userData.v, dt);
-        p.userData.v.y -= 3*dt;
-        p.material.opacity = Math.max(0, 0.7 * (this.life/this.maxLife));
-        const sc = p.scale.x + 1.5*dt;
-        p.scale.set(sc,sc,1);
+    const lifeK = this.life/this.maxLife;  // 1 -> 0
+    const k = 1 - lifeK;                   // 0 -> 1
+    this.parts.forEach(p=>{
+      const u = p.userData;
+      switch(u.type){
+        case 'flash':
+          const fs = 5*lifeK + 0.4;
+          p.scale.set(fs,fs,1);
+          p.material.opacity = lifeK;
+          break;
+        case 'ring':
+          const rs = 0.8 + k*k*7.5;
+          p.scale.set(rs,rs,1);
+          p.material.opacity = Math.max(0, 0.85*(1-k*k));
+          break;
+        case 'fire':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y -= 3*dt;
+          const fg = u.base*(1+k*1.4);
+          p.scale.set(fg,fg,1);
+          p.material.opacity = Math.max(0, 0.9*(1-k*k));
+          break;
+        case 'spark':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y -= u.g*dt;
+          p.rotation.z += u.spin*dt;
+          const sg = u.base*(1 - k*k*0.65);
+          p.scale.set(Math.max(0.1,sg), Math.max(0.1,sg), 1);
+          p.material.opacity = Math.max(0, 0.95*lifeK);
+          break;
+        case 'shard':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y -= u.g*dt;
+          p.rotation.z += u.spin*dt;
+          const sd = u.base*(1+k*0.8);
+          p.scale.set(sd,sd,1);
+          p.material.opacity = Math.max(0, 0.9*lifeK);
+          break;
+        case 'smoke':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y += 0.4*dt;
+          const sm = u.base*(1+k*1.5);
+          p.scale.set(sm,sm,1);
+          p.material.opacity = Math.max(0, 0.4*lifeK);
+          break;
       }
     });
     if(this.life<=0) this.dead=true;

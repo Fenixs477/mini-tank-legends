@@ -39,13 +39,27 @@ class Game {
     this._gladZoneCanvas = null;
     this._gladZoneTex = null;
     this._gladZoneMesh = null;
+    this._gladChunkIdx = null;
+    this._gladPickTimer = 0;
+    this._gladMarker = null;
+    this._gladMarkerCanvas = null;
+    this._gladMarkerTex = null;
+    this._gladMarkerKey = null;
+    // Spectate state (WoT-style bottom tank bar after you die)
+    this.spectate = false;
+    this.spectateTarget = null;
+    this._spectateIndex = 0;
   }
 
   /* ---------- Three.js bootstrap ---------- */
   init(){
-    // MSAA only helps at 1x DPR; at higher pixel ratios supersampling already
-    // smooths edges, and antialias+high-res is the classic fill-rate killer.
-    this.renderer = new THREE.WebGLRenderer({antialias: devicePixelRatio <= 1, powerPreference: 'high-performance', stencil:false, depth:true});
+    // Automatic renderer backend fallback: WebGL2 -> WebGL1 -> experimental-webgl.
+    // (WebGPU is probed and reported, but this build runs on three r128 which
+    // can't yet drive a WebGPU context — that path lives in the newer TS port.)
+    if(!this._createRenderer()){
+      this._showNoWebGL();
+      return;
+    }
     this._maxPixelRatio = Math.min(devicePixelRatio, 1.5);
     this.renderer.setPixelRatio(this._maxPixelRatio);
     this.renderer.setSize(innerWidth, innerHeight);
@@ -195,6 +209,61 @@ class Game {
     });
   }
 
+  /** Create the WebGL renderer with an automatic backend fallback chain:
+      WebGL2 -> WebGL1 -> experimental-webgl. Throwing in a context/driver at
+      any step silently advances to the next backend instead of black-screening. */
+  _createRenderer(){
+    const canvas = document.createElement('canvas');
+    canvas.id = 'game-canvas';
+    const attrs = {
+      alpha: false,
+      depth: true,
+      stencil: false,
+      antialias: devicePixelRatio <= 1,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: false,
+    };
+    const attempts = [['webgl2', 'WebGL2'], ['webgl', 'WebGL1'], ['experimental-webgl', 'WebGL1(exp)']];
+    for(const [name, label] of attempts){
+      let gl = null;
+      try { gl = canvas.getContext(name, attrs); } catch(e){ gl = null; }
+      if(!gl) continue;
+      try {
+        this.renderer = new THREE.WebGLRenderer({
+          canvas,
+          context: gl,
+          antialias: devicePixelRatio <= 1,
+          powerPreference: 'high-performance',
+          stencil: false,
+          depth: true,
+        });
+      } catch(e){ this.renderer = null; }
+      if(this.renderer && this.renderer.getContext()){
+        this._backend = label;
+        break;
+      }
+    }
+    if(!this.renderer){
+      try { canvas.remove(); } catch(e){}
+      this.renderer = null;
+      return false;
+    }
+    this._webgpuAvailable = !!(typeof navigator !== 'undefined' && navigator.gpu);
+    return true;
+  }
+
+  _showNoWebGL(){
+    let el = document.getElementById('webgl-error');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'webgl-error';
+      el.style.cssText = 'position:fixed;inset:0;z-index:999999;display:flex;align-items:center;justify-content:center;text-align:center;background:#0c1016;color:#fff;font-family:sans-serif;padding:24px;';
+      el.innerHTML = '<div><h1 style="margin:0 0 10px;font-size:20px">3D rendering unavailable</h1><div style="color:#9aa0ab;line-height:1.6">This game needs WebGL 1 or WebGL 2, and no working backend could be created.<br>Try enabling hardware acceleration or updating your browser/device drivers.</div></div>';
+      document.body.appendChild(el);
+    }
+    el.style.display = 'flex';
+  }
+
   /** Build the custom full-screen performance overlay DOM */
   _buildPerfOverlay(){
     this._perfFpsHistory = [];
@@ -235,7 +304,12 @@ class Game {
 
     document.body.appendChild(d);
     this._perfOverlay = d;
-    document.getElementById('perf-row-gpu').textContent = 'GPU  ' + gpuName;
+    var gpuRow = document.getElementById('perf-row-gpu');
+    if(gpuRow){
+      gpuRow.textContent = 'GPU  ' + gpuName +
+        (this._backend ? '   ·  [' + this._backend + ']' : '   ·  [unknown]') +
+        '   ·  WebGPU:' + (this._webgpuAvailable ? 'yes' : 'no');
+    }
   }
 
   /** Throttled overlay update — called every frame but only rewrites DOM ~3x/sec */
@@ -609,9 +683,9 @@ class Game {
     this._gladChunkGlowTime = 0;
     
     // Zone ground overlay (canvas texture, regenerated on state change)
-    this._gladZoneCanvas = document.createElement('canvas');
-    this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
-    this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+    const _zo = this._createGladZoneOverlay();
+    this._gladZoneCanvas = _zo.canvas;
+    this._gladZoneTex = _zo.tex;
     const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.55, depthWrite:false});
     const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
     zgeo.rotateX(-Math.PI/2);
@@ -634,6 +708,7 @@ class Game {
      this.glad = null;
      if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
      if(this._gladZoneTex) this._gladZoneTex.dispose();
+     if(this._gladMarker){ this.scene.remove(this._gladMarker); if(this._gladMarkerTex) this._gladMarkerTex.dispose(); this._gladMarker = null; this._gladMarkerCanvas = null; this._gladMarkerTex = null; this._gladMarkerKey = null; }
      this._gladBoxes.forEach(b => { if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); } });
      this._gladBoxes = [];
      this._gladPickups.forEach(p => { if(p.mesh){ this.scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); } });
@@ -657,11 +732,12 @@ class Game {
      this._gladCorruptedChunks.clear();
      this._gladNextCorruptionIndex = 0;
      this._gladChunkGlowTime = 0;
-     if(this._gladZoneCanvas){
-       this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
-       if(this._gladZoneTex) this._gladZoneTex.dispose();
-       this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
-     }
+if(this._gladZoneCanvas){
+        if(this._gladZoneTex) this._gladZoneTex.dispose();
+        const _zo2 = this._createGladZoneOverlay();
+        this._gladZoneCanvas = _zo2.canvas;
+        this._gladZoneTex = _zo2.tex;
+      }
      
      const gh = document.getElementById('glad-hud');
      if(gh) gh.classList.add('hidden');
@@ -726,135 +802,220 @@ class Game {
     return false;
   }
 
-  _inGladRed(x, z){
-    const g = this.glad;
-    if(!g) return false;
-    const h = g.safeHalf;
-    if(h <= 0) return true;
-    return Math.abs(x) > h || Math.abs(z) > h;
-  }
+_inGladRed(x, z){
+     const g = this.glad;
+     if(!g) return false;
+     const c = this._gladChunkAt(x, z);
+     if(!c) return true;   // off-grid (wall/lake/outside) = unsafe
+     return c.state === 'red';
+   }
+
+   _gladChunkAt(x, z){
+     const g = this.glad;
+     if(!g || !this._gladChunkIdx) return null;
+     const cs = g.cfg.zone.chunk;
+     const gi = Math.round(x / cs), gj = Math.round(z / cs);
+     return this._gladChunkIdx.get(gi + ',' + gj) || null;
+   }
 
    _initGladChunkGrid(){
      const g = this.glad;
      const cfg = g.cfg;
      const zoneHalf = this.world.half;
      const chunkSize = cfg.zone.chunk;
-     
-     // Create a chunk grid covering the entire map
-     // Each chunk is a rectangle of the map grid
+
+     // Create a chunk grid covering the entire map.
+     // Each chunk starts 'safe'; the zone flags random edge chunks 'orange'
+     // (countdown) and later 'red' (danger).
      const chunkGridSize = Math.ceil(zoneHalf / chunkSize) + 1;
-     
+
      this._gladZoneChunks = [];
+     this._gladChunkIdx = new Map();
      for(let gx = -chunkGridSize; gx <= chunkGridSize; gx++){
        for(let gz = -chunkGridSize; gz <= chunkGridSize; gz++){
          const cx = gx * chunkSize;
          const cz = gz * chunkSize;
          // Check if this chunk is within the world
          if(this.world._inLake(cx, cz, 1) || this.world.collidesWallsOnly(cx, cz, 1)) continue;
-         this._gladZoneChunks.push({
+         const chunk = {
            x: cx, z: cz,
            id: gx + ',' + gz,
-           state: 'grace', // 'grace' | 'orange' | 'red'
+           gi: gx, gj: gz,
+           state: 'safe',   // 'safe' | 'orange' | 'red'
+           orangeUntil: 0,
            glowTime: 0,
-           edgeDist: Infinity,
-         });
+         };
+         this._gladZoneChunks.push(chunk);
+         this._gladChunkIdx.set(chunk.id, chunk);
        }
      }
      // Track which chunks are close to player for countdown
      this._gladPlayerChunkDist = null;
    }
 
-   _refreshGladZone(){
-     if(!this._gladZoneMesh || !this._gladZoneCanvas) return;
-     const g = this.glad, ctx = this._gladZoneCanvas.getContext('2d'), S = this._gladZoneCanvas.width;
-     const scale = S / this.world.size;
-     const toPx = (v) => S/2 + v * scale;
-     ctx.clearRect(0, 0, S, S);
-     if(g.phase === 'grace'){ this._gladZoneMesh.visible = false; return; }
-     this._gladZoneMesh.visible = true;
-     // Draw zone boundaries and chunk overlays
-     this._drawGladZone();
-     this._gladZoneTex.needsUpdate = true;
+   /* Chunks currently safe that border a red chunk or the outer map edge. */
+   _gladEdgeChunks(){
+     const g = this.glad;
+     if(!g || !this._gladZoneChunks || !this._gladChunkIdx) return [];
+     const out = [];
+     for(const c of this._gladZoneChunks){
+       if(c.state !== 'safe') continue;
+       const nb = [
+         (c.gi + 1) + ',' + c.gj,
+         (c.gi - 1) + ',' + c.gj,
+         c.gi + ',' + (c.gj + 1),
+         c.gi + ',' + (c.gj - 1),
+       ];
+       let edge = false;
+       for(let k = 0; k < 4; k++){
+         const n = this._gladChunkIdx.get(nb[k]);
+         if(!n || n.state === 'red'){ edge = true; break; }
+       }
+       if(edge) out.push(c);
+     }
+     return out;
    }
 
-   _drawGladZone(){
+   /* Seconds between flagging a new chunk orange — accelerates as the safe
+      area shrinks and as the match reaches its end-game. */
+   _gladPickInterval(){
      const g = this.glad;
-     if(!g || g.phase === 'grace') return;
+     if(!g || !this._gladZoneChunks) return 8;
+     let total = 0, safeCount = 0;
+     for(const c of this._gladZoneChunks){ total++; if(c.state !== 'red') safeCount++; }
+     const frac = total ? (1 - safeCount / total) : 1;
+     const base = (g.cfg.zone.pickTime || 8);
+     let iv = Math.max(0.5, base - frac * (base - 2));
+     if(g.alive != null && g.alive > 0 && g.alive <= 3) iv = Math.min(iv, 1.2);
+     return iv;
+   }
+
+   /* Axis-aligned bounding box of the remaining safe (non-red) chunks. */
+   _gladSafeBounds(){
+     if(!this._gladZoneChunks) return null;
+     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, n = 0;
+     for(const c of this._gladZoneChunks){
+       if(c.state === 'red') continue;
+       if(c.x < minX) minX = c.x;
+       if(c.x > maxX) maxX = c.x;
+       if(c.z < minZ) minZ = c.z;
+       if(c.z > maxZ) maxZ = c.z;
+       n++;
+     }
+     if(!n) return null;
+     return { minX: minX, maxX: maxX, minZ: minZ, maxZ: maxZ };
+   }
+
+   /* Radius of the remaining safe area (half the wider bounding-box side). */
+   _gladSafeRadius(){
+     const b = this._gladSafeBounds();
+     if(!b) return 0;
+     return Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2;
+   }
+
+   /* High-res (1024px) zone overlay canvas so the square-grid tiles render
+      crisp instead of smeared. Texture keeps linear filtering for distance. */
+   _createGladZoneOverlay(){
+     const canvas = document.createElement('canvas');
+     canvas.width = canvas.height = 1024;
+     const tex = new THREE.CanvasTexture(canvas);
+     tex.generateMipmaps = false;
+     tex.minFilter = THREE.LinearFilter;
+     tex.magFilter = THREE.LinearFilter;
+     if(this.renderer && this.renderer.capabilities && this.renderer.capabilities.getMaxAnisotropy){
+       try { tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); } catch(e){}
+     }
+     return { canvas: canvas, tex: tex };
+   }
+
+   _refreshGladZone(){
+     if(!this._gladZoneMesh || !this._gladZoneCanvas) return;
+     const g = this.glad;
+     if(g.phase === 'grace'){ this._gladZoneMesh.visible = false; return; }
+     this._gladZoneMesh.visible = true;
+     // Redraw tiles; live variants (pulse, countdown marker) run per-frame.
+     this._gladPaintZone();
+   }
+
+   /* Paint the ground canvas from the current chunk states. */
+   _gladPaintZone(){
+     if(!this._gladZoneCanvas) return;
      const ctx = this._gladZoneCanvas.getContext('2d');
      const S = this._gladZoneCanvas.width;
+     ctx.clearRect(0, 0, S, S);
+     if(this.glad && this.glad.phase !== 'grace') this._drawGladZone(ctx, S);
+     if(this._gladZoneTex) this._gladZoneTex.needsUpdate = true;
+   }
+
+   _drawGladZone(ctx, S){
+     const g = this.glad;
+     if(!g || g.phase === 'grace') return;
+     if(!this._gladZoneChunks) return;
      const scale = S / this.world.size;
      const toPx = (v) => S/2 + v * scale;
-     const safeHalf = Math.max(0, g.safeHalf);
-     
-     // Draw the zone boundary (green line for orange, red line for red)
-     const isRed = g.phase === 'red';
-     const zoneColor = isRed ? [255, 40, 40] : [255, 165, 0];
-     const zoneAlpha = isRed ? 0.95 : 0.75;
-     
-     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},${zoneAlpha})`;
-     ctx.lineWidth = Math.max(3, S * 0.008);
-     
-     // Draw zone edge
-     const sh = Math.max(0, safeHalf);
-     const sX = toPx(-sh), sW = Math.max(1, toPx(sh) - sX);
-     ctx.strokeRect(sX, sX, sW, sW);
-     
-     // Draw glow outline for zone
-     ctx.strokeStyle = `rgba(${zoneColor[0]},${zoneColor[1]},${zoneColor[2]},0.3)`;
-     ctx.lineWidth = Math.max(5, S * 0.02);
-     ctx.strokeRect(sX, sX, sW, sW);
-     
-     // Draw chunk overlays
+     const chunkSize = g.cfg.zone.chunk;
+     const cell = chunkSize * scale;
+     ctx.lineCap = 'round';
+
+     // Crisp square-grid tiles: orange warning chunks and red danger chunks.
      for(const chunk of this._gladZoneChunks){
-       const cx = toPx(chunk.x);
-       const cz = toPx(chunk.z);
-       // Check if chunk is in current zone
-       const inZone = this._gladChunkInZone(chunk);
-       const isRed = inZone && (g.phase === 'red');
-       const isOrange = inZone && (g.phase === 'orange');
-       
-       if(inZone && !isRed){
-         // Orange zone - draw chunk with orange indicator
-         ctx.fillStyle = 'rgba(255,165,0,0.15)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
-         // Add glow
-         ctx.fillStyle = 'rgba(255,165,0,0.4)';
-         ctx.fillRect(cx - 6, cz - 6, 12, 12);
-       } else if(inZone && isRed){
-         // Red zone - draw chunk with red glowing X
-         // Glow outline
-         ctx.fillStyle = 'rgba(255,40,40,0.25)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
-         ctx.fillStyle = 'rgba(255,40,40,0.5)';
-         ctx.fillRect(cx - 6, cz - 6, 12, 12);
-         // Glowing X mark
-         this._drawGlowX(ctx, cx, cz, 12, 16, isRed);
-       } else {
-         // Outside zone
-         ctx.fillStyle = 'rgba(0,0,0,0.1)';
-         ctx.fillRect(cx - 3, cz - 3, 6, 6);
-       }
+       if(chunk.state !== 'orange' && chunk.state !== 'red') continue;
+       const cx = toPx(chunk.x), cz = toPx(chunk.z);
+       if(chunk.state === 'orange') this._drawOrangeTile(ctx, cx, cz, cell);
+       else this._drawRedTile(ctx, cx, cz, cell);
+     }
+
+     // Dashed outline around the remaining safe chunks
+     const b = this._gladSafeBounds();
+     if(b){
+       const x1 = toPx(b.minX), z1 = toPx(b.minZ);
+       const x2 = toPx(b.maxX), z2 = toPx(b.maxZ);
+       ctx.save();
+       ctx.strokeStyle = 'rgba(255,200,90,0.9)';
+       ctx.lineWidth = Math.max(2.5, S * 0.004);
+       ctx.setLineDash([Math.max(5, cell * 0.16), Math.max(5, cell * 0.12)]);
+       ctx.strokeRect(x1, z1, Math.max(1, x2 - x1), Math.max(1, z2 - z1));
+       ctx.restore();
      }
    }
 
-   _drawGlowX(ctx, cx, cz, size, gap, isRed){
-     // Draw a glowing X mark in the center of each chunk
-     const lineThickness = isRed ? 4 : 3;
-     ctx.strokeStyle = isRed ? '#ff0000' : '#ff8800';
-     ctx.lineWidth = lineThickness;
-     ctx.lineCap = 'round';
-     
-     const s = gap;
+   /* Orange warning tile: crisp filled square (part of the square-grid look). */
+   _drawOrangeTile(ctx, cx, cz, cell){
+     const inset = Math.max(1, cell * 0.05);
+     const s = cell - inset * 2;
+     const x0 = cx - cell/2 + inset, z0 = cz - cell/2 + inset;
+     ctx.fillStyle = 'rgba(255,160,45,0.5)';
+     ctx.fillRect(x0, z0, s, s);
+     ctx.strokeStyle = 'rgba(255,214,120,0.6)';
+     ctx.lineWidth = Math.max(1.5, cell * 0.035);
+     ctx.strokeRect(x0, z0, s, s);
+   }
+
+   /* Red danger tile: crisp red square + symmetric lattice of tiny X marks. */
+   _drawRedTile(ctx, cx, cz, cell){
+     const t = this.time || 0;
+     const inset = Math.max(1, cell * 0.05);
+     const s = cell - inset * 2;
+     const x0 = cx - cell/2 + inset, z0 = cz - cell/2 + inset;
+     ctx.fillStyle = `rgba(205,32,32,${0.5 + 0.1 * Math.sin(t * 5 + cx * 0.13 + cz * 0.07)})`;
+     ctx.fillRect(x0, z0, s, s);
+     ctx.strokeStyle = 'rgba(255,95,80,0.6)';
+     ctx.lineWidth = Math.max(1.5, cell * 0.035);
+     ctx.strokeRect(x0, z0, s, s);
+     const n = 3;
+     const step = s / n;
+     const hx = cell * 0.055;
      ctx.beginPath();
-     ctx.moveTo(cx - s, cz - s);
-     ctx.lineTo(cx + s, cz + s);
-     ctx.moveTo(cx + s, cz - s);
-     ctx.lineTo(cx - s, cz + s);
-     ctx.stroke();
-     
-     // Glow effect
-     ctx.strokeStyle = isRed ? 'rgba(255,0,0,0.2)' : 'rgba(255,140,0,0.2)';
-     ctx.lineWidth = lineThickness + 4;
+     for(let i = 0; i < n; i++){
+       for(let j = 0; j < n; j++){
+         const x = x0 + (i + 0.5) * step;
+         const z = z0 + (j + 0.5) * step;
+         ctx.moveTo(x - hx, z - hx); ctx.lineTo(x + hx, z + hx);
+         ctx.moveTo(x - hx, z + hx); ctx.lineTo(x + hx, z - hx);
+       }
+     }
+     ctx.strokeStyle = '#ff5a4d';
+     ctx.lineWidth = Math.max(1.5, cell * 0.042);
      ctx.stroke();
    }
 
@@ -871,37 +1032,115 @@ _gladZoneNotice(text){
      Menu.toast(text);
    }
 
-   _drawCountdownPlaceholder(ctx, x, z, orangeHalf){
-     const g = this.glad;
-     if(!g || !this.localTank || !this.localTank.alive) return;
-     
-     const S = this._gladZoneCanvas.width;
-     const scale = S / this.world.size;
-     const px = S/2 + x * scale;
-     const pz = S/2 + z * scale;
-     const radius = Math.max(8, (orangeHalf - g.safeHalf) * scale * 0.4);
-     const countdown = Math.max(0, g.phaseTimer);
-     const seconds = Math.ceil(countdown);
-     
-     // Orange ring
+   /* Floating zone marker above the orange/red chunk closest to the player.
+      A THREE.Sprite always faces the camera (billboard). Orange chunks show
+      their per-chunk countdown; red chunks just show a danger badge. */
+   _gladEnsureMarker(){
+     if(this._gladMarker) return this._gladMarker;
+     const cv = document.createElement('canvas');
+     cv.width = cv.height = 256;
+     const tex = new THREE.CanvasTexture(cv);
+     tex.minFilter = THREE.LinearFilter;
+     tex.magFilter = THREE.LinearFilter;
+     const mat = new THREE.SpriteMaterial({map: tex, transparent: true, depthTest: true, depthWrite: false});
+     const spr = new THREE.Sprite(mat);
+     spr.scale.set(5.2, 5.2, 1);
+     this._gladMarkerCanvas = cv;
+     this._gladMarkerTex = tex;
+     this._gladMarkerKey = null;
+     this._gladMarker = spr;
+     this.scene.add(spr);
+     spr.visible = false;
+     return spr;
+   }
+
+   _gladHideMarker(){
+     if(this._gladMarker && this._gladMarker.visible) this._gladMarker.visible = false;
+   }
+
+   _roundRect(ctx, x, y, w, h, r){
      ctx.beginPath();
-     ctx.arc(px, pz, radius, 0, Math.PI * 2);
-     ctx.strokeStyle = 'rgba(255,165,0,0.9)';
-     ctx.lineWidth = 3;
-     ctx.stroke();
-     
-     // Inner red fill
-     ctx.beginPath();
-     ctx.arc(px, pz, radius - 4, 0, Math.PI * 2);
-     ctx.fillStyle = 'rgba(255,40,40,0.5)';
-     ctx.fill();
-     
-     // Countdown number
-     ctx.fillStyle = 'rgba(255,255,255,0.95)';
-     ctx.font = 'bold 14px Arial';
+     if(ctx.roundRect){ ctx.roundRect(x, y, w, h, r); return; }
+     ctx.moveTo(x + r, y);
+     ctx.arcTo(x + w, y, x + w, y + h, r);
+     ctx.arcTo(x + w, y + h, x, y + h, r);
+     ctx.arcTo(x, y + h, x, y, r);
+     ctx.arcTo(x, y, x + w, y, r);
+     ctx.closePath();
+   }
+
+   _gladDrawMarkerFace(isOrange, secs){
+     const cv = this._gladMarkerCanvas;
+     const ctx = cv.getContext('2d');
+     const W = cv.width, H = cv.height;
+     ctx.clearRect(0, 0, W, H);
      ctx.textAlign = 'center';
      ctx.textBaseline = 'middle';
-     ctx.fillText(seconds, px, pz);
+     if(isOrange){
+       const w = 210, h = 126;
+       const x = (W - w) / 2, y = (H - h) / 2;
+       ctx.fillStyle = 'rgba(255,140,30,0.28)';
+       this._roundRect(ctx, x - 10, y - 10, w + 20, h + 20, 20); ctx.fill();
+       ctx.fillStyle = 'rgba(18,15,9,0.94)';
+       this._roundRect(ctx, x, y, w, h, 18); ctx.fill();
+       ctx.strokeStyle = 'rgba(255,190,80,0.95)';
+       ctx.lineWidth = 5;
+       this._roundRect(ctx, x, y, w, h, 18); ctx.stroke();
+       ctx.font = '900 88px Arial, sans-serif';
+       ctx.fillStyle = '#ffd188';
+       ctx.fillText(String(secs), W / 2, H / 2 + 4);
+       ctx.font = '700 26px Arial, sans-serif';
+       ctx.fillStyle = 'rgba(255,200,120,0.92)';
+       ctx.fillText('ZONE IN', W / 2, y - 32);
+       ctx.fillText('turns red', W / 2, y + h + 32);
+     } else {
+       const w = 200, h = 200;
+       const x = (W - w) / 2, y = (H - h) / 2;
+       ctx.fillStyle = 'rgba(255,55,35,0.3)';
+       this._roundRect(ctx, x - 10, y - 10, w + 20, h + 20, 30); ctx.fill();
+       ctx.fillStyle = 'rgba(22,8,8,0.96)';
+       this._roundRect(ctx, x, y, w, h, 24); ctx.fill();
+       ctx.strokeStyle = 'rgba(255,70,50,0.95)';
+       ctx.lineWidth = 6;
+       this._roundRect(ctx, x, y, w, h, 24); ctx.stroke();
+       ctx.font = '900 130px Arial, sans-serif';
+       ctx.fillStyle = '#ff4a35';
+       ctx.fillText('!', W / 2, H / 2 + 8);
+       ctx.font = '700 28px Arial, sans-serif';
+       ctx.fillStyle = 'rgba(255,120,100,0.92)';
+       ctx.fillText('DANGER', W / 2, y + h + 32);
+     }
+   }
+
+   /* Place the marker on the nearest orange/red chunk and point it at the camera. */
+   _gladUpdateMarker(){
+     const g = this.glad, tank = this.localTank;
+     if(!g || g.phase === 'grace' || g.ended || !tank || !tank.alive || !this._gladZoneChunks){
+       this._gladHideMarker();
+       return;
+     }
+     let best = null, bestD = Infinity;
+     for(const c of this._gladZoneChunks){
+       if(c.state !== 'orange' && c.state !== 'red') continue;
+       const d = Math.hypot(c.x - tank.x, c.z - tank.z);
+       if(d < bestD){ bestD = d; best = c; }
+     }
+     if(!best){ this._gladHideMarker(); return; }
+     const spr = this._gladEnsureMarker();
+     const isOrange = best.state === 'orange';
+     const secs = isOrange ? Math.max(0, Math.ceil(best.orangeUntil - (this.time || 0))) : 0;
+     const key = (isOrange ? 'o' : 'r') + ':' + Math.min(99, secs);
+     if(this._gladMarkerKey !== key){
+       this._gladMarkerKey = key;
+       this._gladDrawMarkerFace(isOrange, secs);
+       if(this._gladMarkerTex) this._gladMarkerTex.needsUpdate = true;
+     }
+     spr.position.set(
+       best.x,
+       4.6 + Math.sin((this.time || 0) * 2.4 + best.x * 0.3) * 0.28,
+       best.z
+     );
+     spr.visible = true;
    }
 
    _gladSpawnForNew(){
@@ -920,100 +1159,57 @@ _gladZoneNotice(text){
   _gladUpdate(dt){
     if(this._matchStartDelay > 0) return;
     const g = this.glad;
-    if(!g || g.ended) return;
+    if(!g){ this._gladHideMarker(); return; }
+    if(g.ended){ this._gladHideMarker(); return; }
     const cfg = g.cfg;
 
-    // Zone stage machine: grace -> orange (warning) -> corruption -> red -> shrink -> orange...
-    g.phaseTimer -= dt;
-    if(g.phase === 'grace' && g.phaseTimer <= 0){
-      g.phase = 'orange';
-      g.orangeHalf = this.world.half;
-      g.phaseTimer = cfg.zone.stageTime;
+    // Zone stage machine: grace, then the zone repeatedly flags a random
+    // safe-edge chunk ORANGE (per-chunk countdown) and flips it RED when its
+    // timer runs out.
+    const isHost = !g._client;
+    if(isHost && g.phase === 'grace' && g.phaseTimer <= 0){
+      g.phase = 'active';
+      this._gladPickTimer = 0.5;
       this._refreshGladZone();
       Menu.toast('Zone incoming!');
-    } else if(g.phase === 'orange' && g.phaseTimer <= 0){
-      g.corruptionTimer = 0;
-      let next = g.safeHalf - cfg.zone.chunk;
-      if(next < cfg.zone.minHalf) next = (g.safeHalf <= cfg.zone.minHalf) ? cfg.zone.finalHalf : cfg.zone.minHalf;
-      g.safeHalf = Math.max(0, next);
-      g.orangeHalf = g.safeHalf + cfg.zone.chunk;
-      g.stage++;
-      g.phaseTimer = cfg.zone.stageTime;
-      this._refreshGladZone();
-      Menu.toast('Zone shrinking!');
     }
 
-    // Corruption phase: one chunk at a time from edges, one by one
-    if(g.phase === 'orange' && g.corruptionTimer <= 0){
-      // Start corrupting
-      g.corruptionTimer = 5; // 5 seconds before corruption starts
-    }
+    if(isHost && g.phase === 'active'){
+      let changed = false;
+      const now = this.time || 0;
 
-    // Update corruption state
-    if(g.phase === 'orange'){
-      g.corruptionTimer -= dt;
-      if(g.corruptionTimer <= 0){
-        // Corrupt one random edge chunk
-        const edgeChunks = this._gladZoneChunks.filter(c =>
-          Math.abs(c.x) >= g.safeHalf - this.glad.cfg.zone.chunk ||
-          Math.abs(c.z) >= g.safeHalf - this.glad.cfg.zone.chunk
-        );
-        if(edgeChunks.length > 0){
-          // Random order corruption
-          const idx = Math.floor(Math.random() * edgeChunks.length);
-          const chunk = edgeChunks[idx];
-          chunk.state = 'red';
-          chunk.corruptionTime = 0;
-          this._gladCorruptedChunks.add(chunk.id);
-          this._refreshGladZone();
-          Menu.toast('Zone shifting...');
+      // Orange chunks reaching their countdown turn red (danger)
+      for(const c of this._gladZoneChunks){
+        if(c.state === 'orange' && now >= c.orangeUntil){
+          c.state = 'red';
+          this._gladCorruptedChunks.add(c.id);
+          changed = true;
         }
       }
-    }
 
-    // Countdown placeholder: show orange zone hint at player's edge location
-    if(g.phase === 'orange' && this.localTank && this.localTank.alive){
-      const orangeHalf = g.orangeHalf;
-      let px = this.localTank.x, pz = this.localTank.z;
-      
-      // Project to orange zone boundary: find the nearest point on orange boundary
-      if(px > -orangeHalf && px < orangeHalf && pz > -orangeHalf && pz < orangeHalf){
-        // Inside orange zone, push to boundary
-        const distX = orangeHalf - Math.abs(px);
-        const distZ = orangeHalf - Math.abs(pz);
-        if(distX < distZ) px = (px >= 0 ? orangeHalf : -orangeHalf);
-        else pz = (pz >= 0 ? orangeHalf : -orangeHalf);
-      } else {
-        // Outside orange zone - find nearest point on boundary rectangle
-        const closestX = Math.max(-orangeHalf, Math.min(orangeHalf, px));
-        const closestZ = Math.max(-orangeHalf, Math.min(orangeHalf, pz));
-        px = closestX;
-        pz = closestZ;
-      }
-      
-// Find which chunk this placeholder is in (chunk size available for future use)
-      // const chunkX = Math.round(px / chunkSize) * chunkSize;
-      // const chunkZ = Math.round(pz / chunkSize) * chunkSize;
-      
-      // Display countdown for this chunk area
-      this._drawCountdownPlaceholder(ctx, px, pz, orangeHalf);
-    }
-
-    // Handle red zone chunks: update corruption time and apply damage visuals
-    if(g.phase === 'orange' || g.phase === 'red'){
-      for(const chunk of this._gladZoneChunks){
-        if(chunk.state === 'red'){
-          chunk.corruptionTime += dt;
-          // Red chunks glow more as they "corrupt"
-          const glowIntensity = Math.min(1, chunk.corruptionTime / 30);
-          ctx.fillStyle = `rgba(255,40,40,${0.25 + glowIntensity * 0.3})`;
-          ctx.fillRect(
-            toPx(chunk.x) - 3,
-            toPx(chunk.z) - 3,
-            6, 6
-          );
+      // Periodically pick a new random edge chunk to warn (orange)
+      if(!this._gladZoneChunks) this._initGladChunkGrid();
+      this._gladPickTimer -= dt;
+      if(this._gladPickTimer <= 0){
+        this._gladPickTimer = this._gladPickInterval();
+        const edge = this._gladEdgeChunks();
+        if(edge.length > 0){
+          const c = edge[Math.floor(Math.random() * edge.length)];
+          if(c.state === 'safe'){
+            c.state = 'orange';
+            c.orangeUntil = now + (this.glad.cfg.zone.chunkOrange || 30);
+            changed = true;
+          }
         }
       }
+
+      if(changed) this._refreshGladZone();
+    }
+
+    // Per-frame zone canvas repaint + floating countdown/danger marker
+    if(g.phase !== 'grace'){
+      this._gladPaintZone();
+      this._gladUpdateMarker();
     }
 
     // Red zone damage (10 HP/s while outside the safe square)
@@ -1122,7 +1318,7 @@ _gladZoneNotice(text){
 
   _gladSpawnAirdrop(){
     const cfg = this.glad.cfg;
-    const half = Math.max(12, this.glad.safeHalf - 10);
+    const half = Math.max(12, this._gladSafeRadius() - 10);
     let x = 0, z = 0, tries = 0;
     do {
       x = (Math.random() * 2 - 1) * half;
@@ -1158,11 +1354,18 @@ _gladZoneNotice(text){
       } : null,
       boxes: this._gladBoxes.filter(b => b.alive).map(b => ({id: b.id, x: b.x, z: b.z, hp: b.hp})),
       pickups: this._gladPickups.map(p => ({x: p.x, z: p.z, power: p.power})),
+      redChunks: (this._gladZoneChunks || []).filter(c => c.state === 'red').map(c => c.id),
+      orangeChunks: (this._gladZoneChunks || []).filter(c => c.state === 'orange').map(c => ({
+        id: c.id,
+        secs: Math.max(0, (c.orangeUntil || 0) - (this.time || 0)),
+      })),
+      chunkSize: this.glad.cfg.zone.chunk,
     };
   }
 
   _gladApplyHostSnapshot(gs){
-    const cfg = GAMEMODES.gladiator;
+    const base = GAMEMODES.gladiator;
+    const cfg = Object.assign({}, base, {zone: Object.assign({}, base.zone, {chunk: gs.chunkSize || base.zone.chunk})});
     if(!this.glad){
       this.glad = {
         cfg, stage:0, safeHalf:this.world.half, orangeHalf:null, phase:'grace', phaseTimer:0,
@@ -1170,9 +1373,9 @@ _gladZoneNotice(text){
       };
       this._gladBoxes = [];
       this._gladPickups = [];
-      this._gladZoneCanvas = document.createElement('canvas');
-      this._gladZoneCanvas.width = this._gladZoneCanvas.height = 256;
-      this._gladZoneTex = new THREE.CanvasTexture(this._gladZoneCanvas);
+      const _zo3 = this._createGladZoneOverlay();
+      this._gladZoneCanvas = _zo3.canvas;
+      this._gladZoneTex = _zo3.tex;
       const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.9, depthWrite:false});
       const zgeo = new THREE.PlaneGeometry(this.world.size, this.world.size);
       zgeo.rotateX(-Math.PI/2);
@@ -1247,17 +1450,27 @@ _gladZoneNotice(text){
       this._gladPickups.splice(i, 1);
     }
     (gs.pickups || []).forEach(sp => this._gladDropPickup(sp.x, sp.z, sp.power));
-    // Zone overlay texture is static (client-side red/green approximation is fine;
-    // the authoritative visual comes from safeHalf) — regenerate cheap canvas
-    this._refreshGladZoneClient();
+    // Sync per-chunk zone states so clients render the same orange/red grid
+    if(!this._gladZoneChunks) this._initGladChunkGrid();
+    if(this._gladZoneChunks){
+      const redSet = new Set(gs.redChunks || []);
+      const orMap = new Map((gs.orangeChunks || []).map(o => [o.id, Math.max(0, o.secs || 0)]));
+      const now = this.time || 0;
+      let zoneChanged = false;
+      for(const c of this._gladZoneChunks){
+        let st = 'safe';
+        if(redSet.has(c.id)) st = 'red';
+        else if(orMap.has(c.id)) st = 'orange';
+        if(st === 'orange') c.orangeUntil = now + orMap.get(c.id);
+        else c.orangeUntil = 0;
+        if(st !== c.state){ c.state = st; zoneChanged = true; }
+      }
+      this._refreshGladZone();
+    }
     // End-of-match notification
     if(!prevEnded && g.ended){
       this._gladShowResult(false);
     }
-  }
-
-  _refreshGladZoneClient(){
-    this._refreshGladZone();
   }
 
   _gladZoneNotice(text){
@@ -1653,6 +1866,91 @@ _gladZoneNotice(text){
     this._initPhysics();
   }
 
+  /* ---------- Spectator mode (WoT-style bottom tank bar) ---------- */
+  _spectateTanks(){
+    return this.tanks.filter(t => t && !t.isDummy && !t.isLocal);
+  }
+
+  _startSpectate(){
+    if(this.spectate) return;
+    this.spectate = true;
+    this.spectateTarget = null;
+    if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+    const bar = document.getElementById('spectate-bar');
+    if(bar) bar.classList.remove('hidden');
+    this._renderSpectateBar();
+    this._spectateNext(1);
+    Menu.toast('Spectating — pick a tank below');
+  }
+
+  _stopSpectate(){
+    this.spectate = false;
+    this.spectateTarget = null;
+    const bar = document.getElementById('spectate-bar');
+    if(bar) bar.classList.add('hidden');
+  }
+
+  _renderSpectateBar(){
+    const bar = document.getElementById('spectate-bar');
+    if(!bar) return;
+    let row = document.getElementById('spectate-chips');
+    if(!row){
+      row = document.createElement('div');
+      row.id = 'spectate-chips';
+      row.className = 'spectate-chips';
+      bar.appendChild(row);
+    }
+    row.innerHTML = '';
+    const tanks = this._spectateTanks();
+    for(const t of tanks){
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      const active = t === this.spectateTarget;
+      const dead = !t.alive || t.dying;
+      chip.className = 'spec-chip' + (active ? ' spec-active' : '') + (dead ? ' spec-dead' : '');
+      const name = document.createElement('span');
+      name.className = 'spec-chip-name';
+      name.textContent = t.name || 'Player';
+      const hp = document.createElement('span');
+      hp.className = 'spec-chip-hp';
+      const pct = t.maxHp ? Math.max(0, t.hp / t.maxHp) : 0;
+      hp.textContent = dead ? '✕' : (Math.ceil(t.hp) + ' HP');
+      hp.style.color = pct > 0.5 ? '#7ee787' : (pct > 0.25 ? '#fbbf24' : '#f87171');
+      chip.appendChild(name);
+      chip.appendChild(hp);
+      if(dead) chip.disabled = true;
+      chip.addEventListener('click', () => this._watchTank(t));
+      row.appendChild(chip);
+    }
+  }
+
+  _watchTank(t){
+    if(!t || !t.alive || t.dying || !this.spectate) return;
+    this.spectateTarget = t;
+    this._spectateIndex = Math.max(0, this._spectateTanks().indexOf(t));
+    this._renderSpectateBar();
+  }
+
+  _spectateNext(dir){
+    const tanks = this._spectateTanks();
+    if(!tanks.length){ this.spectateTarget = null; this._renderSpectateBar(); return; }
+    let i = tanks.indexOf(this.spectateTarget);
+    if(i < 0) i = -1;
+    for(let step = 0; step < tanks.length + 1; step++){
+      i = (i + (dir || 1) + tanks.length) % tanks.length;
+      const t = tanks[i];
+      if(t.alive && !t.dying){ this.spectateTarget = t; break; }
+    }
+    // If every other tank is dead, keep whatever target we already had
+    if((!this.spectateTarget || !this.spectateTarget.alive || this.spectateTarget.dying) && tanks.length){
+      const alive = tanks.find(t => t.alive && !t.dying);
+      this.spectateTarget = alive || null;
+    }
+    this._renderSpectateBar();
+  }
+
+  _spectatePrev(){ this._spectateNext(-1); }
+
   _spawnLocal(px, pz, pheading){
     this.camAngle = Math.PI + (this.settings.camRotation || 0);
     const def = TANKS[this.settings.selectedTank] || TANKS.coolbuddy;
@@ -1733,6 +2031,13 @@ _gladZoneNotice(text){
     if(this.input && this.input.setJoysticksVisible){
       this.input.setJoysticksVisible(true);
     }
+    // Spectate bar controls (wired once)
+    const specPrev = document.getElementById('spec-prev');
+    const specNext = document.getElementById('spec-next');
+    const specExit = document.getElementById('spec-exit');
+    if(specPrev && !specPrev._wired){ specPrev._wired = true; specPrev.addEventListener('click', ()=> this._spectatePrev()); }
+    if(specNext && !specNext._wired){ specNext._wired = true; specNext.addEventListener('click', ()=> this._spectateNext(1)); }
+    if(specExit && !specExit._wired){ specExit._wired = true; specExit.addEventListener('click', ()=> this.leaveToMenu()); }
     // Lock to landscape on mobile
     if(screen.orientation && screen.orientation.lock){
       screen.orientation.lock('landscape').catch(() => {});
@@ -1742,9 +2047,15 @@ _gladZoneNotice(text){
   leaveToMenu(){
     this.running = false;
     this.mode = null;
+    // Hide joysticks FIRST: if anything below throws, we must never leave
+    // the touch controls stuck on the main menu (mobile bug).
+    try {
+      if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+    } catch(e){ console.warn('joystick hide:', e); }
+    this._stopSpectate();
     try { Net.disconnect(); } catch(e){}
     try { NakamaNet.leaveMatch(); } catch(e){}
-    this._resetArena();
+    try { this._resetArena(); } catch(e){ console.warn('reset arena:', e); }
     // Hide all overlays
     document.getElementById('esc-menu').classList.add('hidden');
     document.getElementById('bigmap').classList.add('hidden');
@@ -1754,10 +2065,6 @@ _gladZoneNotice(text){
     if (this._perfOverlay) this._perfOverlay.style.display = 'none';
     if(Menu.escOpen) Menu.escOpen = false;
     Menu.show(window.__PLATOON_BATTLE ? 'menu-platoon' : 'menu-main');
-    // Hide touch joysticks when returning to menu
-    if(this.input && this.input.setJoysticksVisible){
-      this.input.setJoysticksVisible(false);
-    }
     // Clean up orientation poll timer if any
     Menu._stopOrientationPoll();
     // Remove in-game portrait warning
@@ -2029,6 +2336,15 @@ _gladZoneNotice(text){
       }
     }
 
+    // Spectate housekeeping: hop off dead targets, keep the bar fresh (HP, kills)
+    if(this.spectate){
+      if(this.spectateTarget && (!this.spectateTarget.alive || this.spectateTarget.dying)){
+        this._spectateNext(1);
+      }
+      this._specBarTimer = (this._specBarTimer || 0) + dt;
+      if(this._specBarTimer > 0.5){ this._specBarTimer = 0; this._renderSpectateBar(); }
+    }
+
     // Projectiles
     this.projectiles.forEach(p=> p.update(dt, this.world, this));
     this.projectiles = this.projectiles.filter(p=>{ if(p.dead){ if(p._trail) this.trailManager.endTrail(p._trail); p.detach(); return false;} return true; });
@@ -2144,6 +2460,7 @@ _gladZoneNotice(text){
         p.vy -= p.gravity * dt;
         const k = 1 - p.life / p.maxLife;
         p.sprite.scale.x = p.sprite.scale.y = p.baseScale * (1 + k * p.grow);
+        if(p.spin) p.sprite.rotation.z += p.spin * dt;
         p.sprite.material.opacity = Math.max(0, (p.life / p.maxLife) * p.fade);
       });
       this._bursts = this._bursts.filter(p=>{
@@ -2215,9 +2532,13 @@ _gladZoneNotice(text){
     // Bullet trails
     this.trailManager.update(dt, this.camera);
 
-    // Camera (orbits around tank; auto mode locks behind hull front)
-    if(this.localTank && this.localTank.alive && !this.localTank.dying){
-      const t = this.localTank;
+    // Camera (orbits around tank; auto mode locks behind hull front; in
+    // spectator mode we follow the watched tank instead of the dead local one)
+    const camFocus = (this.spectate && this.spectateTarget && this.spectateTarget.alive && !this.spectateTarget.dying)
+      ? this.spectateTarget
+      : (this.localTank && this.localTank.alive && !this.localTank.dying ? this.localTank : null);
+    if(camFocus){
+      const t = camFocus;
       if((this.camMode || 'arrows') === 'auto'){
         this.camAngle = t.heading + Math.PI;
       }
@@ -3245,12 +3566,13 @@ _gladZoneNotice(text){
     this.scene.add(core);
     this._muzzleFlashes.push({sprite:core, life:0.08, maxLife:0.08});
 
-    // Shell eject / spark puff (small directional burst)
-    const sparkTex = VFX.getTex('smoke');
+    // Shell eject / spark puff (small directional burst of star sparks)
+    const sparkTex = VFX.getTex('spark');
     for(let i=0; i<3; i++){
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:sparkTex, transparent:true, opacity:0.7, blending:THREE.AdditiveBlending, depthWrite:false}));
-      const sc = 0.15 + Math.random() * 0.1;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:sparkTex, transparent:true, opacity:0.75, blending:THREE.AdditiveBlending, depthWrite:false}));
+      const sc = 0.18 + Math.random() * 0.12;
       s.position.set(pos.x, pos.y + 0.1 + Math.random() * 0.15, pos.z);
+      s.rotation.z = Math.random() * Math.PI * 2;
       s.scale.set(sc, sc, 1);
       this.scene.add(s);
       if(!this._muzzleFlashes) this._muzzleFlashes = [];
@@ -3310,12 +3632,15 @@ _gladZoneNotice(text){
     return l;
   }
 
-  /* Lightweight sprite bursts — fire/smoke/spark particles, fancy only */
+  /* Lightweight sprite bursts — fire/smoke/spark particles, fancy only.
+     opts.tex can be a string or an array (randomly picked per particle).
+     opts.spin sets per-particle angular velocity, opts.stretchX scales x. */
   spawnBurst(x, y, z, opts){
     if(!this._bursts) this._bursts = [];
     const o = opts || {};
     const count = o.count || 12;
-    const tex = VFX.getTex(o.tex || 'flare');
+    const texName = Array.isArray(o.tex) ? o.tex[(Math.random()*o.tex.length)|0] : (o.tex || 'flare');
+    const tex = VFX.getTex(texName);
     const additive = o.blend !== 'normal';
     for(let i = 0; i < count; i++){
       const s = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -3325,31 +3650,49 @@ _gladZoneNotice(text){
       }));
       const a = Math.random() * Math.PI * 2;
       const sp = (o.speed || 8) * (0.5 + Math.random() * 0.8);
+      let vx, vz;
+      if(o.biasX !== undefined && o.biasZ !== undefined){
+        // Directional cone: roughly along (biasX,biasZ) with a spread in radians
+        const spread = (o.spread != null ? o.spread : 0.6);
+        const dirAng = Math.atan2(o.biasZ, o.biasX) + (Math.random() - 0.5) * spread * 2;
+        vx = Math.cos(dirAng) * sp;
+        vz = Math.sin(dirAng) * sp;
+      } else {
+        vx = Math.cos(a) * sp;
+        vz = Math.sin(a) * sp;
+      }
       s.position.set(x, y + 0.2, z);
       const sc = (o.size || 1.2) * (0.6 + Math.random() * 0.8);
-      s.scale.set(sc, sc, 1);
+      const stretchX = (o.stretchX != null) ? (0.5 + Math.random() * 1.2) : 1;
+      s.scale.set(sc * stretchX, sc, 1);
+      const spin = (o.spin != null) ? o.spin * (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random()) : 0;
+      if(spin) s.rotation.z = Math.random() * Math.PI * 2;
       this.scene.add(s);
       this._bursts.push({
         sprite: s,
         life: (o.life || 0.6) * (0.6 + Math.random() * 0.8),
         maxLife: o.life || 0.6,
-        vx: Math.cos(a) * sp,
-        vz: Math.sin(a) * sp,
+        vx: vx,
+        vz: vz,
         vy: (o.rise || 3) * (0.4 + Math.random() * 0.6) + Math.random() * 2,
         gravity: (o.gravity != null ? o.gravity : 9),
         baseScale: sc,
         grow: (o.grow != null ? o.grow : 1.5),
-        fade: (o.fade != null ? o.fade : 1)
+        fade: (o.fade != null ? o.fade : 1),
+        spin: spin
       });
     }
   }
 
-  /* Destruction VFX — fireball, sparks, smoke column (fancy only) */
+  /* Destruction VFX — fireball, sparks, shards, shockwave, smoke column (fancy only) */
   _killVfx(tank){
     if(!this.isFancy) return;
-    this.spawnBurst(tank.x, 1.6, tank.z, {count: 16, tex: 'fire', speed: 10, size: 1.7, life: 0.75, rise: 5, grow: 2.2});
-    this.spawnBurst(tank.x, 1.5, tank.z, {count: 14, tex: 'flare', speed: 15, size: 0.5, life: 0.5, rise: 2, gravity: 16});
-    this.spawnBurst(tank.x, 1.2, tank.z, {count: 8, tex: 'smoke', speed: 2.5, size: 2.1, life: 1.6, rise: 6, grow: 3.2, blend: 'normal', fade: 0.4});
+    const y1 = tank.y != null ? tank.y : 1.4;
+    this.spawnBurst(tank.x, y1 + 0.4, tank.z, {count: 6, tex: ['flare','fire'], speed: 11, size: 1.6, life: 0.8, rise: 6, grow: 2.2, blend: 'add', spin: 1.2});
+    this.spawnBurst(tank.x, y1 + 0.8, tank.z, {count: 16, tex: 'spark', speed: 17, size: 0.55, life: 0.55, rise: 2.5, gravity: 18, blend: 'add', spin: 9});
+    this.spawnBurst(tank.x, y1 + 0.2, tank.z, {count: 10, tex: ['shard','hex'], speed: 6, size: 0.9, life: 0.9, rise: 3, gravity: 9, spin: 6});
+    this.spawnBurst(tank.x, y1, tank.z, {count: 1, tex: 'ring', speed: 0, size: 2.2, life: 0.5, rise: 0, grow: 4.5, blend: 'add', spin: 0});
+    this.spawnBurst(tank.x, y1 - 0.2, tank.z, {count: 10, tex: 'puff', speed: 2.6, size: 2.2, life: 1.7, rise: 6, grow: 3.2, blend: 'normal', fade: 0.4, spin: 0.4});
     if(this.localTank){
       const d = Math.hypot(this.localTank.x - tank.x, this.localTank.z - tank.z);
       if(d < 60) this.addShake(1.2 * (1 - d / 60));
@@ -3429,17 +3772,19 @@ _gladZoneNotice(text){
       Menu.toast('Eliminated! You placed #' + (this.localTank ? (this.localTank.placement || '?') : '?'));
       return;
     }
-    this.running = false;
     Menu.toast('Your tank was destroyed');
-    setTimeout(()=> this.leaveToMenu(), 600);
+    // Enter spectator mode instead of leaving the match (WoT-style)
+    this._startSpectate();
   }
 
   addShake(amount){ this._shake = Math.max(this._shake, amount); }
 
   /* ---------- Visibility ---------- */
   _updateVisibility(){
-    if(!this.localTank) return;
-    const me = this.localTank;
+    const me = (this.spectate && this.spectateTarget && this.spectateTarget.alive)
+      ? this.spectateTarget
+      : this.localTank;
+    if(!me) return;
     for(const t of this.tanks){
       if(t === me){ t.root.visible = true; continue; }
       if(t.dying){ t.root.visible = true; continue; }
@@ -3457,7 +3802,8 @@ _gladZoneNotice(text){
      =========================================================== */
   _updateHUD(){
     if(!this.localTank) return;
-    const t = this.localTank;
+    // While spectating, show the watched tank's live stats instead of the dead local one
+    const t = (this.spectate && this.spectateTarget && this.spectateTarget.alive) ? this.spectateTarget : this.localTank;
     // FPS counter (updates ~4x per second)
     const fpsEl = document.getElementById('fps-counter');
     if(fpsEl){
@@ -3591,7 +3937,12 @@ _gladZoneNotice(text){
         const g = this.glad;
         let txt = '';
         if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's';
-        else txt = 'Zone closes in ' + Math.ceil(g.phaseTimer) + 's';
+        else {
+          const b = this._gladSafeBounds();
+          txt = b ? ('Safe zone ' + Math.max(Math.round(b.maxX - b.minX), Math.round(b.maxZ - b.minZ)) + 'm') : 'Zone closed!';
+          const or = (this._gladZoneChunks || []).filter(c => c.state === 'orange').length;
+          if(or > 0) txt += '  |  ' + or + ' orange chunk' + (or > 1 ? 's' : '');
+        }
         if(g.airdrop){
           if(!g.airdrop.landed) txt += '  |  Airdrop in ' + Math.ceil(g.airdrop.countdown) + 's';
           else{
@@ -3635,15 +3986,24 @@ _gladZoneNotice(text){
     // GLADIATOR zone + airdrop markers on the big map
     if(this.glad){
       const g = this.glad;
-      const drawZone = (h, color, width) => {
-        const [x1, y1] = this.world.worldToMap(-h, -h, S);
-        const [x2, y2] = this.world.worldToMap(h, h, S);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-      };
       if(g.phase !== 'grace'){
-        drawZone(Math.max(0, g.safeHalf), '#ff3030', 6);
+        const b = this._gladSafeBounds();
+        if(b){
+          const [x1, y1] = this.world.worldToMap(b.minX, b.minZ, S);
+          const [x2, y2] = this.world.worldToMap(b.maxX, b.maxZ, S);
+          ctx.strokeStyle = '#ff3030';
+          ctx.lineWidth = 6;
+          ctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
+        }
+        // Also mark the orange (pending) chunks as small squares
+        if(this._gladZoneChunks){
+          ctx.fillStyle = 'rgba(255,170,60,0.85)';
+          for(const c of this._gladZoneChunks){
+            if(c.state !== 'orange') continue;
+            const [px, py] = this.world.worldToMap(c.x, c.z, S);
+            ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+          }
+        }
         const [cx, cy] = this.world.worldToMap(0, 0, S);
         ctx.strokeStyle = '#ff3030';
         ctx.lineWidth = 8;
