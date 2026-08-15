@@ -107,6 +107,21 @@ window.Garage = (function(){
     return g;
   }
 
+  function _parseInline(){
+    const loader = new ((THREE && THREE.GLTFLoader) || window.GLTFLoader)();
+    return new Promise(resolve => {
+      loader.load(window.GARAGE_GLB_DATA_URL, gltf => {
+        _gltfScene = gltf.scene;
+        _loading = null;
+        resolve(_gltfScene);
+      }, undefined, () => {
+        _loading = null;
+        _procedural = _buildProcedural();
+        resolve(_procedural);
+      });
+    });
+  }
+
   function _load(){
     if(_gltfScene) return Promise.resolve(_gltfScene);
     if(_procedural) return Promise.resolve(_procedural);
@@ -119,10 +134,19 @@ window.Garage = (function(){
         _loading = null;
         resolve(_gltfScene);
       }, undefined, () => {
-        // fetch failed (file://, offline, CDN down) → procedural hangar
+        // fetch failed (file:// where fetch is blocked, offline, CDN down).
+        // Try the inline copy first (js/garage-inline.js, loaded lazily),
+        // then fall back to the procedural hangar.
         _loading = null;
-        _procedural = _buildProcedural();
-        resolve(_procedural);
+        if(window.GARAGE_GLB_DATA_URL){
+          _parseInline().then(resolve);
+        }else{
+          const s = document.createElement('script');
+          s.src = 'js/garage-inline.js';
+          s.onload = () => { _parseInline().then(resolve); };
+          s.onerror = () => { _procedural = _buildProcedural(); resolve(_procedural); };
+          document.head.appendChild(s);
+        }
       });
     });
     return _loading;
