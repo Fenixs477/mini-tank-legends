@@ -190,6 +190,7 @@ window.Garage = (function(){
     const _ = {
       host, def, floorY: FALLBACK_FLOOR_Y, tankGroup: null, turretGroup: null,
       scene: null, cam: null, renderer: null, rafId: 0,
+      focusX: MARKER_X, focusZ: MARKER_Z,
       yaw: Math.PI * 0.22, pitch: 0.22, radius: 9.5,
       dragging: false, lastX: 0, lastY: 0, t: 0, ready: false,
     };
@@ -273,15 +274,24 @@ window.Garage = (function(){
         _.tankGroup.position.set(0, PROC_FLOOR_Y, 0);
         _.tankGroup.rotation.y = Math.PI; // face the camera
       }else{
-        _.floorY = _floorYAt(gltfScene, MARKER_X, MARKER_Z);
+        // "tank" anchor in the export marks the tank hitbox centre; stand the
+        // tank on the floor directly below it (bottom face of the hitbox)
+        let anchor = gltfScene.getObjectByName('tank');
+        if(anchor){
+          anchor.updateWorldMatrix(true, false);
+          const p = anchor.getWorldPosition(new THREE.Vector3());
+          _.focusX = p.x;
+          _.focusZ = p.z;
+        }
+        _.floorY = _floorYAt(gltfScene, _.focusX, _.focusZ);
         // Hide the exported stand-in tank parts so only our tank shows
         gltfScene.traverse(o => {
           if(o.isMesh && o.parent && /^(RootNode|RootNode\.\d+)$/.test(o.parent.name)){
             o.visible = false;
           }
         });
-        _.tankGroup.position.set(MARKER_X, _.floorY, MARKER_Z);
-        _.tankGroup.rotation.y = Math.atan2(MARKER_X, MARKER_Z) + Math.PI;
+        _.tankGroup.position.set(_.focusX, _.floorY, _.focusZ);
+        _.tankGroup.rotation.y = Math.atan2(_.focusX, _.focusZ) + Math.PI;
       }
       _.ready = true;
       host.style.backgroundImage = 'none';
@@ -308,11 +318,11 @@ window.Garage = (function(){
       const cx = Math.cos(_.yaw), sx = Math.sin(_.yaw);
       const tgtY = _.floorY + 1.6;
       cam.position.set(
-        MARKER_X + _.radius * cy * sx,
+        _.focusX + _.radius * cy * sx,
         tgtY + _.radius * sy,
-        MARKER_Z + _.radius * cy * cx
+        _.focusZ + _.radius * cy * cx
       );
-      cam.lookAt(MARKER_X, tgtY, MARKER_Z);
+      cam.lookAt(_.focusX, tgtY, _.focusZ);
       renderer.render(scene, cam);
     };
     _.rafId = requestAnimationFrame(loop);
