@@ -298,7 +298,14 @@ const Menu = {
     // Touch controls are gameplay-only: any menu hides them (covers every
     // exit path, even ones that skip leaveToMenu).
     this.hideTouchControls();
-    this._stopMainPreview();
+    // Full-screen overlays replace the menu background, so the main preview
+    // (garage) is stopped there; card menus (codes, settings, …) sit on top
+    // of the menu layer and keep the garage running behind them.
+    if(['menu-collections','menu-store','menu-shop-buy','menu-shop-receive',
+        'menu-platoon','menu-preview','menu-clan-ui'].indexOf(id) >= 0 ||
+       id === 'menu-custom-full'){
+      this._stopMainPreview();
+    }
     document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
     if(this._collectionsKeyHandler){
       window.removeEventListener('keydown', this._collectionsKeyHandler);
@@ -315,7 +322,7 @@ const Menu = {
     if(id === 'menu-main'){
       Audio.playMusic('assets/menu.mp3');
       if(!this._customMenuActive()){
-        this._startMainPreview();
+        if(!(window.Garage && Garage.active)) this._startMainPreview();
       }
       if(this._customMenuActive()) this._renderCustomMainMenu();
       else this._restoreDefaultMainMenu();
@@ -2381,11 +2388,14 @@ this._renderCamSettings();
         this._revertMap();
       } else if(code.toLowerCase() === 'fc'){
         input.value = '';
-        if(!(window.Garage && Garage.active)){
-          this.toast('Freecam needs the menu preview open');
-        }else{
+        if(window.Garage && Garage.active){
           const on = Garage.freecam();
           this.toast(on ? 'Freecam ON — WASD/arrows move, drag look, wheel speed, ESC exit' : 'Freecam OFF');
+        }else if(window.Garage){
+          this.toast('Opening the garage… type fc again');
+          this._startMainPreview();
+        }else{
+          this.toast('Freecam unavailable');
         }
       } else if(code === '/code'){
         // Handle clan code command
