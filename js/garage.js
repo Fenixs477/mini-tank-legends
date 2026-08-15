@@ -241,14 +241,28 @@ window.Garage = (function(){
     // Hangar lighting: dim base + hot spots over the tank
     const hemi = new THREE.HemisphereLight(0x9fb4d8, 0x2a2620, 0.55);
     scene.add(hemi);
-    const key = new THREE.DirectionalLight(0xfff2dc, 1.15);
-    key.position.set(14, 22, 10);
-    scene.add(key);
-    const rim = new THREE.DirectionalLight(0x7fa8ff, 0.5);
-    rim.position.set(-14, 18, -12);
-    scene.add(rim);
     const amb = new THREE.AmbientLight(0x30343c, 0.8);
     scene.add(amb);
+    // Sun (warm directional high above the hangar)
+    const sun = new THREE.DirectionalLight(0xfff2d6, 1.5);
+    sun.position.set(16, 40, 22);
+    scene.add(sun);
+    // The GLB has no light nodes (Blender lights don't export to glTF), so the
+    // hangar's six ceiling lamps from the Blender scene are recreated at the
+    // positions of their visible housings (probed from the model).
+    const LAMP_SPOTS = [
+      { x: 5.5, y: 6.6, z: -52.5 },
+      { x: -5.2, y: 6.7, z: -1.6 },
+      { x: 3.3, y: 6.7, z: -1.0 },
+      { x: 3.4, y: 6.8, z: 17.5 },
+      { x: 1.0, y: 7.1, z: 52.0 },
+      { x: 1.0, y: 7.1, z: 86.0 }
+    ];
+    LAMP_SPOTS.forEach(p => {
+      const lamp = new THREE.PointLight(0xffe6b8, 1.6, 60, 2);
+      lamp.position.set(p.x, p.y, p.z);
+      scene.add(lamp);
+    });
 
     // Tank (built now; positioned once the floor height is known)
     const built = _buildTank(def);
@@ -303,6 +317,10 @@ window.Garage = (function(){
       if(_state !== _) return;
       if(_gltfScene) _gltfScene = gltfScene; // keep same instance
       scene.add(gltfScene);
+      // Flip the model 180° so the hangar fronts the viewer (the artist-side
+      // orientation puts the hall the other way around). World matrices are
+      // recomputed inside _floorYAt / anchor lookup, so placement stays exact.
+      gltfScene.rotation.y = Math.PI;
       _.gltfScene = gltfScene;
       if(gltfScene.userData && gltfScene.userData.procedural){
         _.floorY = PROC_FLOOR_Y;
