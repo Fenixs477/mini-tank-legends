@@ -75,7 +75,18 @@ function mergeProfile(old, incoming) {
     const i = typeof incoming[k] === 'number' ? incoming[k] : 0;
     return Math.max(o, i);
   };
-  out.coins = num('coins');
+  const hasCash = (obj) => typeof obj.cash === 'number';
+  // Legacy: profiles written before the Coins split stored the CASH total in
+  // the 'coins' key. Treat a lone 'coins' (no 'cash') as cash while migrating.
+  const cashOf = (obj) => hasCash(obj)
+    ? (typeof obj.cash === 'number' ? obj.cash : 0)
+    : (typeof obj.coins === 'number' ? obj.coins : 0);
+  out.cash = Math.max(cashOf(old), cashOf(incoming));
+  // Only a cash-keyed profile may stash the (new) coins currency in 'coins';
+  // a legacy profile's 'coins' is cash and must not leak into this bucket.
+  const oldCoin = (hasCash(old) && typeof old.coins === 'number') ? old.coins : 0;
+  const inCoin = (hasCash(incoming) && typeof incoming.coins === 'number') ? incoming.coins : 0;
+  out.coins = Math.max(oldCoin, inCoin);
   out.gems = num('gems');
   out.clanWeeklyXP = num('clanWeeklyXP');
   out.clanWeekKey = num('clanWeekKey');

@@ -6,25 +6,25 @@ const SHOP_DATA = {
 
   // 15 deals: reward:amount:price:currency:priority:stock
   ALL_DEALS: [
-    { reward:'coins', amount:750,  price:10,  currency:'gems',  priority:1, stock:10 },
-    { reward:'coins', amount:1000, price:12,  currency:'gems',  priority:1, stock:10 },
-    { reward:'coins', amount:1250, price:15,  currency:'gems',  priority:2, stock:5  },
-    { reward:'coins', amount:1500, price:17,  currency:'gems',  priority:2, stock:5  },
-    { reward:'coins', amount:2500, price:22,  currency:'gems',  priority:3, stock:2  },
-    { reward:'gems',  amount:3,    price:750,  currency:'coins', priority:2, stock:5  },
-    { reward:'gems',  amount:5,    price:1000, currency:'coins', priority:2, stock:5  },
-    { reward:'gems',  amount:7,    price:1200, currency:'coins', priority:3, stock:2  },
-    { reward:'gems',  amount:10,   price:1500, currency:'coins', priority:3, stock:2  },
+    { reward:'cash', amount:750,  price:10,  currency:'gems',  priority:1, stock:10 },
+    { reward:'cash', amount:1000, price:12,  currency:'gems',  priority:1, stock:10 },
+    { reward:'cash', amount:1250, price:15,  currency:'gems',  priority:2, stock:5  },
+    { reward:'cash', amount:1500, price:17,  currency:'gems',  priority:2, stock:5  },
+    { reward:'cash', amount:2500, price:22,  currency:'gems',  priority:3, stock:2  },
+    { reward:'gems',  amount:3,    price:750,  currency:'cash',  priority:2, stock:5  },
+    { reward:'gems',  amount:5,    price:1000, currency:'cash',  priority:2, stock:5  },
+    { reward:'gems',  amount:7,    price:1200, currency:'cash',  priority:3, stock:2  },
+    { reward:'gems',  amount:10,   price:1500, currency:'cash',  priority:3, stock:2  },
     { reward:'basic_crate', amount:1, price:3,  currency:'gems',  priority:1, stock:5  },
     { reward:'basic_crate', amount:2, price:5,  currency:'gems',  priority:2, stock:2  },
     { reward:'rare_crate',  amount:1, price:7,  currency:'gems',  priority:1, stock:5  },
     { reward:'rare_crate',  amount:2, price:12, currency:'gems',  priority:2, stock:2  },
-    { reward:'basic_crate', amount:1, price:150, currency:'coins', priority:3, stock:1  },
-    { reward:'rare_crate',  amount:1, price:500, currency:'coins', priority:3, stock:1  },
+    { reward:'basic_crate', amount:1, price:150, currency:'cash', priority:3, stock:1  },
+    { reward:'rare_crate',  amount:1, price:500, currency:'cash', priority:3, stock:1  },
   ],
 
   // Free daily offer
-  FREE_OFFER: { reward:'coins', amount:100, id:'daily_free' },
+  FREE_OFFER: { reward:'cash', amount:100, id:'daily_free' },
 
   init(){
     this._loadShopFile();
@@ -108,13 +108,14 @@ const SHOP_DATA = {
     if(this.isFreeClaimed()) return false;
     localStorage.setItem('shop_free_claimed', '1');
     const s = Menu.settings;
-    s.coins = (s.coins || 0) + this.FREE_OFFER.amount;
+    s.cash = (s.cash || 0) + this.FREE_OFFER.amount;
     saveSettings(s);
     return true;
   },
 
   canAfford(offer){
     const s = Menu.settings;
+    if(offer.currency === 'cash') return (s.cash || 0) >= offer.price;
     if(offer.currency === 'coins') return (s.coins || 0) >= offer.price;
     if(offer.currency === 'gems') return (s.gems || 0) >= offer.price;
     return false;
@@ -123,11 +124,13 @@ const SHOP_DATA = {
   purchase(offer){
     const s = Menu.settings;
     if(!this.canAfford(offer)) return false;
-    if(offer.currency === 'coins') s.coins = (s.coins || 0) - offer.price;
+    if(offer.currency === 'cash') s.cash = (s.cash || 0) - offer.price;
+    else if(offer.currency === 'coins') s.coins = (s.coins || 0) - offer.price;
     else if(offer.currency === 'gems') s.gems = (s.gems || 0) - offer.price;
     if(offer.stock > 0) offer.stock--;
     // Crates coming soon — no reward given yet
-    if(offer.reward === 'coins') s.coins = (s.coins || 0) + offer.amount;
+    if(offer.reward === 'cash') s.cash = (s.cash || 0) + offer.amount;
+    else if(offer.reward === 'coins') s.coins = (s.coins || 0) + offer.amount;
     else if(offer.reward === 'gems') s.gems = (s.gems || 0) + offer.amount;
     // crates: no-op for now
     saveSettings(s);

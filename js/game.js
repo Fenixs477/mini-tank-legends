@@ -4076,13 +4076,14 @@ spawnExplosion(x, y, z, color, count, style){
     if(byTank && byTank === this.localTank){
       const s = Menu.settings;
       const roll = Math.random();
-      s.coins = (s.coins || 0) + 10;
-      if(roll < 0.10) s.coins += 5;  // 10% for +15
-      else if(roll < 0.15) s.coins += 15; // 5% for +25
+      s.cash = (s.cash || 0) + 8;
+      s.coins = (s.coins || 0) + 2;
+      if(roll < 0.10){ s.cash += 4; s.coins += 1; }   // 10% for +5 (into cash+coins)
+      else if(roll < 0.15){ s.cash += 13; s.coins += 2; } // 5% for +15 (into cash+coins)
       if(roll < 0.01) s.gems = (s.gems || 0) + 1; // 1% for 1 gem
 
       saveSettings(s);
-      Menu.toast('+10 coins' + (roll < 0.15 ? ' (+bonus!)' : '') + (roll < 0.01 ? ' +1 gem!' : ''));
+      Menu.toast('+8 cash, +2 coins' + (roll < 0.15 ? ' (+bonus!)' : '') + (roll < 0.01 ? ' +1 gem!' : ''));
     }
   }
 

@@ -6082,3 +6082,4 @@ html, body {
 }
 .glad-mark-hidden{ display:none !important; }
 .glad-mark-dot{ width:10px; height:10px; border-radius:50%; box-shadow:0 0 8px rgba(255,140,0,0.9); }
+.profile-coins-extra{ color:#ffd14d; }

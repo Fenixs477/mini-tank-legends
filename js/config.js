@@ -354,7 +354,10 @@ function loadSettings(){
       selectedTank: s.selectedTank || 'coolbuddy',
       playerName: s.playerName || ('Player'+Math.floor(Math.random()*9000+1000)),
       playerClan: s.playerClan || '',
-      coins: typeof s.coins === 'number' ? s.coins : 0,
+      // Cash is the legacy 'coins' key (one-time migration); a fresh 'coins'
+      // key now holds the third currency, Coins.
+      cash: typeof s.cash === 'number' ? s.cash : (typeof s.coins === 'number' ? s.coins : 0),
+      coins: typeof s.cash === 'number' ? (typeof s.coins === 'number' ? s.coins : 0) : 0,
       gems: typeof s.gems === 'number' ? s.gems : 0,
       aimLineOpacity: (s.aimLineOpacity!=null? s.aimLineOpacity : CONFIG.AIM_LINE_OPACITY),
       aimLineColor:   s.aimLineColor || CONFIG.AIM_LINE_COLOR,
@@ -383,7 +386,7 @@ function loadSettings(){
       invertCamRot:     !!s.invertCamRot,
     };
   }catch(e){
-    return {binds:defaults(), selectedTank:'coolbuddy', playerName:'Player'+Math.floor(Math.random()*9000+1000), playerClan:'', coins:0, gems:0,
+    return {binds:defaults(), selectedTank:'coolbuddy', playerName:'Player'+Math.floor(Math.random()*9000+1000), playerClan:'', cash:0, coins:0, gems:0,
             aimLineOpacity:CONFIG.AIM_LINE_OPACITY, aimLineColor:CONFIG.AIM_LINE_COLOR, aimLineDesign:'default',
             viewRangeOpacity:CONFIG.VIEW_RANGE_OPACITY, viewRangeColor:CONFIG.VIEW_RANGE_COLOR,
             viewRangeWidth:CONFIG.VIEW_RANGE_WIDTH, graphicsQuality:'default', camRotation:0, camMode:'arrows', pinchZoom:true, ricochetIndicator:true,

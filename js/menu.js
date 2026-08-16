@@ -452,6 +452,7 @@ const Menu = {
     const clanEl = document.getElementById('profile-clan');
     const cashEl = document.getElementById('profile-cash-num');
     const goldEl = document.getElementById('profile-gold-num');
+    const coinEl = document.getElementById('profile-coins-num');
     if(nameEl){
       nameEl.textContent = s.playerName || 'Player';
     }
@@ -461,8 +462,9 @@ const Menu = {
     const trophyEl = document.querySelector('#profile .profile-trophy');
     const trophyCount = (s.trophyCount || 0);
     if(trophyEl) trophyEl.style.display = trophyCount > 0 ? '' : 'none';
-    if(cashEl) cashEl.textContent = (s.coins||0);
+    if(cashEl) cashEl.textContent = (s.cash||0);
     if(goldEl) goldEl.textContent = (s.gems||0);
+    if(coinEl) coinEl.textContent = (s.coins||0);
     const profileEl = document.getElementById('profile');
     if(profileEl) profileEl.onclick = (e) => {
       if(e.target.closest('.profile-name')) return;
@@ -530,7 +532,7 @@ const Menu = {
     const h = Math.floor(playSec / 3600), m = Math.floor((playSec % 3600) / 60), sec = playSec % 60;
     const playStr = (h ? h + 'h ' : '') + (m || h ? m + 'm ' : '') + sec + 's';
     const created = new Date(s.stats.createdAt).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
-    const cash = s.coins || 0, gold = s.gems || 0;
+    const cash = s.cash || 0, gold = s.gems || 0, coins = s.coins || 0;
     const grid = document.getElementById('pcard-grid');
     if(grid){
       grid.innerHTML =
@@ -540,7 +542,8 @@ const Menu = {
         this._statTile('Battles', (s.stats.battles || 0) + '', '🏆') +
         this._statTile('Victories', (s.stats.wins || 0) + '', '⭐') +
         '<div class="stat-tile"><div class="stat-label">Gold</div><div class="stat-value"><img class="cur-img cur-lg" src="assets/currency/gold.png" alt="gold"> ' + gold + '</div></div>' +
-        '<div class="stat-tile"><div class="stat-label">Cash</div><div class="stat-value"><img class="cur-img cur-lg" src="assets/currency/cash.png" alt="cash"> ' + cash + '</div></div>';
+        '<div class="stat-tile"><div class="stat-label">Cash</div><div class="stat-value"><img class="cur-img cur-lg" src="assets/currency/cash.png" alt="cash"> ' + cash + '</div></div>' +
+        '<div class="stat-tile"><div class="stat-label">Coins</div><div class="stat-value"><img class="cur-img cur-lg" src="assets/currency/coin.png" alt="coins"> ' + coins + '</div></div>';
     }
   },
   _statTile(label, value, emoji){
@@ -2543,8 +2546,10 @@ this._renderCamSettings();
     const s = Menu.settings;
     const ce = document.getElementById('shop-coins');
     const ge = document.getElementById('shop-gems');
+    const ca = document.getElementById('shop-cash');
     if(ce) ce.textContent = s.coins || 0;
     if(ge) ge.textContent = s.gems || 0;
+    if(ca) ca.textContent = s.cash || 0;
   },
 
   /* Guarantee the left store sidebar is always visible in every section */
@@ -2581,8 +2586,8 @@ this._renderCamSettings();
     if(!container) return;
     container.innerHTML = '';
     const offers = SHOP_DATA.getOffers();
-    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
-    const rewardLabels = { coins:'Coins', gems:'Gems', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
+    const rewardImages = { cash:'assets/currency/cash.png', coins:'assets/currency/coin.png', gems:'assets/currency/gold.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const rewardLabels = { cash:'Cash', coins:'Coins', gems:'Gems', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
     offers.forEach((offer, idx) => {
       const card = document.createElement('div');
       const soldOut = offer.stock === 0;
@@ -2590,7 +2595,7 @@ this._renderCamSettings();
       const img = rewardImages[offer.reward] || '';
       const label = rewardLabels[offer.reward] || offer.reward;
       const isCrate = offer.reward === 'basic_crate' || offer.reward === 'rare_crate';
-      const curFile = offer.currency === 'coins' ? 'cash' : 'gold';
+      const curFile = offer.currency === 'gems' ? 'gold' : (offer.currency === 'coins' ? 'coin' : 'cash');
       card.innerHTML =
         '<div class="shop-deal-image" style="background-image:url(\'' + img + '\')"></div>' +
         '<div class="shop-deal-amount">' + offer.amount + '</div>' +
@@ -2613,14 +2618,14 @@ this._renderCamSettings();
       '<div class="shop-free-card' + (claimed ? ' claimed' : '') + '">' +
       '<div class="shop-free-icon"><img class="cur-img cur-lg" src="assets/currency/cash.png" alt="cash"></div>' +
       '<div><div style="font-weight:700;font-size:16px">Daily Free</div>' +
-      '<div class="shop-free-info">' + (claimed ? 'Claimed today' : 'Get ' + SHOP_DATA.FREE_OFFER.amount + ' coins free') + '</div></div>' +
+      '<div class="shop-free-info">' + (claimed ? 'Claimed today' : 'Get ' + SHOP_DATA.FREE_OFFER.amount + ' cash free') + '</div></div>' +
       '<div class="shop-free-btn">' + (claimed ? 'Done' : 'Claim') + '</div></div>';
     if(!claimed){
       el.querySelector('.shop-free-card').onclick = () => {
         if(SHOP_DATA.claimFree()){
           Audio.click();
           this._updateCurrencies();
-          Menu.toast('Claimed ' + SHOP_DATA.FREE_OFFER.amount + ' coins!');
+          Menu.toast('Claimed ' + SHOP_DATA.FREE_OFFER.amount + ' cash!');
           this._renderFreeOffer();
         }
       };
@@ -2642,10 +2647,10 @@ this._renderCamSettings();
     Audio.click();
     if(!offer || offer.stock === 0) return;
     this._currentBuyOffer = offer;
-    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const rewardImages = { cash:'assets/currency/cash.png', coins:'assets/currency/coin.png', gems:'assets/currency/gold.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
     const img = rewardImages[offer.reward] || '';
     document.getElementById('shop-buy-image').style.backgroundImage = "url('" + img + "')";
-    const curFile = offer.currency === 'coins' ? 'cash' : 'gold';
+    const curFile = offer.currency === 'gems' ? 'gold' : (offer.currency === 'coins' ? 'coin' : 'cash');
     document.getElementById('shop-buy-cost').innerHTML = '<img class="cur-mini" src="assets/currency/' + curFile + '.png" alt=""> <span>' + offer.price + '</span>';
     const canAfford = SHOP_DATA.canAfford(offer);
     const btn = document.getElementById('shop-buy-btn');
@@ -2689,13 +2694,13 @@ this._renderCamSettings();
     video.onended = null;
 
     // After 5s, show reward
-    const rewardImages = { coins:'assets/rewards/coins.png', gems:'assets/rewards/gems.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
-    const rewardLabels = { coins:'', gems:'', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
+    const rewardImages = { cash:'assets/currency/cash.png', coins:'assets/currency/coin.png', gems:'assets/currency/gold.png', basic_crate:'assets/rewards/basic_crate.png', rare_crate:'assets/rewards/rare_crate.png' };
+    const rewardLabels = { cash:'Cash', coins:'Coins', gems:'Gems', basic_crate:'Basic Crate', rare_crate:'Rare Crate' };
     const img = rewardImages[offer.reward] || '';
     const label = rewardLabels[offer.reward] || '';
-    const amt = offer.amount + (offer.reward === 'coins' || offer.reward === 'gems' ? '' : 'x ' + (rewardLabels[offer.reward] || ''));
+    const amt = offer.amount + (offer.reward === 'cash' || offer.reward === 'coins' || offer.reward === 'gems' ? '' : 'x ' + (rewardLabels[offer.reward] || ''));
     imageDiv.style.backgroundImage = "url('" + img + "')";
-    amountDiv.textContent = offer.reward === 'coins' || offer.reward === 'gems' ? amt : label + ' x' + offer.amount;
+    amountDiv.textContent = offer.reward === 'cash' || offer.reward === 'coins' || offer.reward === 'gems' ? amt : label + ' x' + offer.amount;
 
     setTimeout(() => {
       video.style.opacity = '0';

@@ -112,8 +112,17 @@ const Auth = {
     try{
       const s = window.loadSettings();
       let changed = false;
-      if(typeof profile.coins === 'number' && profile.coins > (s.coins || 0)){
-        s.coins = profile.coins; changed = true;
+      const pCoins = typeof profile.coins === 'number' ? profile.coins : null;
+      const pCash = typeof profile.cash === 'number' ? profile.cash : null;
+      // New clients upload {cash, coins}; older ones only sent 'coins' (the
+      // legacy cash amount). Treat a lone 'coins' as cash to keep them aligned.
+      if(pCash !== null && pCash > (s.cash || 0)){
+        s.cash = pCash; changed = true;
+      } else if(pCash === null && pCoins !== null && pCoins > (s.cash || 0)){
+        s.cash = pCoins; changed = true;
+      }
+      if(pCash !== null && pCoins !== null && pCoins > (s.coins || 0)){
+        s.coins = pCoins; changed = true;
       }
       if(typeof profile.gems === 'number' && profile.gems > (s.gems || 0)){
         s.gems = profile.gems; changed = true;
@@ -145,6 +154,7 @@ const Auth = {
   async _uploadProfile(s){
     if(!this.token) return;
     const profile = {
+      cash: typeof s.cash === 'number' ? s.cash : 0,
       coins: typeof s.coins === 'number' ? s.coins : 0,
       gems: typeof s.gems === 'number' ? s.gems : 0,
       unlockedTanks: s.unlockedTanks || ['coolbuddy'],

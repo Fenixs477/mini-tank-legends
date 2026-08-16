@@ -6086,7 +6086,7 @@ var Editor123 = {
 
         offers.forEach(function (o, i) {
 
-            var priceStr = o.price + ' ' + (o.currency === 'coins' ? '$' : '\u25C6');
+            var priceStr = o.price + ' ' + (o.currency === 'gems' ? '\u25C6' : (o.currency === 'coins' ? '\u25CF' : '$'));
 
             html += '<div class="se-offer-card" data-idx="' + i + '" style="background:#22272e;border:1px solid #333;border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;transition:.1s">' +
 
@@ -6132,7 +6132,7 @@ var Editor123 = {
 
     _shopAddOffer: function () {
 
-        var newOffer = { reward:'coins', amount:100, price:10, currency:'gems', priority:1, stock:10 };
+        var newOffer = { reward:'cash', amount:100, price:10, currency:'gems', priority:1, stock:10 };
 
         SHOP_DATA.offers.push(newOffer);
 
@@ -6168,13 +6168,13 @@ var Editor123 = {
 
             '<h4 style="color:#ffb12b;margin:0 0 12px;font-size:13px">Edit Offer</h4>' +
 
-            '<label style="color:#888;font-size:11px">Reward (coins/gems/basic_crate/rare_crate)</label><input id="se-e-reward" value="' + offer.reward + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Reward (cash/coins/gems/basic_crate/rare_crate)</label><input id="se-e-reward" value="' + offer.reward + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
 
             '<label style="color:#888;font-size:11px">Amount</label><input id="se-e-amount" type="number" value="' + offer.amount + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
 
             '<label style="color:#888;font-size:11px">Price</label><input id="se-e-price" type="number" value="' + offer.price + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
 
-            '<label style="color:#888;font-size:11px">Currency (coins/gems)</label><input id="se-e-currency" value="' + offer.currency + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
+            '<label style="color:#888;font-size:11px">Currency (cash/coins/gems)</label><input id="se-e-currency" value="' + offer.currency + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
 
             '<label style="color:#888;font-size:11px">Priority (1-3, higher=more likely)</label><input id="se-e-priority" type="number" value="' + offer.priority + '" style="width:100%;padding:6px;border-radius:6px;border:1px solid #333;background:#222;color:#fff;font-size:12px;margin-bottom:8px">' +
 
