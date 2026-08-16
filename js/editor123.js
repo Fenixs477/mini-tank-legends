@@ -210,6 +210,14 @@ var Editor123 = {
 
             '<div style="color:#888;font-size:12px;margin-top:6px">Design clan UI,<br>chat &amp; badges</div></div>' +
 
+            '<div class="e123-launcher-btn" data-mode="tank" style="width:210px;padding:44px 20px;background:linear-gradient(145deg,#252a32,#1e232a);border-radius:18px;cursor:pointer;border:2px solid #2a2f36;transition:.2s">' +
+
+            '<div style="font-size:44px;margin-bottom:10px">\u{1F6E1}</div>' +
+
+            '<div style="font-size:17px;font-weight:700">Tank Editor</div>' +
+
+            '<div style="color:#888;font-size:12px;margin-top:6px">Set hitbox, turret<br>pivot &amp; shell spawn</div></div>' +
+
             '</div>' +
 
             '<div id="e123-l-back" style="margin-top:36px;padding:10px 36px;background:#2a2f36;border-radius:10px;cursor:pointer;display:inline-block;color:#888;font-size:13px;transition:.15s">← Back to Menu</div></div>';
@@ -229,6 +237,8 @@ var Editor123 = {
                     else if (this.dataset.mode === 'shop') Editor123._renderShopEditor();
 
                     else if (this.dataset.mode === 'clan') Editor123._renderClanEditor();
+
+                    else if (this.dataset.mode === 'tank'){ if(window.TankEditor) Editor123._renderTankEditor = window.TankEditor.render; if(Editor123._renderTankEditor) Editor123._renderTankEditor(); else Editor123.toast('Tank Editor not loaded'); }
 
                     else Editor123._render3DEditor();
 

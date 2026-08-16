@@ -61,8 +61,16 @@ class Tank {
     this.removeAt = -1;
     this._uiScale = 1.0;
 
+    const _edOv = (window.TANK_EDITOR_OVERRIDES && window.TANK_EDITOR_OVERRIDES[def.id]) || null;
+    this._edOv = _edOv;
     this.colHalfW = def.body.w*0.55;
     this.colHalfL = def.body.l*0.55;
+    if(_edOv && _edOv.body){
+      // Tank Editor override: collision hitbox front/sides/height
+      const _b = _edOv.body;
+      this.colHalfW = Math.max(0.1, _b.w || def.body.w) * 0.55;
+      this.colHalfL = Math.max(0.1, _b.l || def.body.l) * 0.55;
+    }
 
     this._physBody = null;
     this._physCollider = null;
@@ -98,6 +106,80 @@ class Tank {
       }
       this._physCollider.userData = {type:'tank', tank:this};
     } catch(e){ this._physBody = null; }
+  }
+
+  _applyEditorOverrides(){
+    // Tank Editor (Editor123) overrides: reapplied after the model finishes
+    // building so the hitbox, turret pivot, turret position and firing point
+    // match the saved values.
+    const ov = this._edOv;
+    if(!ov) return;
+    if(ov.body && this.bodyMesh && this.bodyMesh.geometry && this.bodyMesh.geometry.parameters){
+      const g = this.bodyMesh.geometry.parameters;
+      const s = ov.body;
+      this.bodyMesh.scale.set(
+        (s.w && g.width) ? Math.max(0.05, s.w / g.width) : 1,
+        (s.h && g.height) ? Math.max(0.05, s.h / g.height) : 1,
+        (s.l && g.depth) ? Math.max(0.05, s.l / g.depth) : 1
+      );
+    }
+    if(ov.pivot && this._modelTurretPivot){
+      this._modelTurretPivot.position.set(ov.pivot.x || 0, ov.pivot.y || 0, ov.pivot.z || 0);
+    }
+    if(ov.turret && this._turretHome){
+      this._turretHome.set(ov.turret.x || 0, ov.turret.y || 0, ov.turret.z || 0);
+    }
+    // Re-home the turret mesh so a moved pivot only changes the ROTATION
+    // point and a moved turret marker only changes where the turret sits
+    // on the hull (never let the two drag each other).
+    this._applyTurretPlacement();
+    if(ov.shell && this.barrelEnd){
+      this.barrelEnd.position.set(ov.shell.x || 0, ov.shell.y || 0, ov.shell.z || 0);
+    }
+  }
+
+  /* turretG lives inside turretPivot, so its world position would follow the
+     pivot's position. Keep the turret mesh planted at _turretHome (its mount
+     point, in turretParts space) and let the pivot handle rotation only:
+     turretG.local = home - pivot. */
+  _applyTurretPlacement(){
+    if(!this._turretG || !this._modelTurretPivot) return;
+    const O = this._turretHome || new THREE.Vector3(0, 0, 0);
+    const P = this._modelTurretPivot.position;
+    this._turretG.position.set(O.x - P.x, O.y - P.y, O.z - P.z);
+    this._turretG.updateMatrixWorld(true);
+  }
+
+  /* Create an AnimationMixer for the model's GLB clips and loop the
+     requested animation (default: the first clip, e.g. Cool Buddy's
+     "gun firing" fire effect). Tracks resolve by node name against
+     this.root, so they keep working after the named hull/turret groups
+     are re-parented into bodyParts/turretParts. */
+  _setupAnims(grp){
+    if(this._animMixer){
+      try{ this._animMixer.stopAllAction(); }catch(e){}
+      this._animMixer = null;
+    }
+    const clips = (grp && grp.userData && grp.userData.anims) || null;
+    if(!clips || !clips.length) return;
+    let clip = null;
+    const want = (this.def && this.def.fireAnim) || null;
+    if(want){
+      const lw = String(want).toLowerCase();
+      for(let i = 0; i < clips.length; i++){
+        if(clips[i] && clips[i].name && String(clips[i].name).toLowerCase() === lw){ clip = clips[i]; break; }
+      }
+    }
+    if(!clip) clip = clips[0];
+    if(!clip) return;
+    try{
+      const mixer = new THREE.AnimationMixer(this.root);
+      const action = mixer.clipAction(clip);
+      action.setLoop(THREE.LoopRepeat, Infinity);
+      action.clampWhenFinished = true;
+      action.play();
+      this._animMixer = mixer;
+    }catch(e){ console.warn('tank anim:', e); this._animMixer = null; }
   }
 
   _tankMat(color){
@@ -155,6 +237,7 @@ class Tank {
     this.root.add(this.turretGroup);
     this._addOverlays(t.h);
     this._syncTransform();
+    this._applyEditorOverrides();
   }
 
   static createOutlineMesh(mesh, thickness){
@@ -196,8 +279,8 @@ class Tank {
   }
 
   _loadModel(){
-    if(!this.def.model) return; // cube model unless explicitly requested
-    Models.load(this.def.model).then(grp=>{
+    if(!this.def.model){ this._modelReady = Promise.resolve(); return; } // cube model unless explicitly requested
+    this._modelReady = Models.load(this.def.model).then(grp=>{
       if(!grp) return;
       this._clearGroup(this.bodyGroup);
       this._clearGroup(this.turretGroup);
@@ -309,9 +392,12 @@ class Tank {
         this._shellNode = new THREE.Object3D();
         this._shellNode.position.copy(this.turretGroup.worldToLocal(wp2));
         this.turretGroup.add(this._shellNode);
+        this._casingOffset = this._shellNode.position.clone();
       }
       this._addOverlays(t.h);
       this._syncTransform();
+      this._applyEditorOverrides();
+      this._setupAnims(grp);
     });
   }
 
@@ -403,6 +489,13 @@ class Tank {
     // biased a little further forward, so the turret+outline swing around the
     // real turret position.
     this.root.updateMatrixWorld(true);
+    // Mount point of the turret (where it sits on the hull, at 0°). Kept in
+    // turretParts space: the pivot below can then move freely and change the
+    // ROTATION point without dragging the turret mesh along.
+    const homeV = new THREE.Vector3();
+    turretG.getWorldPosition(homeV);
+    this._turretHome = turretParts.worldToLocal(homeV);
+    this._turretG = turretG;
     const pivotBox = new THREE.Box3().setFromObject(turretG);
     const pivotC = pivotBox.getCenter(new THREE.Vector3());
     pivotC.z += (pivotBox.max.z - pivotBox.min.z) * 0.25;
@@ -412,16 +505,42 @@ class Tank {
     turretParts.add(turretPivot);
     turretPivot.updateMatrixWorld(true);
     turretPivot.attach(turretG);
+    // Keep the turret mesh at its authored home (attach already sets
+    // turretG.local = home - pivot).
+    this._applyTurretPlacement();
 
     // The turret group rotates about this dedicated front pivot node
     this._modelTurretPivot = turretPivot;
     // Shell-casing eject node (marked in the model: "shell")
     this._shellNode = shellG || null;
-    // Muzzle spawn point: just past the marked gun muzzle (pivot-local)
+    // Cache the casing port's offset relative to the turret at bind pose so
+    // casing eject never rides a firing/casing animation keyframed on that
+    // node (Cool Buddy's "gun firing" clip scatters/rotates it).
     this.root.updateMatrixWorld(true);
+    this._casingOffset = null;
+    if(this._shellNode){
+      const wpv = new THREE.Vector3();
+      this._shellNode.getWorldPosition(wpv);
+      this._casingOffset = this.turretGroup.worldToLocal(wpv);
+    }
+    // Muzzle spawn point (the FIRING point). Prefer an explicit "firing" /
+    // "muzzle" empty if the model has one, else auto-derive it just past the
+    // front-most extent of the turret (which contains the baked barrel).
     this.barrelEnd = new THREE.Object3D();
     const t = this.def.turret;
-    if(shellG && flippedTurret){
+    const findNamedL = (root, name) => {
+      const s = String(name).toLowerCase();
+      let out = null;
+      root.traverse(o => { if(!out && o.name && String(o.name).toLowerCase() === s) out = o; });
+      return out;
+    };
+    const firingG = findNamedL(grp, 'firing') || findNamedL(grp, 'muzzle');
+    if(firingG){
+      grp.updateMatrixWorld(true);
+      const wp = new THREE.Vector3();
+      firingG.getWorldPosition(wp);
+      this.barrelEnd.position.copy(turretG.worldToLocal(wp));
+    } else if(shellG && flippedTurret){
       // Muzzle just past the front-most extent of the (now flipped) turret
       // so shells spawn right at the barrel tip. Computed on the turret's
       // own bounds so it works at any modelScale without hardcoding.
@@ -432,7 +551,7 @@ class Tank {
         (bb.min.y + bb.max.y) / 2,
         bb.max.z + off
       );
-      const inv = new THREE.Matrix4().getInverse(turretG.matrixWorld);
+      const inv = new THREE.Matrix4().copy(turretG.matrixWorld).invert();
       muzzle.applyMatrix4(inv);
       this.barrelEnd.position.copy(muzzle);
     } else {
@@ -441,6 +560,26 @@ class Tank {
     turretG.add(this.barrelEnd);
     this._addOverlays(t.h);
     this._syncTransform();
+    this._applyEditorOverrides();
+    this._setupAnims(grp);
+  }
+
+  /* World position the ejected shell-casing flies out from. Uses the cached
+     bind-pose offset so the firing/casing animation can't skew it. */
+  casingPos(){
+    this.root.updateMatrixWorld(true);
+    if(this._casingOffset){
+      const tmp = new THREE.Vector3().copy(this._casingOffset);
+      return this.turretGroup.localToWorld(tmp);
+    }
+    if(this._shellNode){
+      const p = new THREE.Vector3();
+      this._shellNode.getWorldPosition(p);
+      return p;
+    }
+    // No casing port on this model: eject from the muzzle instead
+    const m = this.muzzle();
+    return m.pos;
   }
 
   _clearGroup(g){
@@ -587,6 +726,7 @@ class Tank {
   }
 
   update(dt, world, game){
+    if(this._animMixer) this._animMixer.update(dt);
     this._updateTrails(dt, game);
     if(this.dying){
       this._updateDeath(dt, game);

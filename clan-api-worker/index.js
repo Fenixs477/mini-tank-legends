@@ -245,6 +245,32 @@ export default {
     if (url.pathname === '/clanxp' && request.method === 'GET') return handleClanXpGet(request, env);
     if (url.pathname === '/clanxp/claim' && request.method === 'POST') return handleClanXpClaim(request, env);
 
+    // Tank Editor shared overrides — one global map so every game client
+    // applies the same hitbox/pivot/shell settings.
+    if (url.pathname === '/tankoverrides' && request.method === 'GET') {
+      const data = await env.CLAN_KV.get('tankoverrides', 'json');
+      return json({ overrides: (data && data.overrides) || {}, savedAt: (data && data.savedAt) || 0 });
+    }
+    if (url.pathname === '/tankoverrides' && request.method === 'POST') {
+      let b;
+      try { b = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
+      if (!b || typeof b.overrides !== 'object') return json({ error: 'bad payload' }, 400);
+      const clean = {};
+      for (const id of Object.keys(b.overrides)) {
+        const o = b.overrides[id];
+        if (o && (o.body || o.pivot || o.shell)) {
+          const c = {};
+          if (o.body && typeof o.body === 'object') c.body = { w: +o.body.w || 0, h: +o.body.h || 0, l: +o.body.l || 0 };
+          if (o.pivot && typeof o.pivot === 'object') c.pivot = { x: +o.pivot.x || 0, y: +o.pivot.y || 0, z: +o.pivot.z || 0 };
+          if (o.shell && typeof o.shell === 'object') c.shell = { x: +o.shell.x || 0, y: +o.shell.y || 0, z: +o.shell.z || 0 };
+          clean[id] = c;
+        }
+      }
+      const data = { overrides: clean, savedAt: Date.now() };
+      await env.CLAN_KV.put('tankoverrides', JSON.stringify(data));
+      return json(data);
+    }
+
     if (request.method === 'GET') {
       const code = url.searchParams.get('code');
       if (code) {

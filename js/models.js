@@ -114,6 +114,7 @@ const Models = {
         this.loader().load(url, (gltf)=>{
           this._stripSkins(gltf.scene);
           this._cache[name].gltf = gltf.scene;
+          this._cache[name].anims = gltf.animations || [];
           this._cache[name].tried = true;
           resolve(this._clone(name));
         }, undefined, reject);
@@ -125,6 +126,7 @@ const Models = {
         (gltf)=>{
           this._stripSkins(gltf.scene);
           this._cache[name].gltf = gltf.scene;
+          this._cache[name].anims = gltf.animations || [];
           this._cache[name].tried = true;
           resolve(this._clone(name));
         },
@@ -159,7 +161,10 @@ const Models = {
   _clone(name){
     const src = this._cache[name].gltf;
     if(!src) return null;
-    return src.clone(true);
+    const out = src.clone(true);
+    // Keep the GLB animation clips attached so tanks can play them
+    if(this._cache[name].anims) out.userData.anims = this._cache[name].anims;
+    return out;
   },
 
   /* Turn SkinnedMesh into plain Mesh at the same authored node.

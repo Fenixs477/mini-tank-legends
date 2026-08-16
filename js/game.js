@@ -3689,13 +3689,13 @@ _gladZoneNotice(text){
      COMBAT HOOKS
      =========================================================== */
   ejectShell(tank){
-    // World position of the model's "shell" port (tracks turret rotation)
+    // World position of the model's casing port (tracks turret rotation).
+    // Uses the cached bind-pose offset so a firing/casing animation on the
+    // model's "shell" node can't throw the ejection around.
     tank.root.updateMatrixWorld(true);
-    const p = new THREE.Vector3();
+    const p = tank.casingPos ? tank.casingPos() : new THREE.Vector3();
     let fallbackPos = false;
-    if(tank._shellNode){
-      tank._shellNode.getWorldPosition(p);
-    } else {
+    if(!p.lengthSq && !tank.casingPos){
       const m = tank.muzzle();
       p.copy(m.pos);
       fallbackPos = true;
@@ -4383,5 +4383,9 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   } catch(e){
     console.error('MENU INIT ERROR:', e, e.stack);
   }
+  // Fetch Tank Editor overrides shared with all clients (hitbox/pivot/spawn)
+  try {
+    if(window.TankEditor && TankEditor.syncGlobal) TankEditor.syncGlobal().catch(function(){});
+  } catch(e){ console.warn('tank overrides sync skipped:', e); }
   window.__game = game;
 });

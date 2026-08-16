@@ -113,6 +113,7 @@ const TANKS = {
     barrelLen:1.6, barrelR:0.16,
     model:'coolbuddy', modelScale:12.75,
     modelFlipY:true, muzzleZOff:0.15,
+    fireAnim:'gun firing',
     ejectShell:true,
     hp:200, speed:22, turn:1.8,
     turretTurn:2.4,

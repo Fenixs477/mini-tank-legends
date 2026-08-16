@@ -986,9 +986,10 @@ this._renderCamSettings();
   _startMainPreview(){
     const host = document.getElementById('main-menu-preview-canvas');
     if(!host) return;
-    // WoT-style garage behind the menu; falls back to the old drifting tank
-    // preview if the garage can't load (returns false or late failure).
-    if(window.Garage){
+    // Default: the classic void scene with a drifting tank (legacy preview).
+    // Switch to the WoT-style garage by typing 'garage' in the Codes menu.
+    const wantGarage = localStorage.getItem('tankparty_garage_preview') === '1';
+    if(wantGarage && window.Garage){
       const def = TANKS && (TANKS[this.settings.selectedTank] || TANKS.coolbuddy);
       try{
         if(Garage.start(host, def ? this.settings.selectedTank : 'coolbuddy') !== false) return;
@@ -1192,6 +1193,15 @@ this._renderCamSettings();
     this._mainPreviewTurretGroup = null;
     const host = document.getElementById('main-menu-preview-canvas');
     if(host) host.innerHTML = '';
+  },
+
+  toggleMainPreviewMode(){
+    const on = localStorage.getItem('tankparty_garage_preview') === '1';
+    localStorage.setItem('tankparty_garage_preview', on ? '0' : '1');
+    this.toast(on ? 'Main menu preview: classic void tank' : 'Main menu preview: garage');
+    if(window.Garage){ try{ Garage.stop(); }catch(e){} }
+    this._stopMainPreview();
+    this._startMainPreview();
   },
 
   _refreshHostCode(){
@@ -2396,6 +2406,9 @@ this._renderCamSettings();
         this.show('menu-main');
       } else if(code === 'revertmap'){
         this._revertMap();
+      } else if(code.toLowerCase() === 'garage'){
+        input.value = '';
+        this.toggleMainPreviewMode();
       } else if(code.toLowerCase() === 'fc'){
         input.value = '';
         if(window.Garage && Garage.active){
