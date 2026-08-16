@@ -113,7 +113,7 @@ class Shell {
         this.z = impactZ + this.dir.z * 0.8;
         this.mesh.position.set(this.x, this.y, this.z);
         this.mesh.lookAt(this.x + this.dir.x, this.y, this.z + this.dir.z);
-        game.spawnExplosion(this.x, 1.0, this.z, 0xffeeaa, 4);
+        game.spawnExplosion(this.x, 1.0, this.z, 0xffeeaa, 3, 'burn');
 
         // Stylized bounce sparks: bright flash kicked along the reflected path
         if(game && game.spawnBurst){
@@ -177,7 +177,8 @@ class Shell {
       // Defensive wall check (fallback if Rapier collision event missed)
       if(world.collidesWallsOnly(this.x, this.z, this.radius)){
         this.dead = true;
-        game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6);
+        game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6, 'wall');
+        game.spawnBurst && game.spawnBurst(this.x, 1.0, this.z, {count: 3, tex: 'dust', speed: 3.5, size: 0.9, life: 0.4, rise: 1.2, gravity: 5, blend: 'normal', fade: 0.7});
         return;
       }
     } else {
@@ -188,7 +189,8 @@ class Shell {
       const nz = this.z + vz * dt;
       if(world.collidesWallsOnly(nx, nz, this.radius)){
         this.dead = true;
-        game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6);
+        game.spawnExplosion(this.x, 1.0, this.z, 0xffaa33, 6, 'wall');
+        game.spawnBurst && game.spawnBurst(this.x, 1.0, this.z, {count: 3, tex: 'dust', speed: 3.5, size: 0.9, life: 0.4, rise: 1.2, gravity: 5, blend: 'normal', fade: 0.7});
         return;
       }
       this.x = nx; this.z = nz;
@@ -214,7 +216,7 @@ class Shell {
         const armor = t.def.armor;
         if(armor && this._tryRicochet(t, game)){ continue; }
         t.takeDamage(this.damage, this.owner, game);
-        game.spawnExplosion(this.x, 1.2, this.z, 0xff6a2a, 8);
+        game.spawnExplosion(this.x, 1.2, this.z, 0xff6a2a, 3, 'boom');
         // Impact sparks + a puff of smoke so a landed hit feels meaty
         if(game && game.spawnBurst){
           game.spawnBurst(this.x, 1.2, this.z, {
@@ -322,79 +324,129 @@ class FlameCone {
   }
 }
 
-/* Visual-only explosion: bright flash, expanding shockwave ring, fireball
-   blobs, star-shaped sparks, spinning debris shards and fluffy smoke. */
+/* Visual-only explosion: layered, soft-stylized puff. Mixes a soft 8-ray
+   starburst flash, shockwave ring, organic fire blobs, star sparks, debris
+   shards, fluffy smoke clouds, embers and dust — so no single round "yellow
+   ball" dominates. `style` picks a preset (boom/barrel/wall/small/box/drop). */
+const EXPLOSION_STYLES = {
+  boom:   { life:0.6,  flash:2.4, ring:true,  fire:0.5, embers:3, smoke:0.7, dust:0 },
+  barrel: { life:0.65, flash:2.6, ring:true,  fire:0.8, embers:5, smoke:0.85,dust:0 },
+  wall:   { life:0.45, flash:1.2, ring:false, fire:0,   embers:0, smoke:0,   dust:6 },
+  small:  { life:0.4,  flash:1.0, ring:false, fire:0,   embers:0, smoke:0,   dust:4 },
+  box:    { life:0.5,  flash:1.6, ring:true,  fire:0,   embers:1, smoke:0.35,dust:0 },
+  drop:   { life:0.5,  flash:1.8, ring:true,  fire:0,   embers:2, smoke:0.6, dust:0 },
+  burn:   { life:0.35, flash:0.8, ring:false, fire:0,   embers:3, smoke:0,   dust:2 },
+  lrg:    { life:0.9,  flash:2.8, ring:true,  fire:1.1, embers:5, smoke:1.0, dust:0, smokeCol:1.4 },
+};
 class Explosion {
-  constructor(x,y,z,color,count){
-    this.x=x;this.y=y;this.z=z;this.life=0.5;this.maxLife=0.5;this.dead=false;
+  constructor(x,y,z,color,count,style){
+    this.x=x;this.y=y;this.z=z;this.dead=false;
     this.group=new THREE.Group(); this.group.position.set(x,y,z);
     this.parts=[];
     const tint = new THREE.Color(color || 0xffaa33);
-    const n = Math.max(1, count|0 || 6);
+    const white = new THREE.Color(0xffffff);
+    const n = Math.max(2, count|0 || 6);
+    const st = EXPLOSION_STYLES[style] || EXPLOSION_STYLES.boom;
+    const K = Math.min(1.45, 0.68 + n*0.05);
+    this.maxLife = this.life = st.life;
 
-    // 0) Bright flash core (additive flare), tinted to the kind of explosion
-    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('flare'), color:tint, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
-    flash.scale.set(5,5,1);
-    flash.userData = {type:'flash'};
-    this.group.add(flash); this.parts.push(flash);
+    // 0) Soft starburst flash — the bright "pop", gently whitened
+    if(st.flash > 0){
+      const flashTint = tint.clone().lerp(white, 0.5);
+      const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('starsoft'), color:flashTint, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
+      const fs = (4.6 * K) * (st.flash / 2.4);
+      flash.scale.set(fs, fs, 1);
+      flash.userData = {type:'flash', base:fs};
+      this.group.add(flash); this.parts.push(flash);
+    }
 
     // 1) Expanding shockwave ring hugs the ground
-    const ring = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('ring'), color:tint, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
-    ring.scale.set(0.8,0.8,1);
-    ring.position.y = 0.02;
-    ring.userData = {type:'ring'};
-    this.group.add(ring); this.parts.push(ring);
+    if(st.ring){
+      const ring = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('ring'), color:tint, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
+      ring.scale.set(0.8,0.8,1);
+      ring.position.y = 0.02;
+      ring.userData = {type:'ring'};
+      this.group.add(ring); this.parts.push(ring);
+    }
 
-    // 2) Fireball blobs near the core (additive)
-    const fireN = n < 6 ? 2 : 3;
+    // 2) Organic fire blobs (additive, drift out + lift, balloon)
+    const fireN = Math.max(0, Math.round(st.fire * n));
     for(let i=0;i<fireN;i++){
       const a = Math.random()*Math.PI*2;
-      const spd = 1.2 + Math.random()*1.6;
-      const sc = 1.1 + Math.random()*0.8;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('fire'), color:tint, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false}));
-      sp.position.set(Math.cos(a)*0.3, Math.random()*0.4, Math.sin(a)*0.3);
+      const spd = 1.0 + Math.random()*1.4;
+      const sc = (1.0 + Math.random()*0.7) * K;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('blobfire'), color:tint, transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false}));
+      sp.position.set(Math.cos(a)*0.25, Math.random()*0.3, Math.sin(a)*0.25);
       sp.scale.set(sc,sc,1);
-      sp.userData = {type:'fire', v:new THREE.Vector3(Math.cos(a)*spd, 1.5+Math.random(), Math.sin(a)*spd), base:sc};
+      sp.userData = {type:'fire', v:new THREE.Vector3(Math.cos(a)*spd, 1.6+Math.random(), Math.sin(a)*spd), base:sc};
       this.group.add(sp); this.parts.push(sp);
     }
 
-    // 3) Sparks: thin star shapes flying out fast, spinning, falling
+    // 3) Star sparks racing outward (fast, gravity, spinning)
     for(let i=0;i<n;i++){
       const a = Math.random()*Math.PI*2;
-      const spd = 3 + Math.random()*7;
-      const u = {type:'spark', v:new THREE.Vector3(Math.cos(a)*spd, Math.random()*0.6, Math.sin(a)*spd), g:11+Math.random()*5, spin:8+Math.random()*14, base:0.4+Math.random()*0.4};
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('spark'), color:tint, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+      const spd = 3.5 + Math.random()*7;
+      const base = (0.34 + Math.random()*0.3) * K;
+      const u = {type:'spark', v:new THREE.Vector3(Math.cos(a)*spd, Math.random()*0.6, Math.sin(a)*spd), g:11+Math.random()*5, spin:8+Math.random()*14, base};
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('spark'), color:white, transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
       sp.position.set((Math.random()-0.5)*0.4, Math.random()*0.4, (Math.random()-0.5)*0.4);
       sp.rotation.z = Math.random()*Math.PI*2;
-      sp.scale.set(u.base,u.base,1);
+      sp.scale.set(base, base, 1);
       sp.userData = u;
       this.group.add(sp); this.parts.push(sp);
     }
 
-    // 4) Debris shards: chunky triangles / hex plates, spinning, heavier fall
+    // 4) Debris shards: chunky triangles / hex plates, spinning, heavy fall
     const shardN = Math.max(1, Math.ceil(n/2));
     for(let i=0;i<shardN;i++){
       const a = Math.random()*Math.PI*2;
       const spd = 2 + Math.random()*4;
-      const u = {type:'shard', v:new THREE.Vector3(Math.cos(a)*spd, 1+Math.random()*2, Math.sin(a)*spd), g:6+Math.random()*3, spin:(Math.random()<0.5?-1:1)*(3+Math.random()*6), base:0.55+Math.random()*0.45};
+      const base = (0.55 + Math.random()*0.4) * K;
+      const u = {type:'shard', v:new THREE.Vector3(Math.cos(a)*spd, 1+Math.random()*2, Math.sin(a)*spd), g:6+Math.random()*3, spin:(Math.random()<0.5?-1:1)*(3+Math.random()*6), base};
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex(i%2===0?'shard':'hex'), color:tint, transparent:true, opacity:0.9, depthWrite:false}));
       sp.position.set((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5);
       sp.rotation.z = Math.random()*Math.PI*2;
-      sp.scale.set(u.base,u.base,1);
+      sp.scale.set(base, base, 1);
       sp.userData = u;
       this.group.add(sp); this.parts.push(sp);
     }
 
-    // 5) Smoke puffs: fluffy gray lobes, slow drift, grow large
-    const puffN = Math.max(2, Math.ceil(n*0.7));
-    for(let i=0;i<puffN;i++){
+    // 5) Fluffy smoke clouds (normal blend, slow rise, grow large)
+    const smokeN = Math.max(1, Math.round(st.smoke * n));
+    for(let i=0;i<smokeN;i++){
       const a = Math.random()*Math.PI*2;
       const spd = 0.3 + Math.random()*0.8;
-      const sc = 0.8 + Math.random()*0.9;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('puff'), transparent:true, opacity:0.4, depthWrite:false}));
+      const sc = (0.9 + Math.random()*0.9) * K;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('cloud'), transparent:true, opacity:0.55, depthWrite:false}));
       sp.position.set(Math.cos(a)*0.2, Math.random()*0.3, Math.sin(a)*0.2);
       sp.scale.set(sc,sc,1);
-      sp.userData = {type:'smoke', v:new THREE.Vector3(Math.cos(a)*spd, 0.4+Math.random()*0.5, Math.sin(a)*spd), base:sc};
+      sp.userData = {type:'smoke', v:new THREE.Vector3(Math.cos(a)*spd, 0.6+Math.random()*0.6, Math.sin(a)*spd), base:sc};
+      this.group.add(sp); this.parts.push(sp);
+    }
+
+    // 6) Dust kick (normal blend, fast outward drift, fades fast)
+    const dustN = st.dust || 0;
+    for(let i=0;i<dustN;i++){
+      const a = Math.random()*Math.PI*2;
+      const spd = 1.6 + Math.random()*2.2;
+      const sc = (0.7 + Math.random()*0.6) * K;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('dust'), transparent:true, opacity:0.45, depthWrite:false}));
+      sp.position.set(Math.cos(a)*0.15, Math.random()*0.25, Math.sin(a)*0.15);
+      sp.scale.set(sc,sc,1);
+      sp.userData = {type:'dust', v:new THREE.Vector3(Math.cos(a)*spd, 0.4+Math.random()*0.4, Math.sin(a)*spd), base:sc};
+      this.group.add(sp); this.parts.push(sp);
+    }
+
+    // 7) Embers floating up (additive, small, glowing)
+    const embN = st.embers || 0;
+    for(let i=0;i<embN;i++){
+      const a = Math.random()*Math.PI*2;
+      const sc = (0.16 + Math.random()*0.14) * K;
+      const u = {type:'ember', v:new THREE.Vector3(Math.cos(a)*0.6, 2.0+Math.random()*1.2, Math.sin(a)*0.6), base:sc};
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('ember'), transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
+      sp.position.set((Math.random()-0.5)*0.3, Math.random()*0.3, (Math.random()-0.5)*0.3);
+      sp.scale.set(sc,sc,1);
+      sp.userData = u;
       this.group.add(sp); this.parts.push(sp);
     }
   }
@@ -406,50 +458,56 @@ class Explosion {
   }
   update(dt){
     this.life-=dt;
-    const lifeK = this.life/this.maxLife;  // 1 -> 0
-    const k = 1 - lifeK;                   // 0 -> 1
+    const lifeK = Math.max(0, this.life/this.maxLife); // 1 -> 0
+    const k = 1 - lifeK;                                // 0 -> 1
     this.parts.forEach(p=>{
       const u = p.userData;
       switch(u.type){
         case 'flash':
-          const fs = 5*lifeK + 0.4;
-          p.scale.set(fs,fs,1);
+          p.scale.setScalar(u.base * (lifeK*0.5 + 0.5));
           p.material.opacity = lifeK;
           break;
         case 'ring':
-          const rs = 0.8 + k*k*7.5;
-          p.scale.set(rs,rs,1);
+          p.scale.setScalar(0.8 + k*k*7.5);
           p.material.opacity = Math.max(0, 0.85*(1-k*k));
           break;
         case 'fire':
           p.position.addScaledVector(u.v, dt);
           u.v.y -= 3*dt;
-          const fg = u.base*(1+k*1.4);
-          p.scale.set(fg,fg,1);
+          p.scale.setScalar(u.base*(1+k*1.4));
           p.material.opacity = Math.max(0, 0.9*(1-k*k));
           break;
         case 'spark':
           p.position.addScaledVector(u.v, dt);
           u.v.y -= u.g*dt;
           p.rotation.z += u.spin*dt;
-          const sg = u.base*(1 - k*k*0.65);
-          p.scale.set(Math.max(0.1,sg), Math.max(0.1,sg), 1);
+          p.scale.set(Math.max(0.1, u.base*(1 - k*k*0.6)), Math.max(0.1, u.base*(1 - k*k*0.6)), 1);
           p.material.opacity = Math.max(0, 0.95*lifeK);
           break;
         case 'shard':
           p.position.addScaledVector(u.v, dt);
           u.v.y -= u.g*dt;
           p.rotation.z += u.spin*dt;
-          const sd = u.base*(1+k*0.8);
-          p.scale.set(sd,sd,1);
+          p.scale.setScalar(u.base*(1+k*0.8));
           p.material.opacity = Math.max(0, 0.9*lifeK);
           break;
         case 'smoke':
           p.position.addScaledVector(u.v, dt);
-          u.v.y += 0.4*dt;
-          const sm = u.base*(1+k*1.5);
-          p.scale.set(sm,sm,1);
-          p.material.opacity = Math.max(0, 0.4*lifeK);
+          u.v.y += 0.5*dt;
+          p.scale.setScalar(u.base*(1+k*1.6));
+          p.material.opacity = Math.max(0, 0.55*lifeK);
+          break;
+        case 'dust':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y -= 2*dt;
+          p.scale.setScalar(u.base*(1+k*1.3));
+          p.material.opacity = Math.max(0, 0.45*lifeK);
+          break;
+        case 'ember':
+          p.position.addScaledVector(u.v, dt);
+          u.v.y += (1.4 - 1.5*dt);
+          p.scale.setScalar(Math.max(0.05, u.base*(1 - k*0.6)));
+          p.material.opacity = Math.max(0, 0.8*lifeK);
           break;
       }
     });

@@ -729,7 +729,14 @@ const Menu = {
     const gladPlay = document.getElementById('glad-play-btn');
     if(gladPlay) gladPlay.onclick = ()=>{
       document.getElementById('glad-result').classList.add('hidden');
-      if(this.game) this.game.startGladiator();
+      try {
+        if(this.game) this.game.startGladiator();
+      } catch(err){
+        // Never dead-end the player on a failed restart: drop back to the menu.
+        console.error('Play again failed:', err);
+        try { if(this.game) this.game.leaveToMenu(); } catch(e2){ console.error('menu fallback:', e2); }
+        this.toast('Could not restart — back to menu');
+      }
     };
     const gladWatch = document.getElementById('glad-watch-btn');
     if(gladWatch) gladWatch.onclick = ()=>{
@@ -4369,8 +4376,7 @@ this._renderCamSettings();
     this._selectedGamemode = m;
     if(Audio && Audio.click) Audio.click();
     if(m === 'gladiator'){
-      if(this.game) this.game.setUseCustomMap(this.hostCfg.useCustomMap);
-      if(this.game) this.game.startGladiator();
+      this._startGladiatorSafely();
       return;
     }
     if(m === 'multiplayer'){
@@ -4383,7 +4389,20 @@ this._renderCamSettings();
     localStorage.setItem('tankparty_gamemode', 'gladiator');
     this._syncGamemodeIcon();
     this.toast((m === 'sandbox' ? 'Sandbox mode' : 'Platform King mode') + ' is coming soon — starting Gladiator!');
-    if(this.game) this.game.startGladiator();
+    this._startGladiatorSafely();
+  },
+
+  _startGladiatorSafely(){
+    try {
+      if(this.game) this.game.setUseCustomMap(this.hostCfg.useCustomMap);
+      if(this.game) this.game.startGladiator();
+    } catch(err){
+      // A bad re-entry must surface the error and return the player to the
+      // menu instead of silently swallowing the click.
+      console.error('Start Gladiator failed:', err);
+      try { if(this.game) this.game.leaveToMenu(); } catch(e2){ console.error('menu fallback:', e2); }
+      this.toast('Could not start the match — back to menu');
+    }
   },
 
   _syncGamemodeIcon(){

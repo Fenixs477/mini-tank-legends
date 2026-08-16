@@ -1,10 +1,115 @@
 // VFX texture registry (procedural canvas textures - no external files needed)
 const VFX = {
   _texCache: {},
+  _size(name){
+    if(name === 'starsoft' || name === 'blobfire' || name === 'cloud' || name === 'steam') return 128;
+    if(name === 'ember') return 48;
+    return 64;
+  },
   _makeCanvas(name){
-    const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+    const S = this._size(name);
+    const c = document.createElement('canvas'); c.width = S; c.height = S;
     const ctx = c.getContext('2d');
-    if(name === 'flare'){
+    const cx = S / 2;
+    if(name === 'starsoft'){
+      /* Soft 8-ray starburst: not a plain circle. Radial halo + tapering rays
+         that fade to transparent, with a white-hot core. Reads as a "pop". */
+      const halo = ctx.createRadialGradient(cx,cx,0,cx,cx,cx*0.98);
+      halo.addColorStop(0, 'rgba(255,255,240,0.95)');
+      halo.addColorStop(0.3, 'rgba(255,250,215,0.38)');
+      halo.addColorStop(0.65, 'rgba(255,245,200,0.12)');
+      halo.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = halo; ctx.fillRect(0,0,S,S);
+      ctx.save(); ctx.translate(cx,cx);
+      for(let i = 0; i < 8; i++){
+        ctx.save();
+        ctx.rotate(i * Math.PI / 4 + 0.22);
+        const ray = ctx.createLinearGradient(S*0.07, 0, S*0.5, 0);
+        ray.addColorStop(0, 'rgba(255,255,255,0.95)');
+        ray.addColorStop(0.55, 'rgba(255,238,180,0.45)');
+        ray.addColorStop(1, 'rgba(255,200,120,0)');
+        ctx.beginPath();
+        ctx.moveTo(S*0.07, -S*0.055);
+        ctx.lineTo(S*0.5, 0);
+        ctx.lineTo(S*0.07, S*0.055);
+        ctx.closePath();
+        ctx.fillStyle = ray; ctx.fill();
+        ctx.restore();
+      }
+      const core = ctx.createRadialGradient(0,0,0,0,0,S*0.09);
+      core.addColorStop(0, 'rgba(255,255,255,1)');
+      core.addColorStop(0.6, 'rgba(255,240,200,0.85)');
+      core.addColorStop(1, 'rgba(255,230,170,0)');
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(0,0,S*0.09,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    } else if(name === 'blobfire'){
+      /* Organic fireball: several overlapping warm blobs with a bright core,
+         irregular silhouette — not a uniform circle. */
+      const blobs = [[cx*0.5,cx*0.58,cx*0.42],[cx*0.72,cx*0.72,cx*0.32],[cx*0.34,cx*0.74,cx*0.3],[cx*0.66,cx*0.38,cx*0.3],[cx*0.26,cx*0.5,cx*0.26],[cx*0.5,cx*1.02,cx*0.38]];
+      for(const b of blobs){
+        const g = ctx.createRadialGradient(b[0],b[1],0,b[0],b[1],b[2]);
+        g.addColorStop(0, 'rgba(255,240,150,0.9)');
+        g.addColorStop(0.4, 'rgba(255,170,45,0.7)');
+        g.addColorStop(0.75, 'rgba(220,70,10,0.32)');
+        g.addColorStop(1, 'rgba(160,30,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(b[0],b[1],b[2],0,Math.PI*2); ctx.fill();
+      }
+      const hot = ctx.createRadialGradient(cx*0.52,cx*0.66,0,cx*0.52,cx*0.66,cx*0.22);
+      hot.addColorStop(0, 'rgba(255,255,215,0.98)');
+      hot.addColorStop(0.5, 'rgba(255,225,90,0.75)');
+      hot.addColorStop(1, 'rgba(255,180,40,0)');
+      ctx.fillStyle = hot;
+      ctx.beginPath(); ctx.arc(cx*0.52,cx*0.66,cx*0.22,0,Math.PI*2); ctx.fill();
+    } else if(name === 'cloud'){
+      /* Fluffy smoke cloud: many soft overlapping lobes with a gentle darker
+         rim so it reads as a cloud, not a fuzzy circle. */
+      const lobes = [[cx*0.5,cx*0.55,cx*0.4],[cx*0.66,cx*0.66,cx*0.32],[cx*0.32,cx*0.64,cx*0.3],[cx*0.7,cx*0.4,cx*0.26],[cx*0.26,cx*0.42,cx*0.22],[cx*0.52,cx*0.3,cx*0.24],[cx*0.4,cx*0.88,cx*0.26],[cx*0.68,cx*0.86,cx*0.22]];
+      for(let i = 0; i < lobes.length; i++){
+        const b = lobes[i];
+        const g = ctx.createRadialGradient(b[0],b[1],0,b[0],b[1],b[2]);
+        g.addColorStop(0, 'rgba(225,226,232,0.5)');
+        g.addColorStop(0.55, 'rgba(168,170,180,0.36)');
+        g.addColorStop(0.85, 'rgba(120,124,136,0.2)');
+        g.addColorStop(1, 'rgba(100,104,116,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(b[0],b[1],b[2],0,Math.PI*2); ctx.fill();
+      }
+    } else if(name === 'steam'){
+      /* Rising steam wisp: a soft vertical teardrop of light vapor. */
+      const g = ctx.createRadialGradient(cx*0.5,cx*0.42,0,cx*0.5,cx*0.42,cx*0.5);
+      g.addColorStop(0, 'rgba(232,234,240,0.55)');
+      g.addColorStop(0.5, 'rgba(190,196,208,0.32)');
+      g.addColorStop(0.85, 'rgba(150,156,170,0.12)');
+      g.addColorStop(1, 'rgba(140,146,158,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(cx*0.5,cx*0.42,cx*0.3,cx*0.5,0,0,Math.PI*2); ctx.fill();
+      const top = ctx.createRadialGradient(cx*0.5,cx*0.2,0,cx*0.5,cx*0.2,cx*0.24);
+      top.addColorStop(0, 'rgba(240,242,248,0.4)');
+      top.addColorStop(1, 'rgba(240,242,248,0)');
+      ctx.fillStyle = top;
+      ctx.beginPath(); ctx.arc(cx*0.5,cx*0.2,cx*0.24,0,Math.PI*2); ctx.fill();
+    } else if(name === 'dust'){
+      /* Warm tan dust kick: loose soft lobes, lighter core. */
+      const lobes = [[cx*0.5,cx*0.55,cx*0.42],[cx*0.68,cx*0.68,cx*0.3],[cx*0.3,cx*0.66,cx*0.28],[cx*0.6,cx*0.34,cx*0.24],[cx*0.34,cx*0.4,cx*0.2]];
+      for(const b of lobes){
+        const g = ctx.createRadialGradient(b[0],b[1],0,b[0],b[1],b[2]);
+        g.addColorStop(0, 'rgba(206,178,132,0.5)');
+        g.addColorStop(0.6, 'rgba(166,138,98,0.3)');
+        g.addColorStop(1, 'rgba(140,116,82,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(b[0],b[1],b[2],0,Math.PI*2); ctx.fill();
+      }
+    } else if(name === 'ember'){
+      /* Tiny ember dot: small bright warm point thrown up by fire. */
+      const g = ctx.createRadialGradient(cx,cx,0,cx,cx,cx);
+      g.addColorStop(0, 'rgba(255,255,235,1)');
+      g.addColorStop(0.4, 'rgba(255,220,120,0.85)');
+      g.addColorStop(0.8, 'rgba(255,140,30,0.2)');
+      g.addColorStop(1, 'rgba(255,120,20,0)');
+      ctx.fillStyle = g; ctx.fillRect(0,0,S,S);
+    } else if(name === 'flare'){
       const g = ctx.createRadialGradient(32,32,0,32,32,32);
       g.addColorStop(0, 'rgba(255,255,255,1)');
       g.addColorStop(0.15, 'rgba(255,240,180,1)');

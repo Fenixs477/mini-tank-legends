@@ -396,8 +396,25 @@ class Tank {
     this.bodyGroup.add(bodyParts);
     this.turretGroup.add(turretParts);
 
-    // The turret group rotates about its own authored pivot node
-    this._modelTurretPivot = turretG;
+    // Cool Buddy's turret sits toward the front of the hull, so rotating the
+    // bare turret group about the model origin makes it arc around a point far
+    // behind its own mass (and drags its outline with it, looking broken).
+    // Give every named model a dedicated pivot at the turret's front-center,
+    // biased a little further forward, so the turret+outline swing around the
+    // real turret position.
+    this.root.updateMatrixWorld(true);
+    const pivotBox = new THREE.Box3().setFromObject(turretG);
+    const pivotC = pivotBox.getCenter(new THREE.Vector3());
+    pivotC.z += (pivotBox.max.z - pivotBox.min.z) * 0.25;
+    const turretPivotLocal = turretParts.worldToLocal(pivotC);
+    const turretPivot = new THREE.Group();
+    turretPivot.position.copy(turretPivotLocal);
+    turretParts.add(turretPivot);
+    turretPivot.updateMatrixWorld(true);
+    turretPivot.attach(turretG);
+
+    // The turret group rotates about this dedicated front pivot node
+    this._modelTurretPivot = turretPivot;
     // Shell-casing eject node (marked in the model: "shell")
     this._shellNode = shellG || null;
     // Muzzle spawn point: just past the marked gun muzzle (pivot-local)
