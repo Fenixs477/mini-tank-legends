@@ -4,3 +4,5 @@ uploads/
 *.err
 .wrangler/
 clan-api-worker/.wrangler/
+
+dist/

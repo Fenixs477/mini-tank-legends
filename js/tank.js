@@ -1,3 +1,11 @@
+// Shortest signed angle diff from b to a, in (-PI, PI]
+function _angDiff(a, b){
+  let d = (a - b) % (Math.PI * 2);
+  if(d > Math.PI) d -= Math.PI * 2;
+  if(d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
 class Tank {
   constructor(def, opts={}){
     this.def = def;

@@ -286,10 +286,8 @@
     t2.classList.toggle('pl-ghost', !custom);
     $('pl-switch').disabled = !(custom || (you && isSpecMember(you)));
     $('pl-delete').style.display = isHostYou() ? '' : 'none';
-    $('pl-ready').disabled = !you || isSpecMember(you);
-    $('pl-ready').textContent = (you && isSpecMember(you))
-      ? 'SPECTATING'
-      : (you && you.ready ? 'READY \u2713' : 'READY');
+    $('pl-ready').disabled = !you;
+    $('pl-ready').textContent = (you && you.ready) ? 'READY \u2713' : (you && isSpecMember(you) ? 'READY (SPEC)' : 'READY');
     $('pl-ready').classList.toggle('pl-btn-gold', !!(you && you.ready));
     $('pl-room-code').textContent = S.code;
     $('pl-start').style.display = isHostYou() ? '' : 'none';
@@ -1003,7 +1001,7 @@
     if(S.online){
       if(isHostYou()){
         var m = S.members[S.you.uid];
-        if(!m || isSpecMember(m)) return;
+        if(!m) return;
         m.ready = !m.ready;
         status(m.ready ? 'READY' : 'NOT ready');
         broadcast({ t: 'st', room: roomState() });
@@ -1014,7 +1012,6 @@
       return;
     }
     var you = S.youLocal;
-    if(isSpecMember(you)) return;
     you.ready = !you.ready;
     status(you.ready ? 'READY' : 'NOT ready');
     render();
@@ -1186,7 +1183,12 @@
       stopMic();
       Game.startHost({ maxPlayers: 12, isPublic: false, fakePlayers: 0, code: S.code, gamemode: mode });
     } else if(isSpec){
-      status('SPECTATING — the match is running, stay tuned');
+      stopMic();
+      if(Game && Game.startSpectator){
+        Game.startSpectator({ code: S.code });
+      } else {
+        status('SPECTATING — the match is running, stay tuned');
+      }
     } else {
       status('Game not ready — try again in a moment');
     }
@@ -1199,8 +1201,13 @@
     if(!isSpec && Game && Game.startClient){
       stopMic();
       Game.startClient(msg.code || S.code);
-    } else {
-      status('SPECTATING — the match is running');
+    } else if(isSpec){
+      stopMic();
+      if(Game && Game.startSpectator){
+        Game.startSpectator({ code: msg.code || S.code });
+      } else {
+        status('SPECTATING — the match is running');
+      }
     }
   }
   function onLobbyShow(){
@@ -1215,7 +1222,7 @@
       }
       if(S.vote){ S.vote = false; S.votes = {}; if(S.online) broadcast({ t: 'vote', on: false }); }
       var y = youM();
-      if(y && !isSpecMember(y)){
+      if(y){
         if(S.online){ y.ready = false; broadcast({ t: 'st', room: roomState() }); }
         else { S.youLocal.ready = false; }
       }

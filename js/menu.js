@@ -288,8 +288,24 @@ const Menu = {
     };
   },
 
+  hideTouchControls(){
+    document.querySelectorAll('.joystick-container, #cam-rotate-btns').forEach(el =>
+      el.classList.add('joystick-hidden')
+    );
+  },
+
   show(id){
-    this._stopMainPreview();
+    // Touch controls are gameplay-only: any menu hides them (covers every
+    // exit path, even ones that skip leaveToMenu).
+    this.hideTouchControls();
+    // Full-screen overlays replace the menu background, so the main preview
+    // (garage) is stopped there; card menus (codes, settings, …) sit on top
+    // of the menu layer and keep the garage running behind them.
+    if(['menu-collections','menu-store','menu-shop-buy','menu-shop-receive',
+        'menu-platoon','menu-preview','menu-clan-ui'].indexOf(id) >= 0 ||
+       id === 'menu-custom-full'){
+      this._stopMainPreview();
+    }
     document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
     if(this._collectionsKeyHandler){
       window.removeEventListener('keydown', this._collectionsKeyHandler);
@@ -306,7 +322,7 @@ const Menu = {
     if(id === 'menu-main'){
       Audio.playMusic('assets/menu.mp3');
       if(!this._customMenuActive()){
-        this._startMainPreview();
+        if(!(window.Garage && Garage.active)) this._startMainPreview();
       }
       if(this._customMenuActive()) this._renderCustomMainMenu();
       else this._restoreDefaultMainMenu();
@@ -532,6 +548,10 @@ const Menu = {
   },
   showHUD(){
     if(this._shopTimer){ clearInterval(this._shopTimer); this._shopTimer = null; }
+    // A match is starting: drop the menu preview (garage or legacy) so the
+    // hidden canvas stops rendering behind the game.
+    if(window.Garage) Garage.stop();
+    this._stopMainPreview();
     document.querySelectorAll('.menu').forEach(m=> m.classList.add('hidden'));
     document.getElementById('hud').classList.remove('hidden');
     Audio.playMusic('assets/1.mp3');
@@ -706,6 +726,11 @@ const Menu = {
       sq.classList.toggle('active', sq.dataset.gamemode === this._selectedGamemode)
     );
     // Gladiator result overlay buttons
+    const gladPlay = document.getElementById('glad-play-btn');
+    if(gladPlay) gladPlay.onclick = ()=>{
+      document.getElementById('glad-result').classList.add('hidden');
+      if(this.game) this.game.startGladiator();
+    };
     const gladWatch = document.getElementById('glad-watch-btn');
     if(gladWatch) gladWatch.onclick = ()=>{
       document.getElementById('glad-result').classList.add('hidden');
@@ -954,6 +979,19 @@ this._renderCamSettings();
   _startMainPreview(){
     const host = document.getElementById('main-menu-preview-canvas');
     if(!host) return;
+    // WoT-style garage behind the menu; falls back to the old drifting tank
+    // preview if the garage can't load (returns false or late failure).
+    if(window.Garage){
+      const def = TANKS && (TANKS[this.settings.selectedTank] || TANKS.coolbuddy);
+      try{
+        if(Garage.start(host, def ? this.settings.selectedTank : 'coolbuddy') !== false) return;
+      }catch(e){ console.warn('Garage start failed:', e); }
+    }
+    this._startMainPreviewLegacy(host);
+  },
+
+  _startMainPreviewLegacy(host){
+    if(!host) return;
     const def = TANKS[this.settings.selectedTank];
     if(!def) return;
 
@@ -1121,6 +1159,7 @@ this._renderCamSettings();
   },
 
   _stopMainPreview(){
+    if(window.Garage) Garage.stop();
     if(this._mainPreviewResizeHandler){
       window.removeEventListener('resize', this._mainPreviewResizeHandler);
       this._mainPreviewResizeHandler = null;
@@ -1201,7 +1240,10 @@ this._renderCamSettings();
       // Tab toggles esc menu (ignores key-repeat)
       if(e.code==='Tab'){
         if(e.repeat) return;
-        if(document.getElementById('hud').classList.contains('hidden')) return;
+        if(document.getElementById('hud').classList.contains('hidden')){
+          var _specHud = document.getElementById('spectator-hud');
+          if(!_specHud || _specHud.classList.contains('hidden')) return;
+        }
         this.toggleEsc();
         return;
       }
@@ -1243,7 +1285,10 @@ this._renderCamSettings();
     window.addEventListener('keydown', e=>{
       if(document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
       if(e.code !== (self.settings.binds.minimap || 'KeyM')) return;
-      if(document.getElementById('hud').classList.contains('hidden')) return;
+      if(document.getElementById('hud').classList.contains('hidden')){
+        var _specHud2 = document.getElementById('spectator-hud');
+        if(!_specHud2 || _specHud2.classList.contains('hidden')) return;
+      }
       self.game.toggleBigMap();
     });
   },
@@ -2344,6 +2389,17 @@ this._renderCamSettings();
         this.show('menu-main');
       } else if(code === 'revertmap'){
         this._revertMap();
+      } else if(code.toLowerCase() === 'fc'){
+        input.value = '';
+        if(window.Garage && Garage.active){
+          const on = Garage.freecam();
+          this.toast(on ? 'Freecam ON — WASD/arrows move, drag look, wheel speed, ESC exit' : 'Freecam OFF');
+        }else if(window.Garage){
+          this.toast('Opening the garage… type fc again');
+          this._startMainPreview();
+        }else{
+          this.toast('Freecam unavailable');
+        }
       } else if(code === '/code'){
         // Handle clan code command
         if(this._handleCodeCommand(code)){
@@ -2951,15 +3007,36 @@ this._renderCamSettings();
     // Persist message in clan data (drawn by the canvas layout + fallback DOM)
     if(!this._clanData.chat) this._clanData.chat = [];
     this._clanData.chatSeq = (this._clanData.chatSeq || 0) + 1;
-    this._clanData.chat.push({ id: this._clanData.chatSeq + ':' + playerName, name: playerName, rank: playerRank, msg: message });
-    if(this._clanData.chat.length > 30) this._clanData.chat = this._clanData.chat.slice(-30);
+    this._clanData.chat.push({ id: this._clanData.chatSeq + ':' + playerName, name: playerName, rank: playerRank, msg: message, ts: Date.now() });
+    if(this._clanData.chat.length > 50) this._clanData.chat = this._clanData.chat.slice(-50);
     this._saveClanData();
     this._updateRegistryClan(this._clanData);
     this._apiAnnounceClan(this._clanData);
 
     if(!st) this._addChatMessage(playerName, message, playerRank);
     input.value = '';
-    if(st) st.draft = '';
+    if(st){ st.draft = ''; st.chatScroll = 0; this._updateClanCanvasCounter(input, st.layout.find(x => x.type === 'chat-input')); }
+  },
+
+  _clanMemberAction(name, act){
+    const clan = this._clanData;
+    if(!clan) return;
+    const me = this.settings.playerName || 'Player';
+    const myRank = this._getPlayerRank();
+    const target = (clan.members || []).find(m => m.name === name);
+    if(!target || target.name === me || target.rank === 'owner') return;
+    if(act === 'rank' && myRank === 'owner'){
+      target.rank = (target.rank === 'admin') ? 'member' : 'admin';
+      this.toast(target.rank === 'admin' ? name + ' is now an ADMIN' : name + ' is now a member');
+    } else if(act === 'kick' && (myRank === 'owner' || (myRank === 'admin' && target.rank !== 'admin'))){
+      clan.members = (clan.members || []).filter(m => m.name !== name);
+      this.toast(name + ' was kicked from the clan');
+    } else {
+      return;
+    }
+    this._saveClanData();
+    this._updateRegistryClan(clan);
+    this._apiAnnounceClan(clan);
   },
 
   _getPlayerRank(){
@@ -3079,6 +3156,12 @@ this._renderCamSettings();
     const base = this._clanApiBase();
     if(!base || !clan || !clan.code) return;
     try{
+      // Stamping our own presence locally makes the member list turn green
+      // immediately, before the server round-trip comes back
+      const me = this.settings.playerName || '';
+      if(me){
+        (clan.members || []).forEach(m => { if(m && m.name === me) m.lastSeen = Date.now(); });
+      }
       const summary = {
         name: clan.name,
         code: clan.code,
@@ -3086,7 +3169,8 @@ this._renderCamSettings();
         owner: clan.owner || '',
         members: clan.members || [],
         chat: (clan.chat || []).slice(-50),
-        chatSeq: clan.chatSeq || 0
+        chatSeq: clan.chatSeq || 0,
+        me: me
       };
       await fetch(base + '/clans', {
         method: 'POST',
@@ -3102,9 +3186,22 @@ this._renderCamSettings();
     try{ await fetch(base + '/clans?code=' + encodeURIComponent(code), { method: 'DELETE' }); }catch(e){}
   },
 
+  /* Sequence number of a chat message (parsed from its "seq:name" id) */
+  _clanChatSeq(m){
+    if(!m || !m.id) return 0;
+    const n = parseInt(String(m.id).split(':')[0], 10);
+    return isNaN(n) ? 0 : n;
+  },
+
   /* Live sync: pull the clan from the API and merge members + chat locally */
   async _pollClanSync(){
     if(!this._clanData || !this._clanData.code) return;
+    // Presence heartbeat: refresh our own online stamp on the server every 30s
+    const now = Date.now();
+    if(!this._lastClanBeat || now - this._lastClanBeat > 30000){
+      this._lastClanBeat = now;
+      this._apiAnnounceClan(this._clanData);
+    }
     const remote = await this._apiFetchClan(this._clanData.code);
     if(!remote || !remote.members) return;
     const local = this._clanData;
@@ -3113,13 +3210,20 @@ this._renderCamSettings();
     (remote.members || []).forEach(m => {
       if(!m || !m.name) return;
       const cur = map.get(m.name);
-      if(!cur || (cur.rank === 'member' && m.rank === 'owner')) map.set(m.name, m);
+      // Adopt a remote entry when it is new, when a member rank got promoted,
+      // or when it carries fresher presence data (lastSeen)
+      if(!cur || (cur.rank === 'member' && m.rank === 'owner') || (m.lastSeen || 0) > (cur.lastSeen || 0)) map.set(m.name, m);
     });
     local.members = Array.from(map.values());
+    // Merge remote messages in (additive only — a stale remote must never
+    // remove local messages), then sort by sequence so older late-arriving
+    // messages never masquerade as new ones or push the newest out of the
+    // 50-message cap.
     const localIds = new Set((local.chat || []).map(m => m.id).filter(x => x != null));
     (remote.chat || []).forEach(m => {
       if(m && m.id != null && !localIds.has(m.id)) local.chat.push(m);
     });
+    local.chat.sort((a, b) => this._clanChatSeq(a) - this._clanChatSeq(b));
     if(local.chat.length > 50) local.chat = local.chat.slice(-50);
     local.chatSeq = Math.max(local.chatSeq || 0, remote.chatSeq || 0);
     this._saveClanData();
@@ -3155,7 +3259,30 @@ this._renderCamSettings();
     }
   },
   _saveClanData(){
-    try{ localStorage.setItem('tankparty_clan', JSON.stringify(this._clanData)); }catch(e){}
+    try{
+      // Multi-tab guard: if the stored chat contains messages newer than the
+      // in-memory copy (another tab saved a fresher state), fold them in
+      // before writing so a stale tab never erases recent messages.
+      const saved = localStorage.getItem('tankparty_clan');
+      if(saved && this._clanData){
+        try{
+          const cur = JSON.parse(saved);
+          if(cur && cur.chat && this._clanData.chat){
+            const localMax = Math.max(0, ...this._clanData.chat.map(m => this._clanChatSeq(m)));
+            const savedMax = Math.max(0, ...cur.chat.map(m => this._clanChatSeq(m)));
+            if(savedMax > localMax){
+              const ids = new Set(this._clanData.chat.map(m => m.id).filter(x => x != null));
+              cur.chat.forEach(m => {
+                if(m && m.id != null && !ids.has(m.id)) this._clanData.chat.push(m);
+              });
+              this._clanData.chat.sort((a, b) => this._clanChatSeq(a) - this._clanChatSeq(b));
+              this._clanData.chat = this._clanData.chat.slice(-50);
+            }
+          }
+        }catch(e){}
+      }
+      localStorage.setItem('tankparty_clan', JSON.stringify(this._clanData));
+    }catch(e){}
   },
   _joinClanFromRegistry(entry, viaCode){
     if(!entry) return;
@@ -3192,8 +3319,53 @@ this._renderCamSettings();
      ============================================================ */
   _clanUIState: null,
 
+  /* Rounded-rect path (canvas roundRect may be missing on older engines) */
+  _clanUIRoundRect(ctx, x, y, w, h, r){
+    r = Math.min(r, w / 2, h / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  },
+
   /* Break a string into lines that each fit inside maxW (word wrap +
      hard-break for words longer than the box). Returns array of lines. */
+  /* Fresh cartoon style helpers for the clan canvas UI */
+  _clanCartoonPanel(ctx, x, y, w, h, r, c1, c2){
+    ctx.save();
+    const grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    this._clanUIRoundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+    ctx.strokeStyle = '#4a505c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    this._clanUIRoundRect(ctx, x + 1.5, y + 1.5, w - 3, h - 3, Math.max(2, r - 1));
+    ctx.stroke();
+    ctx.restore();
+  },
+  _clanOutlineText(ctx, text, x, y, font, fill, outline, align, baseline, outlineW){
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = align || 'left';
+    ctx.textBaseline = baseline || 'top';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = outlineW || 3;
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  },
   _clanUIBreakText(ctx, text, maxW){
     const words = String(text || '').split(/(\s+)/);
     const lines = [];
@@ -3302,10 +3474,22 @@ this._renderCamSettings();
       images: {},
       sortBy: 'name',
       draft: '',
+      chatScroll: 0,
       rafId: null,
       bounds: bounds
     };
     this._clanUIState = st;
+
+    // Make sure the cartoon web fonts are ready for canvas text
+    try{
+      if(document.fonts){
+        Promise.all([
+          document.fonts.load("24px 'Lilita One'"),
+          document.fonts.load("800 18px 'Nunito'"),
+          document.fonts.load("700 18px 'Fredoka'")
+        ]).catch(() => {});
+      }
+    }catch(e){}
 
     // Pre-decode all PNGs in the background; each pops in as soon as it is ready
     layout.forEach(el => {
@@ -3324,8 +3508,26 @@ this._renderCamSettings();
 
     canvas.onclick = (e) => this._clanUIClick(e);
     canvas.onmousemove = (e) => this._clanUIHover(e);
+    canvas.onwheel = (e) => {
+      const st2 = this._clanUIState;
+      if(!st2 || !st2.layout) return;
+      const body = st2.layout.find(x => x.type === 'chat-body');
+      if(!body) return;
+      const r = st2.canvas.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      const s2 = this._clanUIScale();
+      const lx = (x - s2.ox) / s2.scale;
+      const ly = (y - s2.oy) / s2.scale;
+      if(lx >= body.x && lx <= body.x + body.w && ly >= body.y && ly <= body.y + body.h){
+        e.preventDefault();
+        st2.chatScroll = (st2.chatScroll || 0) + e.deltaY / s2.scale;
+      }
+    };
 
-    // Hidden native input overlaid on the chat-input element for real typing
+    // Real visible textarea overlaid on the chat-input element: the browser
+    // handles caret placement, arrow-key navigation, selection and copy, and
+    // the canvas only draws the frame behind it.
     const inp = document.getElementById('clan-canvas-input');
     if(inp){
       const s = this._clanUIScale();
@@ -3334,13 +3536,40 @@ this._renderCamSettings();
         inp.style.left = (el.x * s.scale + s.ox) + 'px';
         inp.style.top  = (el.y * s.scale + s.oy) + 'px';
         inp.style.width  = (el.w * s.scale) + 'px';
-        inp.style.height = (el.h * s.scale) + 'px';
+        inp.style.height = ((el.h + 14) * s.scale) + 'px';
+        inp.style.fontSize = (el.fontSize || 15) + 'px';
+        inp.placeholder = el.label || 'Type a message...';
+      }
+      const ph = document.getElementById('clan-canvas-ph');
+      if(ph){
+        ph.style.left = (el.x * s.scale + s.ox) + 'px';
+        ph.style.top  = (el.y * s.scale + s.oy) + 'px';
+        ph.style.width = (el.w * s.scale) + 'px';
+        ph.style.height = ((el.h + 14) * s.scale) + 'px';
+        ph.style.fontSize = (el.fontSize || 15) + 'px';
+        const phText = document.getElementById('clan-canvas-ph-text');
+        if(phText) phText.textContent = (el.label || 'Type a message').replace(/\.+$/, '');
+        const updPh = () => ph.classList.toggle('hidden', inp.value.length > 0);
+        inp.addEventListener('input', updPh);
+        inp.addEventListener('keyup', updPh);
+        inp.addEventListener('change', updPh);
+        ph.classList.remove('hidden');
+        inp.placeholder = '';
+      } else {
+        inp.placeholder = el.label || 'Type a message...';
       }
       inp.value = '';
-      inp.oninput = () => { st.draft = inp.value; };
+      inp.oninput = () => { st.draft = inp.value; this._updateClanCanvasCounter(inp, el); };
       inp.onkeydown = (e) => {
-        if(e.code === 'Enter'){ this._sendChatMessage(); inp.value = ''; st.draft = ''; }
+        if(e.code === 'Enter' && !e.shiftKey){
+          e.preventDefault();
+          this._sendChatMessage();
+          inp.value = '';
+          st.draft = '';
+          this._updateClanCanvasCounter(inp, el);
+        }
       };
+      this._updateClanCanvasCounter(inp, el);
     }
 
     const loop = () => {
@@ -3357,6 +3586,24 @@ this._renderCamSettings();
     this._pollClanSync();
     st.pollTimer = setInterval(() => this._pollClanSync(), 4000);
 
+    // Measure mode (M toggles, Esc exits): click two points, the distance
+    // between them shows in layout pixels so the user can report exact offsets
+    st.measure = { on: false, p1: null, p2: null };
+    st._keyHandler = (e) => {
+      if(e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) return;
+      if(e.key === 'm' || e.key === 'M'){
+        if(!st.measure) st.measure = { on: false, p1: null, p2: null };
+        st.measure.on = !st.measure.on;
+        st.measure.p1 = null;
+        st.measure.p2 = null;
+      } else if(e.key === 'Escape' && st.measure && st.measure.on){
+        st.measure.on = false;
+        st.measure.p1 = null;
+        st.measure.p2 = null;
+      }
+    };
+    window.addEventListener('keydown', st._keyHandler);
+
     // Yellow tip: clan chat syncs with a delay, not instantly
     const tip = document.getElementById('clan-sync-tip');
     if(tip){
@@ -3367,11 +3614,35 @@ this._renderCamSettings();
     return true;
   },
 
+  /* Char counter badge for the canvas chat input (hidden while empty) */
+  _updateClanCanvasCounter(inp, el){
+    let counter = document.getElementById('clan-canvas-counter');
+    if(!counter){
+      counter = document.createElement('div');
+      counter.id = 'clan-canvas-counter';
+      document.getElementById('clan-canvas-wrap').appendChild(counter);
+    }
+    const val = inp ? inp.value : '';
+    if(!val || !el){
+      counter.style.display = 'none';
+      return;
+    }
+    const s = this._clanUIScale();
+    const max = (inp && inp.maxLength) || 200;
+    counter.textContent = val.length + '/' + max;
+    counter.style.display = val.length ? 'block' : 'none';
+    counter.style.left = (el.x * s.scale + s.ox + el.w * s.scale - 52) + 'px';
+    counter.style.top  = (el.y * s.scale + s.oy - 20) + 'px';
+  },
+
   _stopClanCanvasUI(){
     const st = this._clanUIState;
     if(st && st.rafId) cancelAnimationFrame(st.rafId);
     if(st && st.pollTimer) clearInterval(st.pollTimer);
+    if(st && st._keyHandler) window.removeEventListener('keydown', st._keyHandler);
     this._clanUIState = null;
+    const counter = document.getElementById('clan-canvas-counter');
+    if(counter) counter.style.display = 'none';
     const tip = document.getElementById('clan-sync-tip');
     if(tip) tip.classList.add('hidden');
     if(this._clanTipTimer){ clearTimeout(this._clanTipTimer); this._clanTipTimer = null; }
@@ -3418,12 +3689,23 @@ this._renderCamSettings();
     st.layout.forEach(el => { if(el.type !== 'image') self._drawClanUIElement(el, ctx, t); });
     ctx.restore();
 
+    // Measure mode: grid + crosshair + point markers over the layout, and a
+    // status bar with the exact pixel distances
+    if(st.measure && st.measure.on){
+      ctx.save();
+      ctx.translate(s.ox, s.oy);
+      ctx.scale(s.scale, s.scale);
+      this._clanDrawMeasureOverlay(ctx, st);
+      ctx.restore();
+      this._clanDrawMeasureBar(ctx, st);
+    }
+
     // Notice when no custom layout was found (user designed one in the Clan Editor)
-    if(st.isDefault){
+    if(st.isDefault && !(st.measure && st.measure.on)){
       ctx.fillStyle = 'rgba(0,0,0,0.65)';
       ctx.fillRect(0, st.H - 30, st.W, 30);
       ctx.fillStyle = '#ffb12b';
-      ctx.font = '12px Segoe UI, sans-serif';
+      ctx.font = "16px 'Lilita One', sans-serif";
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -3472,206 +3754,351 @@ this._renderCamSettings();
       ctx.fillText(el.label || '\u{1F3C6}', cx, cy);
 
     } else if(el.type === 'chat-body'){
-      drawFrame();
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(el.x, el.y, el.w, el.h);
-      ctx.font = baseFont;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      // Dark gray cartoon panel with a chunky light-gray border
+      this._clanCartoonPanel(ctx, el.x, el.y, el.w, el.h, 18, '#3a3f49', '#262a31');
       const msgs = clan.chat || [];
-      const visible = msgs.slice(-6);
-      const lineH = fs * 1.9;
-      const wrapW = Math.max(40, el.w - 24);
-      let ly = el.y + 10;
-      for(let i = 0; i < visible.length; i++){
-        const m = visible[i];
-        const rankStr = (m.rank && m.rank !== '-') ? '[' + m.rank.toUpperCase() + '] ' : '';
-        const fullText = rankStr + m.name + ': ' + (m.msg || '');
-        ctx.fillStyle = m.rank === 'owner' ? '#ff6b6b' : txtCol;
-        const wrapped = this._clanUIBreakText(ctx, fullText, wrapW);
-        for(let k = 0; k < wrapped.length; k++){
-          if(ly + fs * 2 > el.y + el.h) break;
-          ctx.fillText(wrapped[k], el.x + 12, ly);
-          ly += lineH;
+      const gap = (el.gap !== undefined ? el.gap : 8);
+      const lineH = fs * 1.4;
+      const bubPad = 10;
+      const avatarR = Math.max(10, fs * 0.55);
+      const wrapW = Math.max(40, el.w - 52);
+      // Build message bubbles (newest first) with pre-wrapped text
+      const bubbles = [];
+      for(let i = msgs.length - 1; i >= 0; i--){
+        const m = msgs[i];
+        const isSys = m.rank === 'owner' && m.name === 'System';
+        const nameCol = isSys ? '#9b59b6' : (m.rank === 'owner' ? '#ff6b6b' : (m.rank === 'admin' ? '#ffd24a' : (m.rank && m.rank !== '-' && m.rank !== 'none' ? '#ffb12b' : '#3aa0ff')));
+        const rankTag = (m.rank === 'owner' || m.rank === 'admin') ? '[' + m.rank.toUpperCase() + '] ' : '';
+        const nameStr = isSys ? 'SYSTEM' : (rankTag + (m.name || '?'));
+        ctx.font = '800 ' + (fs * 0.92) + "px 'Nunito', sans-serif";
+        const lines = this._clanUIBreakText(ctx, (m.msg || ''), wrapW);
+        const txtH = Math.max(lines.length, 1) * lineH;
+        const h = bubPad + fs * 1.5 + 6 + txtH + bubPad;
+        bubbles.push({ m, nameCol, nameStr, lines, h, isSys });
+        if(bubbles.length > 80) break;
+      }
+      bubbles.reverse(); // oldest first for the stack walk
+      // Stacked bubbles: consecutive messages from the same sender share a
+      // tighter gap so they read as one block
+      const gapArr = bubbles.map(() => gap);
+      for(let i = 0; i < bubbles.length - 1; i++){
+        const a = bubbles[i], b = bubbles[i + 1];
+        if(a.m.name === b.m.name && a.m.rank === b.m.rank) gapArr[i] = 4;
+      }
+      let totalH = 0;
+      for(let i = 0; i < bubbles.length; i++) totalH += bubbles[i].h + gapArr[i];
+      if(bubbles.length) totalH -= gapArr[bubbles.length - 1];
+      const viewH = el.h - 14;
+      const maxScroll = Math.max(0, totalH - viewH);
+      st.chatScroll = Math.max(0, Math.min(st.chatScroll || 0, maxScroll));
+      // Draw NEWEST first, stacking UP from the bottom edge so a fresh
+      // message always appears inside the window (bubbles may never go
+      // below the panel, so nothing leaks over the input row)
+      ctx.save();
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + 1, el.y + 1, el.w - 2, el.h - 2, 16);
+      ctx.clip();
+      let y = el.y + el.h - 10 - (st.chatScroll || 0);
+      for(let i = bubbles.length - 1; i >= 0; i--){
+        const b = bubbles[i];
+        y -= b.h;
+        const top = y;
+        y -= gapArr[i];
+        if(top + b.h <= el.y + 4) continue;
+        // Dark cartoon bubble card with drop shadow + light-gray outline
+        const bx = el.x + 8, bw = el.w - 16;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, bx, top + 3, bw, b.h, 14);
+        ctx.fill();
+        ctx.fillStyle = b.isSys ? '#3a3550' : '#333842';
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, bx, top, bw, b.h, 14);
+        ctx.fill();
+        ctx.strokeStyle = '#4a505c';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, bx + 1.25, top + 1.25, bw - 2.5, b.h - 2.5, 12.75);
+        ctx.stroke();
+        // No avatar circles: text starts near the bubble's left edge
+        const nameX = bx + bubPad + 8;
+        const nameLineX = nameX + 93;
+        ctx.font = (fs * 0.95) + "px 'Lilita One', sans-serif";
+        ctx.fillStyle = b.nameCol;
+        ctx.fillText(b.nameStr, nameLineX, top + bubPad + 14);
+        if(b.m.ts){
+          const dt = new Date(b.m.ts);
+          const tStr = String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
+          ctx.font = (fs * 0.68) + "px 'Nunito', sans-serif";
+          ctx.fillStyle = 'rgba(220,228,235,0.45)';
+          ctx.fillText(tStr, nameLineX + ctx.measureText(b.nameStr).width + 10, top + bubPad + 18);
         }
-        if(ly + fs * 2 > el.y + el.h) break;
+        // Message text (chunky rounded body font) — starts right after the
+        // avatar block with breathing room below the sender name; owner's
+        // messages are red, admin's are yellow
+        ctx.font = '800 ' + (fs * 0.92) + "px 'Nunito', sans-serif";
+        ctx.fillStyle = b.isSys ? '#b48fd9' : (b.m.rank === 'owner' ? '#ff6b6b' : (b.m.rank === 'admin' ? '#ffd24a' : '#e8ecf1'));
+        let ty = top + bubPad + fs * 1.5 + 6;
+        for(const ln of b.lines){
+          ctx.fillText(ln, nameX, ty);
+          ty += lineH;
+        }
+      }
+      ctx.restore();
+      // Scrollbar hint when history overflows the box
+      if(maxScroll > 1 && totalH > viewH){
+        const barH = Math.max(18, viewH * (viewH / totalH));
+        const barY = el.y + 8 + (viewH - barH) * ((st.chatScroll || 0) / maxScroll);
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, el.x + el.w - 8, barY, 5, barH, 2.5);
+        ctx.fill();
       }
 
     } else if(el.type === 'chat-input'){
-      ctx.setLineDash(sf ? [4, 3] : []);
-      ctx.strokeStyle = hcol;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(el.x, el.y, el.w, el.h);
-      ctx.setLineDash([]);
-      ctx.font = baseFont;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = txtCol;
-      const draft = st.draft || '';
-      if(!draft){
-        ctx.globalAlpha = 0.35;
-        ctx.fillText(el.label || 'Type a message...', el.x + 12, el.y + el.h / 2);
-        ctx.globalAlpha = 1;
-      } else {
-        // clip long drafts so they never spill out of the input box
-        let shown = draft;
-        const inMaxW = Math.max(40, el.w - 24);
-        while(shown.length && ctx.measureText(shown).width > inMaxW) shown = shown.slice(1);
-        ctx.fillText(shown, el.x + 12, el.y + el.h / 2);
-        const tw = ctx.measureText(shown).width;
-        if(Math.floor(t * 1.9) % 2 === 0){
-          ctx.fillRect(el.x + 14 + tw, el.y + el.h * 0.22, 2, el.h * 0.56);
-        }
-      }
+      // The real textarea (#clan-canvas-input) renders the typing UI — caret,
+      // selection, wrapping rows, placeholder. Nothing to draw on canvas.
 
     } else if(el.type === 'chat-send'){
       // Invisible: the real send button is a PNG image drawn on top.
       // Only the hitbox stays active (clicks still send the message).
 
     } else if(el.type === 'member'){
-      drawFrame();
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(el.x, el.y, el.w, el.h);
-      ctx.font = baseFont;
+      this._clanCartoonPanel(ctx, el.x, el.y, el.w, el.h, 16, '#3a3f49', '#262a31');
+      ctx.font = (fs * 0.95) + "px 'Lilita One', sans-serif";
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       let items = (clan.members || []).map(m => ({
         name: m.name,
         rank: m.rank || 'member',
-        xp: (m.name === playerName ? (s.clanWeeklyXP || 0) : (m.xp || 0))
+        xp: (m.name === playerName ? (s.clanWeeklyXP || 0) : (m.xp || 0)),
+        lastSeen: m.lastSeen || 0
       }));
-      if(items.length === 0) items = [{ name: clan.owner || 'Owner', rank: 'owner', xp: 0 }];
+      if(items.length === 0) items = [{ name: clan.owner || 'Owner', rank: 'owner', xp: 0, lastSeen: 0 }];
       const sortBy = st.sortBy;
       if(sortBy === 'xp') items.sort((a, b) => b.xp - a.xp);
       else items.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
       const maxP = el.maxPlayers || 20;
+      const myRankHere = this._getPlayerRank();
+      const myHere = this.settings.playerName || 'Player';
+      st.memberPills = null;
+      const pills = [];
+      let rowCount = 0;
       for(let mi = 0; mi < Math.min(items.length, maxP); mi++){
-        const my = el.y + 10 + mi * (fs + 12);
-        if(my + fs + 6 > el.y + el.h) break;
+        const my = el.y + 15 + mi * (fs + 16);
+        if(my + fs + 10 > el.y + el.h - 6) break;
+        rowCount++;
         const it = items[mi];
-        ctx.fillStyle = it.rank === 'owner' ? '#ff6b6b' : txtCol;
-        const rStr = (it.rank && it.rank !== '-') ? '[' + it.rank.toUpperCase() + '] ' : '';
-        ctx.globalAlpha = Math.max(0.35, 0.9 - mi * 0.03);
-        ctx.fillText(rStr + it.name + (sortBy === 'xp' ? ' (' + it.xp + ')' : ''), el.x + 12, my);
+        const tagCol = it.rank === 'owner' ? '#ff6b6b' : (it.rank === 'admin' ? '#ffd24a' : (it.rank === 'co-leader' ? '#ffb12b' : '#e8ecf1'));
+        // Presence dot (green online / red offline) + tiny label above it
+        const online = it.name === myHere || (Date.now() - it.lastSeen < 90000);
+        const pcol = online ? '#34d399' : '#f87171';
+        ctx.font = "7px 'Nunito', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.fillStyle = pcol;
+        ctx.fillText(online ? 'online' : 'offline', el.x + 24, my);
+        ctx.beginPath();
+        ctx.arc(el.x + 24, my + 14, 6, 0, Math.PI * 2);
+        ctx.fillStyle = pcol;
+        ctx.fill();
+        ctx.strokeStyle = '#4a505c';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.textAlign = 'left';
+        // Rank tags only for OWNER / ADMIN (member + co-leader show plain names)
+        const tagStr = (it.rank === 'owner' || it.rank === 'admin') ? '[' + it.rank.toUpperCase() + '] ' : '';
+        ctx.font = (fs * 0.95) + "px 'Lilita One', sans-serif";
+        ctx.fillStyle = tagCol;
+        const tw = tagStr ? ctx.measureText(tagStr).width : 0;
+        ctx.fillText(tagStr, el.x + 46, my);
+        // XP is shown on both sort filters
+        ctx.font = (fs * 0.8) + "px 'Nunito', sans-serif";
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#c3ccd8';
+        ctx.fillText(String(it.xp) + ' xp', el.x + el.w - 16, my + 4);
+        ctx.textAlign = 'left';
+        ctx.font = (fs * 0.95) + "px 'Lilita One', sans-serif";
+        let fillW = el.w - 16 - 46 - tw - 64;
+        if(st.memberActions === it.name) fillW -= 86;
+        let nStr = it.name;
+        while(ctx.measureText(nStr).width > fillW && nStr.length > 1) nStr = nStr.slice(0, -1);
+        if(nStr !== it.name) nStr = nStr.slice(0, -1) + '\u2026';
+        ctx.fillStyle = '#e8ecf1';
+        ctx.fillText(nStr, el.x + 46 + tw, my);
+        // Action pills for owners (admin toggle + kick) and admins (kick only)
+        const canKick = (myRankHere === 'owner' || myRankHere === 'admin') &&
+          it.name !== myHere && it.rank !== 'owner' && (myRankHere === 'owner' || it.rank !== 'admin');
+        const canAdmin = myRankHere === 'owner' && it.name !== myHere && it.rank !== 'owner';
+        if(st.memberActions === it.name && (canKick || canAdmin)){
+          const acts = [];
+          if(canAdmin) acts.push({ label: it.rank === 'admin' ? 'DEMOTE' : 'ADMIN', act: 'rank', col: '#ffb12b' });
+          if(canKick) acts.push({ label: 'KICK', act: 'kick', col: '#f87171' });
+          let ex = el.x + el.w - 16;
+          const ph = fs * 0.72 + 8, py = my - 1;
+          ctx.font = (fs * 0.72) + "px 'Nunito', sans-serif";
+          for(let ai = acts.length - 1; ai >= 0; ai--){
+            const a = acts[ai];
+            const aw = ctx.measureText(a.label).width + 16;
+            const rx = ex - aw;
+            ctx.fillStyle = '#2b2f3d';
+            ctx.beginPath();
+            this._clanUIRoundRect(ctx, rx, py, aw, ph, 7);
+            ctx.fill();
+            ctx.strokeStyle = '#4a505c';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            this._clanUIRoundRect(ctx, rx + 0.75, py + 0.75, aw - 1.5, ph - 1.5, 6.25);
+            ctx.stroke();
+            ctx.fillStyle = a.col;
+            ctx.textAlign = 'center';
+            ctx.fillText(a.label, rx + aw / 2, py + (ph - fs * 0.72) / 2);
+            ctx.textAlign = 'left';
+            pills.push({ name: it.name, act: a.act, x: rx, y: py, w: aw, h: ph });
+            ex = rx - 6;
+          }
+        }
       }
-      ctx.globalAlpha = 1;
+      st.memberPills = pills;
+      if(rowCount === 0){
+        ctx.fillStyle = '#c3ccd8';
+        ctx.font = (fs * 0.8) + "px 'Nunito', sans-serif";
+        ctx.fillText('No members yet', el.x + 24, el.y + 16);
+      }
 
     } else if(el.type === 'progress-bar'){
-      ctx.strokeStyle = hcol;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(el.x, el.y, el.w, el.h);
+      const barR = Math.min(12, el.h / 2);
+      ctx.fillStyle = '#1d2126';
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x, el.y, el.w, el.h, barR);
+      ctx.fill();
+      ctx.strokeStyle = '#4a505c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + 1.5, el.y + 1.5, el.w - 3, el.h - 3, barR - 1);
+      ctx.stroke();
       const cap = (typeof CLAN_XP_CAP !== 'undefined') ? CLAN_XP_CAP : 10000;
       const pct = Math.max(0, Math.min(100, (s.clanWeeklyXP || 0) / cap * 100));
-      ctx.fillStyle = el.fillColor || '#ffb12b';
-      ctx.fillRect(el.x + 2, el.y + 2, (el.w - 4) * (pct / 100), el.h - 4);
-      ctx.fillStyle = txtCol;
-      ctx.font = boldFont;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(Math.round(pct) + '%', el.x + el.w / 2, el.y + el.h / 2);
+      if(pct > 0){
+        const grad = ctx.createLinearGradient(el.x, 0, el.x + el.w, 0);
+        grad.addColorStop(0, '#ffd34d');
+        grad.addColorStop(1, '#ff9f1c');
+        ctx.fillStyle = grad;
+        ctx.save();
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, el.x + 2, el.y + 2, el.w - 4, el.h - 4, barR - 1);
+        ctx.clip();
+        ctx.fillRect(el.x + 2, el.y + 2, (el.w - 4) * (pct / 100), el.h - 4);
+        ctx.restore();
+      }
+      this._clanOutlineText(ctx, Math.round(pct) + '%', el.x + el.w / 2, el.y + el.h / 2, (el.h * 0.55) + "px 'Lilita One', sans-serif", '#ffffff', '#2b2f3d', 'center', 'middle', 3);
 
     } else if(el.type === 'xp-counter'){
-      drawFrame();
-      ctx.fillStyle = txtCol;
+      // Full cartoon card behind the number + label so the counter never
+      // looks like a background that only covers half the element
+      this._clanCartoonPanel(ctx, el.x, el.y, el.w, el.h, 16, '#3a3f49', '#262a31');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // Auto-shrink the number until it fits inside the box so big
-      // values (4120, 10000, ...) never burst out of the frame.
       let vSize = el.fontSize || 28;
       const vStr = String(s.clanWeeklyXP || 0);
-      ctx.font = 'bold ' + vSize + 'px Segoe UI, sans-serif';
-      while(ctx.measureText(vStr).width > el.w - 8 && vSize > 9){
+      while(ctx.measureText(vStr).width > el.w - 6 && vSize > 9){
         vSize--;
-        ctx.font = 'bold ' + vSize + 'px Segoe UI, sans-serif';
+        ctx.font = vSize + "px 'Lilita One', sans-serif";
       }
-      ctx.fillText(vStr, el.x + el.w / 2, el.y + el.h * 0.4);
-      ctx.globalAlpha = 0.55;
-      const lStr = el.label || 'collected';
-      let lSize = Math.max(8, Math.min(el.fontSize || 14, vSize * 0.6));
-      ctx.font = lSize + 'px Segoe UI, sans-serif';
-      while(ctx.measureText(lStr).width > el.w - 8 && lSize > 8){
+      this._clanOutlineText(ctx, vStr, el.x + el.w / 2, el.y + el.h * 0.42, vSize + "px 'Lilita One', sans-serif", '#ff9f1c', '#14181e', 'center', 'middle', Math.max(2, vSize / 5));
+      ctx.globalAlpha = 0.85;
+      const lStr = el.label || 'xp';
+      let lSize = Math.max(8, Math.min(el.fontSize || 14, vSize * 0.55));
+      ctx.font = lSize + "px 'Nunito', sans-serif";
+      while(ctx.measureText(lStr).width > el.w - 6 && lSize > 8){
         lSize--;
-        ctx.font = lSize + 'px Segoe UI, sans-serif';
+        ctx.font = lSize + "px 'Nunito', sans-serif";
       }
-      ctx.fillText(lStr, el.x + el.w / 2, el.y + el.h * 0.75);
+      ctx.fillStyle = '#aeb8c4';
+      ctx.fillText(lStr, el.x + el.w / 2, el.y + el.h * 0.78);
       ctx.globalAlpha = 1;
 
     } else if(el.type === 'clan-count'){
-      drawFrame();
-      ctx.fillStyle = txtCol;
-      ctx.font = boldFont;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(String((clan.members || []).length), el.x + el.w / 2, el.y + el.h / 2 + 4);
-      if(el.label && el.label.toLowerCase() !== 'members'){
-        ctx.globalAlpha = 0.6;
-        ctx.font = baseFont;
-        ctx.fillText(el.label, el.x + el.w / 2, el.y + el.h / 2 + 10);
-        ctx.globalAlpha = 1;
-      }
+      this._clanOutlineText(ctx, String((clan.members || []).length), el.x + el.w / 2, el.y + el.h * 0.36, (el.fontSize || 28) + "px 'Lilita One', sans-serif", '#ff9f1c', '#14181e', 'center', 'middle', 3);
+      ctx.globalAlpha = 0.8;
+      ctx.font = Math.max(9, (el.fontSize || 28) * 0.42) + "px 'Nunito', sans-serif";
+      ctx.fillStyle = '#aeb8c4';
+      ctx.fillText(el.label || 'Members', el.x + el.w / 2, el.y + el.h * 0.78);
+      ctx.globalAlpha = 1;
 
     } else if(el.type === 'sort-buttons'){
-      drawFrame();
       const curSort = st.sortBy;
-      const btnPad = 20, bh = fs + 10;
+      const btnPad = 20, bh = fs + 12;
       const totalW = Math.max(el.w, btnPad + 2);
       const btnW = (totalW - btnPad) / 2;
       const by = el.y + (el.h - bh) / 2;
       ['Name', 'XP'].forEach((label, idx) => {
         const bx = el.x + (idx === 0 ? 10 : 10 + btnW + 4);
         const isActive = label.toLowerCase() === curSort;
-        ctx.fillStyle = isActive ? '#ffb12b' : '#252a32';
+        ctx.fillStyle = 'rgba(43,47,61,0.18)';
         ctx.beginPath();
-        ctx.moveTo(bx + 4, by);
-        ctx.lineTo(bx + btnW - 4, by);
-        ctx.quadraticCurveTo(bx + btnW, by, bx + btnW, by + 4);
-        ctx.lineTo(bx + btnW, by + bh - 4);
-        ctx.quadraticCurveTo(bx + btnW, by + bh, bx + btnW - 4, by + bh);
-        ctx.lineTo(bx + 4, by + bh);
-        ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - 4);
-        ctx.lineTo(bx, by + 4);
-        ctx.quadraticCurveTo(bx, by, bx + 4, by);
-        ctx.closePath();
+        this._clanUIRoundRect(ctx, bx, by + 3, btnW, bh, 10);
         ctx.fill();
-        ctx.fillStyle = isActive ? '#14181e' : '#aaa';
-        ctx.font = 'bold ' + (fs * 0.7) + 'px Segoe UI, sans-serif';
+        ctx.fillStyle = isActive ? '#ffb12b' : '#2e333c';
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, bx, by, btnW, bh, 10);
+        ctx.fill();
+        ctx.strokeStyle = '#4a505c';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        this._clanUIRoundRect(ctx, bx + 1, by + 1, btnW - 2, bh - 2, 9);
+        ctx.stroke();
+        ctx.fillStyle = isActive ? '#14181e' : '#c3ccd8';
+        ctx.font = (fs * 0.72) + "px 'Lilita One', sans-serif";
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(label, bx + btnW / 2, by + bh / 2);
+        ctx.fillText(label, bx + btnW / 2, by + bh / 2 + 1);
       });
 
     } else if(el.type === 'clan-name'){
-      drawFrame();
-      ctx.fillStyle = txtCol;
-      ctx.font = boldFont;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText((clan.name || 'CLAN').toUpperCase(), el.x + el.w / 2, el.y + el.h / 2);
+      const chipW = Math.min(el.w, ctx.measureText((clan.name || 'CLAN').toUpperCase()).width + 40);
+      ctx.fillStyle = 'rgba(38,42,49,0.85)';
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + el.w / 2 - chipW / 2, el.y + 2, chipW, el.h - 4, 12);
+      ctx.fill();
+      ctx.strokeStyle = '#4a505c';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + el.w / 2 - chipW / 2 + 1.25, el.y + 3.25, chipW - 2.5, el.h - 6.5, 10.75);
+      ctx.stroke();
+      this._clanOutlineText(ctx, (clan.name || 'CLAN').toUpperCase(), el.x + el.w / 2, el.y + el.h / 2, (el.fontSize || 35) + "px 'Lilita One', sans-serif", '#ff9f1c', '#14181e', 'center', 'middle', 4);
 
     } else if(el.type === 'time-left'){
-      drawFrame();
-      ctx.fillStyle = txtCol;
-      ctx.font = baseFont;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       const now = new Date();
       const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
       const nextMonday = new Date(now);
       nextMonday.setDate(now.getDate() + daysUntilMonday);
       nextMonday.setHours(0, 0, 0, 0);
       const ms = nextMonday - now;
-      ctx.fillText(
-        Math.floor(ms / 86400000) + 'd ' + Math.floor((ms % 86400000) / 3600000) + 'h ' +
-        Math.floor((ms % 3600000) / 60000) + 'm left',
-        el.x + el.w / 2, el.y + el.h / 2);
+      const tStr = Math.floor(ms / 86400000) + 'd ' + Math.floor((ms % 86400000) / 3600000) + 'h ' + Math.floor((ms % 3600000) / 60000) + 'm left';
+      const chipW = Math.min(el.w, ctx.measureText(tStr).width + 28);
+      ctx.fillStyle = 'rgba(38,42,49,0.85)';
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + el.w - chipW - 6, el.y + 2, chipW, el.h - 4, 12);
+      ctx.fill();
+      ctx.strokeStyle = '#4a505c';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, el.x + el.w - chipW - 6 + 1.25, el.y + 3.25, chipW - 2.5, el.h - 6.5, 10.75);
+      ctx.stroke();
+      ctx.fillStyle = '#cfd6e0';
+      ctx.font = (fs * 0.95) + "px 'Nunito', sans-serif";
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(tStr, el.x + el.w - 10, el.y + el.h / 2);
 
     } else if(el.type === 'text'){
-      drawFrame();
       ctx.fillStyle = txtCol;
       let style = '';
       if(el.bold) style += 'bold ';
       if(el.italic) style += 'italic ';
-      ctx.font = style + fs + 'px Segoe UI, sans-serif';
+      ctx.font = style + fs + "px " + (el.bold ? "'Lilita One', sans-serif" : "'Nunito', sans-serif");
       ctx.textAlign = el.align || 'center';
       ctx.textBaseline = 'middle';
       let tx = el.x;
@@ -3690,7 +4117,140 @@ this._renderCamSettings();
     }
   },
 
-  _clanUIHit(e){
+  /* Measure-mode overlay (drawn in layout units): 10px grid, crosshair,
+     clicked points and the exact ΔX / ΔY between them */
+  _clanDrawMeasureOverlay(ctx, st){
+    let maxX = 800, maxY = 600;
+    st.layout.forEach(el => {
+      maxX = Math.max(maxX, el.x + el.w);
+      maxY = Math.max(maxY, el.y + el.h);
+    });
+    maxX = Math.ceil(maxX / 100) * 100;
+    maxY = Math.ceil(maxY / 100) * 100;
+    for(let gx = 0; gx <= maxX; gx += 10){
+      ctx.strokeStyle = (gx % 100 === 0) ? 'rgba(255,255,255,0.20)'
+                       : (gx % 50 === 0)  ? 'rgba(255,255,255,0.10)'
+                       : 'rgba(255,255,255,0.045)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, maxY);
+      ctx.stroke();
+    }
+    for(let gy = 0; gy <= maxY; gy += 10){
+      ctx.strokeStyle = (gy % 100 === 0) ? 'rgba(255,255,255,0.20)'
+                       : (gy % 50 === 0)  ? 'rgba(255,255,255,0.10)'
+                       : 'rgba(255,255,255,0.045)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(maxX, gy);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,177,43,0.55)';
+    ctx.font = "11px 'Nunito', sans-serif";
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    for(let gx = 100; gx < maxX; gx += 100) ctx.fillText(String(gx), gx + 2, 2);
+    for(let gy = 100; gy < maxY; gy += 100) ctx.fillText(String(gy), 2, gy + 2);
+    // Crosshair at the pointer
+    const h = st.hover;
+    if(h){
+      ctx.strokeStyle = 'rgba(255,177,43,0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(h.x, 0);
+      ctx.lineTo(h.x, maxY);
+      ctx.moveTo(0, h.y);
+      ctx.lineTo(maxX, h.y);
+      ctx.stroke();
+    }
+    // Markers + distance readout
+    const m = st.measure;
+    const pt = (p, label) => {
+      ctx.fillStyle = 'rgba(255,177,43,0.9)';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#14181e';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.fillStyle = '#14181e';
+      ctx.font = "12px 'Nunito', sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, p.x, p.y + 0.5);
+    };
+    if(m.p1) pt(m.p1, 'A');
+    if(m.p2) pt(m.p2, 'B');
+    if(m.p1 && m.p2){
+      const dx = Math.round(m.p2.x - m.p1.x);
+      const dy = Math.round(m.p2.y - m.p1.y);
+      ctx.strokeStyle = 'rgba(255,177,43,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(m.p1.x, m.p1.y);
+      ctx.lineTo(m.p2.x, m.p2.y);
+      ctx.stroke();
+      const mx = (m.p1.x + m.p2.x) / 2 + 12;
+      const my = (m.p1.y + m.p2.y) / 2 - 12;
+      ctx.font = "14px 'Lilita One', sans-serif";
+      const line1 = 'DX ' + dx + ' px';
+      const line2 = 'DY ' + dy + ' px';
+      const w = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width) + 16;
+      ctx.fillStyle = 'rgba(14,17,22,0.88)';
+      ctx.strokeStyle = 'rgba(255,177,43,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      this._clanUIRoundRect(ctx, mx, my - 26, w, 44, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffb12b';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(line1, mx + 8, my - 22);
+      ctx.fillText(line2, mx + 8, my - 4);
+    }
+  },
+
+  /* Measure-mode status bar (drawn in device pixels) */
+  _clanDrawMeasureBar(ctx, st){
+    const W = st.W, H = st.H;
+    const m = st.measure;
+    ctx.fillStyle = 'rgba(14,17,22,0.92)';
+    ctx.fillRect(0, H - 52, W, 44);
+    ctx.fillStyle = 'rgba(255,177,43,0.55)';
+    ctx.fillRect(0, H - 52, W, 2);
+    const parts = ['MEASURE MODE — M off · Esc clear'];
+    if(m.p1) parts.push('A (' + m.p1.x + ',' + m.p1.y + ')');
+    if(m.p2){
+      parts.push('B (' + m.p2.x + ',' + m.p2.y + ')');
+      parts.push('DX ' + Math.round(m.p2.x - m.p1.x) + ' px');
+      parts.push('DY ' + Math.round(m.p2.y - m.p1.y) + ' px');
+    }
+    ctx.font = "16px 'Lilita One', sans-serif";
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffb12b';
+    ctx.fillText(parts.join('   |   '), 16, H - 30);
+    // Hovered element info + cursor coords
+    let info = 'cursor: --, --';
+    if(st.hover){
+      info = 'cursor: ' + Math.round(st.hover.x) + ',' + Math.round(st.hover.y);
+      for(let i = st.layout.length - 1; i >= 0; i--){
+        const el = st.layout[i];
+        if(st.hover.x >= el.x && st.hover.x <= el.x + el.w && st.hover.y >= el.y && st.hover.y <= el.y + el.h){
+          info += '   element: ' + el.type + ' x:' + Math.round(el.x) + ' y:' + Math.round(el.y) + ' w:' + Math.round(el.w) + ' h:' + Math.round(el.h);
+          break;
+        }
+      }
+    }
+    ctx.font = "13px 'Nunito', sans-serif";
+    ctx.fillStyle = '#e8ecf1';
+    ctx.fillText(info, 16, H - 12);
+  },
+
+  _clanUIHit(e, skipEl){
     const st = this._clanUIState;
     if(!st) return null;
     const r = st.canvas.getBoundingClientRect();
@@ -3701,17 +4261,28 @@ this._renderCamSettings();
     const ly = (y - s.oy) / s.scale;
     for(let i = st.layout.length - 1; i >= 0; i--){
       const el = st.layout[i];
+      if(el === skipEl) continue;
       if(lx >= el.x && lx <= el.x + el.w && ly >= el.y && ly <= el.y + el.h) return el;
     }
     return null;
   },
 
   _clanUIClick(e){
-    const el = this._clanUIHit(e);
-    if(!el) return;
     const st = this._clanUIState;
-    if(el.type === 'image'){
-      // PNG send-button images cover the chat-send element: treat that click as send
+    if(st && st.measure && st.measure.on){
+      const h = st.hover;
+      if(!h) return;
+      const pt = { x: Math.round(h.x), y: Math.round(h.y) };
+      if(!st.measure.p1) st.measure.p1 = pt;
+      else if(!st.measure.p2) st.measure.p2 = pt;
+      else { st.measure.p1 = pt; st.measure.p2 = null; }
+      return;
+    }
+    // Images (PNG buttons, backgrounds) are drawn on top but only the
+    // chat-send button is interactive: clicks on decorative/background PNGs
+    // must fall through to the real element underneath
+    let el = this._clanUIHit(e);
+    while(el && el.type === 'image'){
       const r = st.canvas.getBoundingClientRect();
       const s = this._clanUIScale();
       const lx = (e.clientX - r.left - s.ox) / s.scale;
@@ -3721,9 +4292,11 @@ this._renderCamSettings();
         this._sendChatMessage();
         const inp = document.getElementById('clan-canvas-input');
         if(inp){ inp.value = ''; st.draft = ''; }
+        return;
       }
-      return;
+      el = this._clanUIHit(e, el);
     }
+    if(!el) return;
     if(el.type === 'sort-buttons'){
       const s = this._clanUIScale();
       const r = st.canvas.getBoundingClientRect();
@@ -3732,6 +4305,35 @@ this._renderCamSettings();
       const btnW = (Math.max(el.w, btnPad + 2) - btnPad) / 2;
       st.sortBy = (lx < el.x + 10 + btnW) ? 'name' : 'xp';
       if(Audio && Audio.click) Audio.click();
+    } else if(el.type === 'member'){
+      const s = this._clanUIScale();
+      const r = st.canvas.getBoundingClientRect();
+      const lx = (e.clientX - r.left - s.ox) / s.scale;
+      const ly = (e.clientY - r.top - s.oy) / s.scale;
+      // Open action pills take priority over the row click
+      if(st.memberActions && st.memberPills && st.memberPills.length){
+        for(const p of st.memberPills){
+          if(lx >= p.x && lx <= p.x + p.w && ly >= p.y && ly <= p.y + p.h){
+            this._clanMemberAction(p.name, p.act);
+            st.memberActions = null;
+            st.memberPills = null;
+            return;
+          }
+        }
+      }
+      const clan2 = this._clanData || { members: [] };
+      const me2 = this.settings.playerName || 'Player';
+      const fs2 = el.fontSize || 14;
+      const idx = Math.floor((ly - (el.y + 15)) / (fs2 + 16));
+      if(idx >= 0 && idx < (clan2.members || []).length){
+        const it = clan2.members[idx];
+        const myRank2 = this._getPlayerRank();
+        const can = (myRank2 === 'owner' || myRank2 === 'admin') &&
+          it.name !== me2 && it.rank !== 'owner' && (myRank2 === 'owner' || it.rank !== 'admin');
+        st.memberActions = (st.memberActions === it.name) ? null : (can ? it.name : null);
+      } else {
+        st.memberActions = null;
+      }
     } else if(el.type === 'chat-input'){
       const inp = document.getElementById('clan-canvas-input');
       if(inp) inp.focus();
@@ -3775,7 +4377,13 @@ this._renderCamSettings();
       this.show('menu-multiplayer');
       return;
     }
-    this.toast((m === 'sandbox' ? 'Sandbox mode' : 'Platform King mode') + ' is coming soon!');
+    // Unimplemented modes (sandbox / platform-king): never let PLAY dead-end —
+    // fall back to Gladiator so the button always starts a match.
+    this._selectedGamemode = 'gladiator';
+    localStorage.setItem('tankparty_gamemode', 'gladiator');
+    this._syncGamemodeIcon();
+    this.toast((m === 'sandbox' ? 'Sandbox mode' : 'Platform King mode') + ' is coming soon — starting Gladiator!');
+    if(this.game) this.game.startGladiator();
   },
 
   _syncGamemodeIcon(){
@@ -3800,6 +4408,13 @@ this._renderCamSettings();
     const el = this._clanUIHit(e);
     const interactive = el && (el.type === 'sort-buttons' || el.type === 'chat-input' || el.type === 'chat-send');
     st.canvas.style.cursor = interactive ? 'pointer' : 'default';
+    // Track the pointer in LAYOUT units for the measure mode overlay
+    const r = st.canvas.getBoundingClientRect();
+    const s = this._clanUIScale();
+    st.hover = {
+      x: (e.clientX - r.left - s.ox) / s.scale,
+      y: (e.clientY - r.top - s.oy) / s.scale
+    };
   },
 };
 

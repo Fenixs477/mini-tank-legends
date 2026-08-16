@@ -39,6 +39,39 @@ const Audio = {
     src.start(0);
   },
 
+  // Procedural flamethrower whoosh (no asset needed): filtered-noise burst
+  flame(vol){
+    if(!this._ctx || this._muted) return;
+    if(this._ctx.state === 'suspended') this._ctx.resume();
+    const t = this._ctx.currentTime;
+    const dur = 0.32 + Math.random() * 0.18;
+    if(!this._flameNoise){
+      const len = Math.floor(this._ctx.sampleRate * 2);
+      const buf = this._ctx.createBuffer(1, len, this._ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this._flameNoise = buf;
+    }
+    const src = this._ctx.createBufferSource();
+    src.buffer = this._flameNoise;
+    const bp = this._ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 0.5;
+    bp.frequency.setValueAtTime(450 + Math.random() * 250, t);
+    bp.frequency.exponentialRampToValueAtTime(950 + Math.random() * 450, t + dur);
+    const lp = this._ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 1400;
+    const g = this._ctx.createGain();
+    const v = this._volume * (vol == null ? 1 : vol) * 0.75;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.001, v), t + 0.09);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(lp).connect(g).connect(this._ctx.destination);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+  },
+
   playMusic(src, loop=true){
     if(!this._ctx) return;
     if(this._currentSrc === src) return;

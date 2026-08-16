@@ -298,6 +298,26 @@ class FlameCone {
       t.takeDamage(this._damageAtDist(dist) * dt * 10, this.owner, game, true);
     }
 
+    // Damage: power boxes (Helix can burn through them too)
+    if(game && game._gladBoxes){
+      for(const b of game._gladBoxes){
+        if(!b.alive) continue;
+        const bdx = b.x - this.x, bdz = b.z - this.z;
+        const bdist = Math.hypot(bdx, bdz);
+        if(bdist > this.range) continue;
+        const balong = bdx * this.dir.x + bdz * this.dir.z;
+        if(balong <= 0) continue;
+        const bperp = Math.sqrt(Math.max(0, bdist * bdist - balong * balong));
+        if(bperp > balong * tanHalf + 0.6) continue;
+        if(coneBlocked) continue;
+        b.hp -= this._damageAtDist(bdist) * dt * 10;
+        if(b.hp <= 0){
+          game._gladKillBox(b);
+          if(this.owner === game.localTank) Menu.toast('\u26A1 Blue box destroyed! +5 power dropped');
+        }
+      }
+    }
+
     if(this.life <= 0) this.dead = true;
   }
 }

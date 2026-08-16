@@ -31,11 +31,6 @@ class Game {
     this._gladBoxes = [];
     this._gladPickups = [];
     this._adapT = 0;
-    this._gladChunkMeshes = [];
-    this._gladChunkOverlays = [];
-    this._gladCorruptedChunks = new Set();
-    this._gladNextCorruptionIndex = 0;
-    this._gladChunkGlowTime = 0;
     this._gladZoneCanvas = null;
     this._gladZoneTex = null;
     this._gladZoneMesh = null;
@@ -439,7 +434,8 @@ class Game {
       if(!d1.shell.dead){
         d1.shell.dead = true;
         var sp1 = d1.shell._physBody ? d1.shell._physBody.translation() : null;
-        this.spawnExplosion(sp1 ? sp1.x : d1.shell.x, 1.0, sp1 ? sp1.z : d1.shell.z, 0xffaa33, 6);
+        this.spawnExplosion(sp1 ? sp1.x : d1.shell.x, 1.0, sp1 ? sp1.z : d1.shell.z, 0xffaa33, 6, 'wall');
+        this.spawnBurst(sp1 ? sp1.x : d1.shell.x, 1.0, sp1 ? sp1.z : d1.shell.z, {count: 3, tex: 'dust', speed: 3.5, size: 0.9, life: 0.4, rise: 1.2, gravity: 5, blend: 'normal', fade: 0.7});
       }
       return;
     }
@@ -447,7 +443,8 @@ class Game {
       if(!d2.shell.dead){
         d2.shell.dead = true;
         var sp2 = d2.shell._physBody ? d2.shell._physBody.translation() : null;
-        this.spawnExplosion(sp2 ? sp2.x : d2.shell.x, 1.0, sp2 ? sp2.z : d2.shell.z, 0xffaa33, 6);
+        this.spawnExplosion(sp2 ? sp2.x : d2.shell.x, 1.0, sp2 ? sp2.z : d2.shell.z, 0xffaa33, 6, 'wall');
+        this.spawnBurst(sp2 ? sp2.x : d2.shell.x, 1.0, sp2 ? sp2.z : d2.shell.z, {count: 3, tex: 'dust', speed: 3.5, size: 0.9, life: 0.4, rise: 1.2, gravity: 5, blend: 'normal', fade: 0.7});
       }
       return;
     }
@@ -482,7 +479,7 @@ class Game {
       return;
     }
     tank.takeDamage(shell.damage, shell.owner, this);
-    this.spawnExplosion(shell.x, 1.2, shell.z, 0xff6a2a, 8);
+    this._tankHitVfx(tank, shell.dir.x, shell.dir.z, 0xffaa40);
     shell.dead = true;
   }
 
@@ -704,7 +701,7 @@ class Game {
     if(gh) gh.classList.remove('hidden');
   }
 
-   _clearGladState(){
+_clearGladState(){
      this.glad = null;
      if(this._gladZoneMesh){ this.scene.remove(this._gladZoneMesh); this._gladZoneMesh.geometry.dispose(); this._gladZoneMesh.material.dispose(); this._gladZoneMesh = null; }
      if(this._gladZoneTex) this._gladZoneTex.dispose();
@@ -729,15 +726,15 @@ class Game {
        this._gladChunkOverlays = [];
      }
      this._gladZoneChunks = null;
-     this._gladCorruptedChunks.clear();
+     this._gladCorruptedChunks = new Set();
      this._gladNextCorruptionIndex = 0;
      this._gladChunkGlowTime = 0;
-if(this._gladZoneCanvas){
-        if(this._gladZoneTex) this._gladZoneTex.dispose();
-        const _zo2 = this._createGladZoneOverlay();
-        this._gladZoneCanvas = _zo2.canvas;
-        this._gladZoneTex = _zo2.tex;
-      }
+     if(this._gladZoneCanvas){
+       if(this._gladZoneTex) this._gladZoneTex.dispose();
+       const _zo2 = this._createGladZoneOverlay();
+       this._gladZoneCanvas = _zo2.canvas;
+       this._gladZoneTex = _zo2.tex;
+     }
      
      const gh = document.getElementById('glad-hud');
      if(gh) gh.classList.add('hidden');
@@ -781,6 +778,13 @@ if(this._gladZoneCanvas){
     return this._gladPickups[this._gladPickups.length-1];
   }
 
+  _gladKillBox(b){
+    if(!b.alive) return;
+    b.alive = false;
+    if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.mesh = null; }
+    this._gladDropPickup(b.x, b.z, GAMEMODES.gladiator.power.box);
+  }
+
   _gladBoxHit(shell){
     if(!this._gladBoxes) return false;
     for(const b of this._gladBoxes){
@@ -789,11 +793,9 @@ if(this._gladZoneCanvas){
       const rr = 1.7 + (shell.radius || 0.4);
       if(dx*dx + dz*dz < rr*rr){
         b.hp -= shell.damage;
-        this.spawnExplosion(b.x, 1.5, b.z, 0x44ccff, 6);
+        this.spawnExplosion(b.x, 1.5, b.z, 0x44ccff, 6, 'box');
         if(b.hp <= 0){
-          b.alive = false;
-          if(b.mesh){ this.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); b.mesh = null; }
-          this._gladDropPickup(b.x, b.z, GAMEMODES.gladiator.power.box);
+          this._gladKillBox(b);
           if(shell.owner === this.localTank) Menu.toast('\u26A1 Blue box destroyed! +5 power dropped');
         }
         return true;
@@ -821,13 +823,13 @@ _inGladRed(x, z){
    _initGladChunkGrid(){
      const g = this.glad;
      const cfg = g.cfg;
-     const zoneHalf = this.world.half;
+     const half = this.world.half;
      const chunkSize = cfg.zone.chunk;
 
      // Create a chunk grid covering the entire map.
      // Each chunk starts 'safe'; the zone flags random edge chunks 'orange'
      // (countdown) and later 'red' (danger).
-     const chunkGridSize = Math.ceil(zoneHalf / chunkSize) + 1;
+     const chunkGridSize = Math.ceil(half / chunkSize) + 1;
 
      this._gladZoneChunks = [];
      this._gladChunkIdx = new Map();
@@ -849,11 +851,11 @@ _inGladRed(x, z){
          this._gladChunkIdx.set(chunk.id, chunk);
        }
      }
-     // Track which chunks are close to player for countdown
+// Track which chunks are close to player for countdown
      this._gladPlayerChunkDist = null;
    }
 
-   /* Chunks currently safe that border a red chunk or the outer map edge. */
+/* Chunks currently safe that border a red chunk or the outer map edge. */
    _gladEdgeChunks(){
      const g = this.glad;
      if(!g || !this._gladZoneChunks || !this._gladChunkIdx) return [];
@@ -876,8 +878,8 @@ _inGladRed(x, z){
      return out;
    }
 
-   /* Seconds between flagging a new chunk orange — accelerates as the safe
-      area shrinks and as the match reaches its end-game. */
+/* Seconds between flagging a new chunk orange — accelerates as the safe
+       area shrinks and as the match reaches its end-game. */
    _gladPickInterval(){
      const g = this.glad;
      if(!g || !this._gladZoneChunks) return 8;
@@ -953,7 +955,7 @@ _inGladRed(x, z){
      if(!this._gladZoneChunks) return;
      const scale = S / this.world.size;
      const toPx = (v) => S/2 + v * scale;
-     const chunkSize = g.cfg.zone.chunk;
+const chunkSize = g.cfg.zone.chunk;
      const cell = chunkSize * scale;
      ctx.lineCap = 'round';
 
@@ -1026,10 +1028,6 @@ _inGladRed(x, z){
      // Chunk center is at (chunk.x, chunk.z) which is in world coordinates
      // The zone is a square from -h to h
      return Math.abs(chunk.x) <= h && Math.abs(chunk.z) <= h;
-   }
-
-_gladZoneNotice(text){
-     Menu.toast(text);
    }
 
    /* Floating zone marker above the orange/red chunk closest to the player.
@@ -1159,7 +1157,7 @@ _gladZoneNotice(text){
   _gladUpdate(dt){
     if(this._matchStartDelay > 0) return;
     const g = this.glad;
-    if(!g){ this._gladHideMarker(); return; }
+if(!g){ this._gladHideMarker(); return; }
     if(g.ended){ this._gladHideMarker(); return; }
     const cfg = g.cfg;
 
@@ -1212,13 +1210,14 @@ _gladZoneNotice(text){
       this._gladUpdateMarker();
     }
 
-    // Red zone damage (10 HP/s while outside the safe square)
+    // Red zone damage (redDps HP/s inside red cells / when fully collapsed)
     if(g.phase !== 'grace'){
       for(const t of this.tanks){
         if(!t.alive || t.dying || t.isDummy) continue;
         if(this._inGladRed(t.x, t.z)){
-          t.takeDamage(cfg.redDps * dt, null, this, true);
-          if(t.alive && !t.dying) this.spawnExplosion(t.x, 0.5, t.z, 0xff3030, 2);
+          t.takeDamage(cfg.redDps * Math.min(dt, 0.5), null, this, true);
+          if(t.alive && !t.dying && Math.random() < dt * 6) this.spawnExplosion(t.x, 0.5, t.z, 0xff3030, 2, 'burn');
+          this.spawnHitVfx(t.x, 0.5, t.z, 0, 0, 0xffaa40, {flashCount: 0, sparkCount: 6, sparkSpeed: 7, sparkLife: 0.3, dustCount: 0});
         }
       }
     }
@@ -1318,13 +1317,13 @@ _gladZoneNotice(text){
 
   _gladSpawnAirdrop(){
     const cfg = this.glad.cfg;
-    const half = Math.max(12, this._gladSafeRadius() - 10);
+const half = Math.max(12, this._gladSafeRadius() - 10);
     let x = 0, z = 0, tries = 0;
     do {
       x = (Math.random() * 2 - 1) * half;
       z = (Math.random() * 2 - 1) * half;
       tries++;
-    } while(tries < 40 && (this.world._inLake(x, z, 4) || this.world.collidesWallsOnly(x, z, 5)));
+    } while((this.world._inLake(x, z, 4) || this.world.collidesWallsOnly(x, z, 5)) && tries < 5);
     const geo = new THREE.CylinderGeometry(3.2, 3.2, 260, 20, 1, true);
     geo.translate(0, 130, 0);
     const mat = new THREE.MeshBasicMaterial({color:0x00ddff, transparent:true, opacity:0.35, depthWrite:false});
@@ -1354,7 +1353,7 @@ _gladZoneNotice(text){
       } : null,
       boxes: this._gladBoxes.filter(b => b.alive).map(b => ({id: b.id, x: b.x, z: b.z, hp: b.hp})),
       pickups: this._gladPickups.map(p => ({x: p.x, z: p.z, power: p.power})),
-      redChunks: (this._gladZoneChunks || []).filter(c => c.state === 'red').map(c => c.id),
+redChunks: (this._gladZoneChunks || []).filter(c => c.state === 'red').map(c => c.id),
       orangeChunks: (this._gladZoneChunks || []).filter(c => c.state === 'orange').map(c => ({
         id: c.id,
         secs: Math.max(0, (c.orangeUntil || 0) - (this.time || 0)),
@@ -1373,7 +1372,7 @@ _gladZoneNotice(text){
       };
       this._gladBoxes = [];
       this._gladPickups = [];
-      const _zo3 = this._createGladZoneOverlay();
+const _zo3 = this._createGladZoneOverlay();
       this._gladZoneCanvas = _zo3.canvas;
       this._gladZoneTex = _zo3.tex;
       const zmat = new THREE.MeshBasicMaterial({map:this._gladZoneTex, transparent:true, opacity:0.9, depthWrite:false});
@@ -1473,7 +1472,7 @@ _gladZoneNotice(text){
     }
   }
 
-  _gladZoneNotice(text){
+_gladZoneNotice(text){
     Menu.toast(text);
   }
 
@@ -1712,6 +1711,46 @@ _gladZoneNotice(text){
     this._begin();
   }
 
+  /* ---------- SPECTATOR (platoon spectator slots) ---------- */
+  async startSpectator(cfg){
+    Menu.showConnecting('Joining as spectator…');
+    try{
+      await Net.joinRoom(cfg.code);
+    }catch(e){
+      Menu.hideConnecting();
+      Menu.toast(e.message||'Could not join room');
+      return;
+    }
+    Menu.hideConnecting();
+    this.isSpectator = true;
+    this.mode='client'; this._resetArena();
+
+    // Watch-only: never send join info and never spawn a local tank.
+    Net.onState = (snap)=> this._applyHostState(snap);
+    Net.onPlayerLeave = (peerId)=>{
+      if(peerId==='host'){
+        Menu.toast('Host disconnected');
+        this.leaveToMenu();
+      }
+    };
+
+    this.spectate = {
+      mode: 'player',      // 'player' = follow a tank, 'free' = freecam
+      targetId: null,
+      yaw: Math.PI,
+      pitch: -0.5,
+      spd: 28,
+    };
+
+    this._begin();
+    // Pure spectator — no tank HUD or touch joysticks
+    const hud = document.getElementById('hud');
+    if(hud) hud.classList.add('hidden');
+    if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+    this._initSpectatorHud();
+    Menu.toast('Spectating — pick a tank or use freecam at the bottom');
+  }
+
   _onClientWelcome(msg){
     // Host tells us we connected, optionally with spawn data
     if(msg.id && msg.id.indexOf('remote-') === 0){
@@ -1843,6 +1882,19 @@ _gladZoneNotice(text){
     this.tanks.forEach(t => { if(t.myBushes){ t.myBushes.forEach(b => this.world.removePlayerBush(b)); t.myBushes = []; } });
     this.tanks=[]; this.projectiles=[]; this.explosions=[];
     this.localTank=null; this.time=0;
+    // A fresh match must never inherit spectator state from a previous one
+    // (e.g. "Keep watching" left spectate=true/the bar visible, so the next
+    // start looked frozen and PLAY/Play again seemed dead).
+    this.spectate = false;
+    this.spectateTarget = null;
+    this.isSpectator = false;
+    try {
+      this._stopSpectate();
+      const _shud = document.getElementById('spectator-hud');
+      if(_shud) _shud.classList.add('hidden');
+      const _sbar = document.getElementById('spectate-bar');
+      if(_sbar) _sbar.classList.add('hidden');
+    } catch(e){}
     if(this._helixVideos){
       for(const [, hv] of this._helixVideos){
         hv.el.pause(); hv.el.currentTime = 0;
@@ -2045,14 +2097,24 @@ _gladZoneNotice(text){
   }
 
   leaveToMenu(){
+    // Hide touch joysticks FIRST — nothing below may run (throws, early
+    // returns, async) while leaving the joysticks visible over the menus.
+    if(this.input && this.input.setJoysticksVisible){
+      this.input.setJoysticksVisible(false);
+    }
+    if(Menu && Menu.hideTouchControls) Menu.hideTouchControls();
     this.running = false;
     this.mode = null;
-    // Hide joysticks FIRST: if anything below throws, we must never leave
+// Hide joysticks FIRST: if anything below throws, we must never leave
     // the touch controls stuck on the main menu (mobile bug).
     try {
       if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
     } catch(e){ console.warn('joystick hide:', e); }
     this._stopSpectate();
+    this.isSpectator = false;
+    this.spectate = null;
+    const specHud = document.getElementById('spectator-hud');
+    if(specHud) specHud.classList.add('hidden');
     try { Net.disconnect(); } catch(e){}
     try { NakamaNet.leaveMatch(); } catch(e){}
     try { this._resetArena(); } catch(e){ console.warn('reset arena:', e); }
@@ -2072,6 +2134,169 @@ _gladZoneNotice(text){
     if(pw) pw.classList.add('hidden');
     // Unlock orientation
     if(screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+  }
+
+  /* ---------- spectator camera + HUD ---------- */
+  _spectateAliveTanks(){
+    return this.tanks.filter(t => t && !t.isDummy && t.alive && !t.dying);
+  }
+
+  _pickSpectateTarget(jump){
+    const alive = this._spectateAliveTanks();
+    if(!alive.length){ this.spectate.targetId = null; return false; }
+    this.spectate.targetId = alive[0].id;
+    if(jump) this._jumpSpectateCamera(alive[0]);
+    return true;
+  }
+
+  _spectateCycleTarget(){
+    if(!this.spectate) return;
+    const alive = this._spectateAliveTanks();
+    if(!alive.length){
+      this.spectate.targetId = null;
+      this._refreshSpectateHud();
+      return;
+    }
+    const cur = alive.findIndex(t => t.id === this.spectate.targetId);
+    const next = alive[(cur + 1) % alive.length];
+    this.spectate.targetId = next.id;
+    this._jumpSpectateCamera(next);
+    this._refreshSpectateHud();
+  }
+
+  _jumpSpectateCamera(t){
+    if(!t) return;
+    this.camera.position.set(t.x, (t.def.body.h || 1) + 10, t.z);
+    if(this.spectate) this.camAngle = this.spectate.yaw;
+  }
+
+  _initSpectatorHud(){
+    const bar = document.getElementById('spectator-hud');
+    if(!bar) return;
+    bar.classList.remove('hidden');
+    if(this._specHudBound) return;
+    this._specHudBound = true;
+    const self = this;
+    const playerBtn = document.getElementById('spec-player-btn');
+    const freeBtn = document.getElementById('spec-free-btn');
+    if(playerBtn){
+      playerBtn.addEventListener('click', ()=>{
+        if(!self.spectate) return;
+        if(self.spectate.mode !== 'player'){
+          self.spectate.mode = 'player';
+          if(!self._pickSpectateTarget(true)) self._spectateCycleTarget();
+          self._refreshSpectateHud();
+          return;
+        }
+        self._spectateCycleTarget();
+      });
+    }
+    if(freeBtn){
+      freeBtn.addEventListener('click', ()=>{
+        if(!self.spectate) return;
+        self.spectate.mode = 'free';
+        self._refreshSpectateHud();
+      });
+    }
+    this._refreshSpectateHud();
+  }
+
+  _refreshSpectateHud(){
+    const bar = document.getElementById('spectator-hud');
+    if(!bar || !this.spectate) return;
+    const playerBtn = document.getElementById('spec-player-btn');
+    const freeBtn = document.getElementById('spec-free-btn');
+    const nameEl = document.getElementById('spec-target-name');
+    if(playerBtn) playerBtn.classList.toggle('spec-on', this.spectate.mode === 'player');
+    if(freeBtn) freeBtn.classList.toggle('spec-on', this.spectate.mode === 'free');
+    if(nameEl){
+      const t = this.spectate.mode === 'player' ? this.tanks.find(x => x.id === this.spectate.targetId) : null;
+      nameEl.textContent = (t && t.alive) ? (t.name || 'Player') : 'NO TARGET';
+    }
+  }
+
+  _updateSpectatorCamera(dt){
+    const sp = this.spectate;
+    if(!sp) return;
+    const inv = (this.settings && this.settings.invertCamRot) ? -1 : 1;
+    const zoom = this.input.consumeZoom();
+
+    if(sp.mode === 'player'){
+      // Orbit only — same rotate/zoom controls as the normal follow cam
+      if(zoom !== 0){
+        this.camDist = Math.max(CONFIG.CAM_DIST_MIN, Math.min(CONFIG.CAM_DIST_MAX,
+          this.camDist - zoom*CONFIG.CAM_ZOOM_STEP));
+      }
+      const camRot = this.input.consumeCamRotate();
+      if(camRot !== 0){
+        this.camAngle -= camRot * inv * CONFIG.CAM_ROTATE_SPEED * dt;
+      } else {
+        const swipe = this.input.consumeCamSwipe();
+        if(swipe !== 0) this.camAngle += swipe * CONFIG.CAM_SWIPE_SENSITIVITY;
+      }
+      sp.yaw = this.camAngle;
+
+      let t = this.tanks.find(x => x.id === sp.targetId);
+      if(!t || !t.alive || t.dying){
+        const alive = this._spectateAliveTanks();
+        t = alive.length ? alive[0] : null;
+        if(t) sp.targetId = t.id;
+      }
+      if(!t) return;
+
+      const angle = this.camAngle;
+      const camTarget = new THREE.Vector3(
+        t.x + Math.sin(angle)*this.camDist,
+        this.camDist*1.43 + 1.2,
+        t.z + Math.cos(angle)*this.camDist);
+      const camLim = (this.world && this.world.half || 75) - 8;
+      camTarget.x = Math.max(-camLim, Math.min(camLim, camTarget.x));
+      camTarget.z = Math.max(-camLim, Math.min(camLim, camTarget.z));
+      this.camera.position.lerp(camTarget, CONFIG.CAM_LERP);
+      this.camera.lookAt(t.x, 1.2, t.z);
+      this._refreshSpectateHud();
+      return;
+    }
+
+    // ---- freecam: WASD move, SHIFT down, SPACE up, drag to rotate ----
+    if(zoom !== 0) sp.spd = Math.max(6, Math.min(120, sp.spd + zoom*5));
+    const camRot = this.input.consumeCamRotate();
+    if(camRot !== 0) sp.yaw -= camRot * inv * CONFIG.CAM_ROTATE_SPEED * dt;
+    const swipe = this.input.consumeCamSwipe();
+    if(swipe !== 0) sp.yaw += swipe * CONFIG.CAM_SWIPE_SENSITIVITY;
+    const swY = this.input.consumeCamSwipePitch();
+    if(swY !== 0) sp.pitch = Math.max(-1.5, Math.min(1.5, sp.pitch - swY * CONFIG.CAM_SWIPE_SENSITIVITY));
+
+    const k = this.input.keys || {};
+    const fwd = { x: Math.sin(sp.yaw), z: Math.cos(sp.yaw) };
+    const right = { x: Math.cos(sp.yaw), z: -Math.sin(sp.yaw) };
+    let mvx = 0, mvz = 0;
+    if(k['KeyW']){ mvx += fwd.x; mvz += fwd.z; }
+    if(k['KeyS']){ mvx -= fwd.x; mvz -= fwd.z; }
+    if(k['KeyD']){ mvx += right.x; mvz += right.z; }
+    if(k['KeyA']){ mvx -= right.x; mvz -= right.z; }
+    const nl = Math.hypot(mvx, mvz);
+    if(nl > 0){
+      const s = sp.spd * dt / nl;
+      this.camera.position.x += mvx * s;
+      this.camera.position.z += mvz * s;
+    }
+    let vy = 0;
+    if(k['ShiftLeft'] || k['ShiftRight']) vy -= 1;
+    if(k['Space']) vy += 1;
+    if(vy) this.camera.position.y += vy * sp.spd * dt;
+
+    const lim = (this.world && this.world.half || 75) - 2;
+    this.camera.position.x = Math.max(-lim, Math.min(lim, this.camera.position.x));
+    this.camera.position.z = Math.max(-lim, Math.min(lim, this.camera.position.z));
+    this.camera.position.y = Math.max(0.8, Math.min(120, this.camera.position.y));
+
+    const look = new THREE.Vector3(fwd.x, Math.sin(sp.pitch), fwd.z).normalize();
+    this.camera.lookAt(
+      this.camera.position.x + look.x,
+      this.camera.position.y + look.y,
+      this.camera.position.z + look.z);
+    this._refreshSpectateHud();
   }
 
   /* ===========================================================
@@ -2532,12 +2757,15 @@ _gladZoneNotice(text){
     // Bullet trails
     this.trailManager.update(dt, this.camera);
 
-    // Camera (orbits around tank; auto mode locks behind hull front; in
+// Camera (orbits around tank; auto mode locks behind hull front; in
     // spectator mode we follow the watched tank instead of the dead local one)
-    const camFocus = (this.spectate && this.spectateTarget && this.spectateTarget.alive && !this.spectateTarget.dying)
-      ? this.spectateTarget
-      : (this.localTank && this.localTank.alive && !this.localTank.dying ? this.localTank : null);
-    if(camFocus){
+    if(this.isSpectator){
+      this._updateSpectatorCamera(dt);
+    } else {
+      const camFocus = (this.spectate && this.spectateTarget && this.spectateTarget.alive && !this.spectateTarget.dying)
+        ? this.spectateTarget
+        : (this.localTank && this.localTank.alive && !this.localTank.dying ? this.localTank : null);
+      if(camFocus){
       const t = camFocus;
       if((this.camMode || 'arrows') === 'auto'){
         this.camAngle = t.heading + Math.PI;
@@ -2561,8 +2789,9 @@ _gladZoneNotice(text){
         this.camera.position.y += (Math.random()-0.5)*s;
         this.camera.position.z += (Math.random()-0.5)*s;
       }
-    } else if(this.localTank && !this.localTank.alive){
-      // Keep camera at last position when dead (don't follow dying tank)
+      } else if(this.localTank && !this.localTank.alive){
+        // Keep camera at last position when dead (don't follow dying tank)
+      }
     }
 
     // Dynamic UI and outline scaling based on camera distance
@@ -3265,7 +3494,8 @@ _gladZoneNotice(text){
           p.mesh.material = new THREE.MeshBasicMaterial({ map: VFX.getTex('fire'), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
           p.mesh.scale.setScalar(p.cur * 1.25);
         });
-        this.spawnExplosion(t.x, 0.4, t.z, 0xff6600, 6);
+        this.spawnExplosion(t.x, 0.4, t.z, 0xff6600, 6, 'burn');
+        this.spawnBurst(t.x, 0.4, t.z, {count: 12, tex: 'ember', speed: 8, size: 0.3, life: 0.5, rise: 4, gravity: 7, blend: 'add'});
       }
     }
     else if(st === 'oil_burn'){
@@ -3366,7 +3596,8 @@ _gladZoneNotice(text){
     const a = Math.random() * Math.PI * 2;
     const entry = this.world.addPlayerBush(t.x + Math.cos(a) * 1.2, t.z + Math.sin(a) * 1.2);
     t.myBushes.push(entry);
-    this.spawnExplosion(t.x, 0.5, t.z, 0x55aa55, 4);
+    this.spawnExplosion(t.x, 0.5, t.z, 0x55aa55, 4, 'bush');
+    this.spawnBurst(t.x, 0.5, t.z, {count: 6, tex: 'shard', color: 0x55aa55, speed: 4, size: 0.4, life: 0.5, rise: 2, gravity: 8, blend: 'normal', spin: 8});
   }
 
   _spawnPanzers(t){
@@ -3386,7 +3617,7 @@ _gladZoneNotice(text){
       p.brain = new PanzerBrain(p, t);
       this._finalizeTank(p);
       this.tanks.push(p);
-      this.spawnExplosion(p.x, 0.6, p.z, 0x8899aa, 6);
+      this.spawnExplosion(p.x, 0.6, p.z, 0x8899aa, 6, 'drop');
     }
   }
 
@@ -3493,8 +3724,13 @@ _gladZoneNotice(text){
   spawnShot(tank){
     const {pos, dir} = tank.muzzle();
     const y = pos.y;
-    // Gunshot sound: full volume from the local tank, quieter from others
-    if(window.Audio && Audio.click) Audio.click('gun', tank === this.localTank ? 1 : 0.5);
+    // Gunshot sound: full volume from the local tank, quieter from others.
+    // Helix flamethrower gets a whoosh instead of the AK-style gunshot.
+    if(window.Audio && Audio.click){
+      const vol = tank === this.localTank ? 1 : 0.45;
+      if(tank.def.shellType === 'flame'){ if(Audio.flame) Audio.flame(vol); }
+      else Audio.click('gun', vol);
+    }
     // Fancy-only: light recoil kick when the player's own tank fires
     if(this.isFancy && tank === this.localTank) this.addShake(0.12);
     // In client/freeroam mode, host sends projectiles via snapshots
@@ -3510,9 +3746,11 @@ _gladZoneNotice(text){
         );
       }
     }
+    if(tank.def.shellType === 'flame') this._ensureHelixVideo(tank);
     if(tank===this.localTank){
       this._muzzleFlash(pos, dir);
-      if(tank.def.shellType === 'flame') this._ensureHelixVideo(tank);
+    } else {
+      this._muzzleFlashFaint(pos, dir);
     }
   }
 
@@ -3549,49 +3787,46 @@ _gladZoneNotice(text){
 
   _muzzleFlash(pos, dir){
     if(this.settings && this.settings.muzzleFx === false) return;
-    // Directional gun flash (stretched along barrel)
-    const flareTex = VFX.getTex('flare');
-    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
-    flash.position.set(pos.x, pos.y + 0.15, pos.z);
-    flash.scale.set(this.isFancy ? 3.0 : 2.0, this.isFancy ? 3.0 : 2.0, 1);
-    this.scene.add(flash);
-    const flashLife = 0.12;
     if(!this._muzzleFlashes) this._muzzleFlashes = [];
-    this._muzzleFlashes.push({sprite:flash, life:flashLife, maxLife:flashLife});
+    const K = this.isFancy ? 1.15 : 0.9;
 
-    // Hot core flash — bright white burst right at the barrel tip
-    const core = new THREE.Sprite(new THREE.SpriteMaterial({map:flareTex, transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
-    core.position.set(pos.x, pos.y + 0.15, pos.z);
-    core.scale.set(0.9, 0.9, 1);
-    this.scene.add(core);
-    this._muzzleFlashes.push({sprite:core, life:0.08, maxLife:0.08});
-
-    // Shell eject / spark puff (small directional burst of star sparks)
-    const sparkTex = VFX.getTex('spark');
+    // Starburst "bark" flash right at the barrel tip (layered for depth)
     for(let i=0; i<3; i++){
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:sparkTex, transparent:true, opacity:0.75, blending:THREE.AdditiveBlending, depthWrite:false}));
-      const sc = 0.18 + Math.random() * 0.12;
-      s.position.set(pos.x, pos.y + 0.1 + Math.random() * 0.15, pos.z);
-      s.rotation.z = Math.random() * Math.PI * 2;
+      const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('starsoft'), color:new THREE.Color(0xfff6d8), transparent:true, opacity:1, blending:THREE.AdditiveBlending, depthWrite:false}));
+      const sc = (1.5 - i*0.28) * K;
+      flash.position.set(pos.x, pos.y + 0.15, pos.z);
+      flash.scale.set(sc, sc, 1);
+      this.scene.add(flash);
+      const life = 0.1 - i*0.02;
+      this._muzzleFlashes.push({sprite:flash, life:life, maxLife:life, baseScale:sc});
+    }
+
+    // Directional "kick" sparks pushed along the barrel (meaty, visible)
+    const dirX = dir ? (dir.x || 0) : 0;
+    const dirZ = dir ? (dir.z || 0) : 0;
+    const naf = this.isFancy ? 16 : 11;
+    for(let i=0; i<naf; i++){
+      const a = Math.atan2(dirZ, dirX) + (Math.random() - 0.5) * 1.4;
+      const spd = (10 + Math.random() * 7) * K;
+      const sc = (0.3 + Math.random() * 0.28) * K;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex(i%3===0?'ember':'spark'), transparent:true, opacity:0.95, blending:THREE.AdditiveBlending, depthWrite:false}));
+      s.position.set(pos.x, pos.y + 0.12, pos.z);
       s.scale.set(sc, sc, 1);
       this.scene.add(s);
-      if(!this._muzzleFlashes) this._muzzleFlashes = [];
+      const life = 0.18 + Math.random() * 0.12;
       this._muzzleFlashes.push({
-        sprite:s, life:0.1 + Math.random() * 0.08, maxLife:0.18,
-        vx: (dir.x || 0) * 1.5 + (Math.random() - 0.5) * 1.0,
-        vz: (dir.z || 0) * 1.5 + (Math.random() - 0.5) * 1.0,
-        vy: 0.3 + Math.random() * 0.4,
-        baseScale: sc
+        sprite:s, life:life, maxLife:life,
+        vx: Math.cos(a) * spd, vz: Math.sin(a) * spd,
+        vy: 0.2 + Math.random() * 0.5, baseScale: sc
       });
     }
 
-    // Muzzle smoke — follows shell path (fancy only)
+    // Fancy extras: pooled light + a puff of propellant smoke
     if(this.isFancy){
-      // Pooled point light — briefly lights the scene at the barrel
       this._muzzleLight(pos.x, pos.y + 0.2, pos.z);
       const tex = VFX.getTex('smoke');
       for(let i=0; i<5; i++){
-        const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false, opacity:0.5}));
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, depthWrite:false, opacity:0.4}));
         const sc = 0.5 + Math.random() * 0.4;
         s.position.set(pos.x, pos.y + 0.1 + Math.random() * 0.2, pos.z);
         s.scale.set(sc, sc, 1);
@@ -3600,8 +3835,8 @@ _gladZoneNotice(text){
         const travelSpeed = 2.0 + Math.random() * 1.5;
         this._muzzleSmokes.push({
           sprite:s, life:0.5 + Math.random() * 0.4, maxLife:0.9,
-          vx: (dir.x || 0) * travelSpeed + (Math.random() - 0.5) * 0.6,
-          vz: (dir.z || 0) * travelSpeed + (Math.random() - 0.5) * 0.6,
+          vx: dirX * travelSpeed + (Math.random() - 0.5) * 0.6,
+          vz: dirZ * travelSpeed + (Math.random() - 0.5) * 0.6,
           vy: 0.8 + Math.random() * 0.8,
           baseScale: sc
         });
@@ -3609,9 +3844,74 @@ _gladZoneNotice(text){
     }
   }
 
-  spawnExplosion(x,y,z,color,count){
-    const e = new Explosion(x,y,z,color,count||6);
+  /* Smaller, cheaper muzzle flash for bots/remote shots. */
+  _muzzleFlashFaint(pos, dir){
+    if(this.settings && this.settings.muzzleFx === false) return;
+    if(!this._muzzleFlashes) this._muzzleFlashes = [];
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('starsoft'), color:new THREE.Color(0xfff0c0), transparent:true, opacity:0.9, blending:THREE.AdditiveBlending, depthWrite:false}));
+    const sc = 1.0;
+    flash.position.set(pos.x, pos.y + 0.15, pos.z);
+    flash.scale.set(sc, sc, 1);
+    this.scene.add(flash);
+    const life = 0.07;
+    this._muzzleFlashes.push({sprite:flash, life:life, maxLife:life, baseScale:sc});
+
+    const dirX = dir ? (dir.x || 0) : 0;
+    const dirZ = dir ? (dir.z || 0) : 0;
+    for(let i=0; i<6; i++){
+      const a = Math.atan2(dirZ, dirX) + (Math.random() - 0.5) * 1.6;
+      const spd = 8 + Math.random() * 5;
+      const ss = 0.24 + Math.random() * 0.16;
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({map:VFX.getTex('spark'), transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false}));
+      s.position.set(pos.x, pos.y + 0.1, pos.z);
+      s.scale.set(ss, ss, 1);
+      this.scene.add(s);
+      const slife = 0.12 + Math.random() * 0.08;
+      this._muzzleFlashes.push({
+        sprite:s, life:slife, maxLife:slife,
+        vx: Math.cos(a) * spd, vz: Math.sin(a) * spd,
+        vy: 0.2 + Math.random() * 0.4, baseScale: ss
+      });
+    }
+  }
+
+spawnExplosion(x, y, z, color, count, style){
+    const e = new Explosion(x, y, z, color, count, style);
     e.attach(this.scene); this.explosions.push(e);
+  }
+  /* Directional tank hit: soft star "pop", hot streak sparks pushed along the
+     shell direction, tiny debris, light dust kick — reads as a fast "ding". */
+  spawnHitVfx(x, y, z, dirX, dirZ, color, opts){
+    if(!this.spawnBurst) return;
+    const o = opts || {};
+    const px = x || 0, pz = z || 0;
+    const dir = (dirX && dirZ) ? [dirX, dirZ] : null;
+    // 1) soft starburst pop
+    this.spawnBurst(px, y + 0.35, pz, {
+      count: o.flashCount || 1, tex: 'starsoft', color: color || 0xfff2d0,
+      speed: 0.4, size: o.flashSize || 1.7, life: o.flashLife || 0.18,
+      rise: 0.6, gravity: 0, blend: 'add', spin: 0, grow: 1.5, fade: 0.9,
+    });
+    // 2) hot directional streaks along the shell travel
+    this.spawnBurst(px, y + 0.18, pz, {
+      count: o.sparkCount != null ? o.sparkCount : 10, tex: ['spark','ember'],
+      speed: o.sparkSpeed != null ? o.sparkSpeed : 11, size: o.sparkSize || 0.4,
+      life: o.sparkLife || 0.34, rise: 1.6, gravity: o.sparkGravity != null ? o.sparkGravity : 16,
+      biasX: dir ? dir[0] : 0, biasZ: dir ? dir[1] : 0, spread: o.spread != null ? o.spread : 0.7,
+      blend: 'add', spin: 10,
+    });
+    // 3) tiny debris
+    this.spawnBurst(px, y + 0.08, pz, {
+      count: o.debrisCount || 3, tex: ['shard','hex'], color: color || 0xc8b898,
+      speed: o.debrisSpeed || 5, size: o.debrisSize || 0.5, life: o.debrisLife || 0.5,
+      rise: 1.6, gravity: 12, biasX: dir ? dir[0] : 0, biasZ: dir ? dir[1] : 0,
+      spread: 1.0, blend: 'normal', spin: 7,
+    });
+    // 4) light dust kick
+    this.spawnBurst(px, y + 0.04, pz, {
+      count: o.dustCount != null ? o.dustCount : 4, tex: 'dust',
+      speed: 3.2, size: 0.9, life: 0.5, rise: 1.0, gravity: 5, blend: 'normal', fade: 0.7,
+    });
   }
 
   /* Pooled muzzle light — reused between shots, capped at 6 active */
@@ -3642,12 +3942,15 @@ _gladZoneNotice(text){
     const texName = Array.isArray(o.tex) ? o.tex[(Math.random()*o.tex.length)|0] : (o.tex || 'flare');
     const tex = VFX.getTex(texName);
     const additive = o.blend !== 'normal';
+    const tint = (o.color != null) ? new THREE.Color(o.color) : null;
     for(let i = 0; i < count; i++){
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      const sm = new THREE.SpriteMaterial({
         map: tex, transparent: true, opacity: 1,
         blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
         depthWrite: false
-      }));
+      });
+      if(tint) sm.color = tint;
+      const s = new THREE.Sprite(sm);
       const a = Math.random() * Math.PI * 2;
       const sp = (o.speed || 8) * (0.5 + Math.random() * 0.8);
       let vx, vz;
@@ -3684,15 +3987,34 @@ _gladZoneNotice(text){
     }
   }
 
-  /* Destruction VFX — fireball, sparks, shards, shockwave, smoke column (fancy only) */
-  _killVfx(tank){
-    if(!this.isFancy) return;
+  /* Light directional damage hit on a tank — star pop + sparks kicked back
+     along the shell direction + small debris. Cheaper than the kill bloom. */
+  _tankHitVfx(tank, dx, dz, color){
+    if(!tank) return;
     const y1 = tank.y != null ? tank.y : 1.4;
-    this.spawnBurst(tank.x, y1 + 0.4, tank.z, {count: 6, tex: ['flare','fire'], speed: 11, size: 1.6, life: 0.8, rise: 6, grow: 2.2, blend: 'add', spin: 1.2});
-    this.spawnBurst(tank.x, y1 + 0.8, tank.z, {count: 16, tex: 'spark', speed: 17, size: 0.55, life: 0.55, rise: 2.5, gravity: 18, blend: 'add', spin: 9});
-    this.spawnBurst(tank.x, y1 + 0.2, tank.z, {count: 10, tex: ['shard','hex'], speed: 6, size: 0.9, life: 0.9, rise: 3, gravity: 9, spin: 6});
-    this.spawnBurst(tank.x, y1, tank.z, {count: 1, tex: 'ring', speed: 0, size: 2.2, life: 0.5, rise: 0, grow: 4.5, blend: 'add', spin: 0});
-    this.spawnBurst(tank.x, y1 - 0.2, tank.z, {count: 10, tex: 'puff', speed: 2.6, size: 2.2, life: 1.7, rise: 6, grow: 3.2, blend: 'normal', fade: 0.4, spin: 0.4});
+    let px = 0, pz = 0;
+    if(dx && dz && (dx !== 0 || dz !== 0)){
+      const len = Math.max(0.0001, Math.hypot(dx, dz));
+      px = -dx / len; pz = -dz / len;
+    }
+    this.spawnExplosion(tank.x, y1, tank.z, color || 0xffaa40, 3, 'boom');
+    this.spawnHitVfx(tank.x, y1, tank.z, px, pz, color);
+  }
+
+  /* Destruction VFX — white-hot pop, shockwave, sparks, debris, smoke column */
+  _killVfx(tank){
+    const y1 = tank.y != null ? tank.y : 1.4;
+    // Rocket layer: bright pop + dense fireworks (always visible)
+    this.spawnExplosion(tank.x, y1, tank.z, 0xfff2d0, 8, 'boom');
+    this.spawnBurst(tank.x, y1 + 0.3, tank.z, {count: 18, tex: ['spark','ember'], speed: 18, size: 0.55, life: 0.6, rise: 2.5, gravity: 16, blend: 'add', spin: 9});
+    this.spawnBurst(tank.x, y1 + 0.15, tank.z, {count: 10, tex: ['shard','hex'], speed: 6.5, size: 0.85, life: 0.8, rise: 3, gravity: 9, spin: 6});
+    // Flower layer: heavy smolder bloom (fancy only)
+    if(this.isFancy){
+      const st = EXPLOSION_STYLES.lrg;
+      this.spawnBurst(tank.x, y1, tank.z, {count: Math.round(st.fire * 8), tex: 'blobfire', color: 0xff8a2a, speed: 10, size: 1.5, life: 0.9, rise: 5, gravity: -1.5, blend: 'add', spin: 0.8});
+      this.spawnBurst(tank.x, y1 - 0.2, tank.z, {count: Math.round(st.smokeCol * 6), tex: 'smoke', speed: 1.6, size: 3.0, life: 1.6, rise: 2.4, grow: 2.6, blend: 'normal', fade: 0.45});
+      this.spawnBurst(tank.x, y1 - 0.2, tank.z, {count: 1, tex: 'ring', speed: 0, size: 2.2, life: 0.5, rise: 0, grow: 4.2, blend: 'add', spin: 0});
+    }
     if(this.localTank){
       const d = Math.hypot(this.localTank.x - tank.x, this.localTank.z - tank.z);
       if(d < 60) this.addShake(1.2 * (1 - d / 60));
@@ -3740,12 +4062,10 @@ _gladZoneNotice(text){
         this._gladAwardClanXP();
         this._gladShowResult(false);
       }
-      this.spawnExplosion(tank.x, 1.4, tank.z, 0xff5b3b, 16);
-      this.spawnExplosion(tank.x, 2.0, tank.z, 0xffaa33, 10);
+      this._killVfx(tank);
       return;
     }
-    this.spawnExplosion(tank.x, 1.4, tank.z, 0xff5b3b, 16);
-    this.spawnExplosion(tank.x, 2.0, tank.z, 0xffaa33, 10);
+    this._killVfx(tank);
     if(this.localTank){
       const d = Math.hypot(this.localTank.x-tank.x, this.localTank.z-tank.z);
       if(d < 45){
@@ -3768,6 +4088,9 @@ _gladZoneNotice(text){
 
   onLocalDeath(){
     if(this.glad){
+      // Eliminated — no longer controllable: take the touch controls away
+      if(this.input && this.input.setJoysticksVisible) this.input.setJoysticksVisible(false);
+      if(Menu && Menu.hideTouchControls) Menu.hideTouchControls();
       this._gladShowResult(true);
       Menu.toast('Eliminated! You placed #' + (this.localTank ? (this.localTank.placement || '?') : '?'));
       return;
@@ -3936,7 +4259,7 @@ _gladZoneNotice(text){
       if(be){
         const g = this.glad;
         let txt = '';
-        if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's';
+if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's';
         else {
           const b = this._gladSafeBounds();
           txt = b ? ('Safe zone ' + Math.max(Math.round(b.maxX - b.minX), Math.round(b.maxZ - b.minZ)) + 'm') : 'Zone closed!';
@@ -3987,7 +4310,7 @@ _gladZoneNotice(text){
     if(this.glad){
       const g = this.glad;
       if(g.phase !== 'grace'){
-        const b = this._gladSafeBounds();
+const b = this._gladSafeBounds();
         if(b){
           const [x1, y1] = this.world.worldToMap(b.minX, b.minZ, S);
           const [x2, y2] = this.world.worldToMap(b.maxX, b.maxZ, S);
