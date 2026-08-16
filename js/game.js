@@ -748,6 +748,30 @@ _clearGladState(){
     if(this._gladAirBeam){ this.scene.remove(this._gladAirBeam); this._gladAirBeam.geometry.dispose(); this._gladAirBeam.material.dispose(); this._gladAirBeam = null; }
     if(this._gladAirCrate){ this.scene.remove(this._gladAirCrate); this._gladAirCrate.geometry.dispose(); this._gladAirCrate.material.dispose(); this._gladAirCrate = null; }
     if(this._gladAirRing){ this.scene.remove(this._gladAirRing); this._gladAirRing.geometry.dispose(); this._gladAirRing.material.dispose(); this._gladAirRing = null; }
+    if(this._gladAirCircle){ this.scene.remove(this._gladAirCircle); this._gladAirCircle.geometry.dispose(); this._gladAirCircle.material.dispose(); this._gladAirCircle = null; }
+    if(this._gladAirOutline){ this.scene.remove(this._gladAirOutline); this._gladAirOutline.geometry.dispose(); this._gladAirOutline.material.dispose(); this._gladAirOutline = null; }
+    if(this._gladAirCounter){
+      this.scene.remove(this._gladAirCounter);
+      if(this._gladAirCounter.material) this._gladAirCounter.material.dispose();
+      if(this._gladAirCounterTex) this._gladAirCounterTex.dispose();
+      this._gladAirCounter = null; this._gladAirCounterCanvas = null; this._gladAirCounterCtx = null; this._gladAirCounterTex = null;
+    }
+    this._gladAirCounterKey = '';
+    if(this._gladAirHolo){
+      this.scene.remove(this._gladAirHolo);
+      this._gladAirHolo.traverse(o => {
+        if(!o.isMesh) return;
+        if(o.geometry) o.geometry.dispose();
+        const ms = Array.isArray(o.material) ? o.material : [o.material];
+        ms.forEach(m => { if(m && m.dispose) m.dispose(); });
+      });
+      if(this._gladAirHoloTexes){
+        this._gladAirHoloTexes.forEach(t => { try{ t.dispose(); }catch(e){} });
+        this._gladAirHoloTexes.clear();
+      }
+      this._gladAirHolo = null;
+    }
+    this._gladAirGen = (this._gladAirGen || 0) + 1;
   }
 
   _gladSpawnBox(x, z, id){
@@ -1231,9 +1255,6 @@ if(!g){ this._gladHideMarker(); return; }
     } else if(g.airdrop){
       if(!g.airdrop.landed){
         g.airdrop.countdown -= dt;
-        if(this._gladAirBeam){
-          this._gladAirBeam.material.opacity = 0.25 + 0.2 * Math.sin(this.time * 5);
-        }
         if(g.airdrop.countdown <= 0){
           g.airdrop.landed = true;
           g.airdrop.life = 60;
@@ -1330,7 +1351,208 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
     this._gladAirBeam = new THREE.Mesh(geo, mat);
     this._gladAirBeam.position.set(x, 0, z);
     this.scene.add(this._gladAirBeam);
+    this._gladBuildAirdropVis(x, z);
     return { x, z, countdown: cfg.airdrop.countdown, hold: cfg.airdrop.holdTime, landed:false, life:0, localHold:0 };
+  }
+
+  /* Blue circle (matches the 4.5 hold radius) + lighter-blue outline ring +
+     floating power-up barrel hologram (no hitbox) + countdown counter sprite.
+     The barrel model loads async; everything else builds now. */
+  _gladBuildAirdropVis(x, z){
+    this._gladAirGen = (this._gladAirGen || 0) + 1;
+    const gen = this._gladAirGen;
+
+    // Ground circle (the zone a tank must stand in to secure the drop)
+    const cg = new THREE.CircleGeometry(4.5, 48);
+    cg.rotateX(-Math.PI / 2);
+    const cm = new THREE.MeshBasicMaterial({color:0x1f9eff, transparent:true, opacity:0.30, depthWrite:false});
+    this._gladAirCircle = new THREE.Mesh(cg, cm);
+    this._gladAirCircle.position.set(x, 0.055, z);
+    this._gladAirCircle.renderOrder = 4;
+    this.scene.add(this._gladAirCircle);
+
+    // Even-lighter-blue outline hugging the circle
+    const rg = new THREE.RingGeometry(4.42, 4.80, 60);
+    rg.rotateX(-Math.PI / 2);
+    const rm = new THREE.MeshBasicMaterial({color:0xc9f3ff, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending});
+    this._gladAirOutline = new THREE.Mesh(rg, rm);
+    this._gladAirOutline.position.set(x, 0.07, z);
+    this._gladAirOutline.renderOrder = 4;
+    this.scene.add(this._gladAirOutline);
+
+    // Countdown / hold counter floating above the drop
+    this._gladAirCounter = this._gladMakeCounterSprite();
+    this._gladAirCounter.position.set(x, 6.0, z);
+    this._gladAirCounterKey = '';
+    this.scene.add(this._gladAirCounter);
+
+    // Hologram barrel model (async; pure visual — no hitbox)
+    this._gladLoadAirdropHolo().then(raw => {
+      if(gen !== this._gladAirGen){ if(raw) this._gladDisposeHoloScene(raw); return; }
+      let grp = raw || this._gladMakeBarrelHolo();
+      if(!grp || !grp.isObject3D){ if(grp) this._gladDisposeHoloScene(grp); grp = this._gladMakeBarrelHolo(); }
+      this._gladAirHoloTexes = new Set();
+      grp.traverse(o => {
+        if(!o.isMesh) return;
+        if(o.geometry) o.geometry.computeBoundingBox();
+        const orig = o.material;
+        const mk = (m) => new THREE.MeshBasicMaterial({
+          map: (m && m.map) || null,
+          color: 0x8fd4ff, transparent: true, opacity: 0.55,
+          depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        });
+        o.material = Array.isArray(orig) ? orig.map(mk) : mk(orig);
+        if(Array.isArray(orig)) orig.forEach(m => { if(m && m.map) this._gladAirHoloTexes.add(m.map); });
+        else if(orig && orig.map) this._gladAirHoloTexes.add(orig.map);
+        o.castShadow = false; o.receiveShadow = false;
+      });
+      const box = new THREE.Box3().setFromObject(grp);
+      const dim = box.getSize(new THREE.Vector3());
+      const c = box.getCenter(new THREE.Vector3());
+      const scale = Math.min(
+        3.2 / Math.max(dim.x, dim.z, 0.01),
+        2.8 / Math.max(dim.y, 0.01)
+      );
+      grp.scale.setScalar(scale);
+      grp.position.set(x - c.x * scale, -box.min.y * scale + 0.15, z - c.z * scale);
+      grp.rotation.y = Math.random() * Math.PI * 2;
+      this._gladAirHolo = grp;
+      this.scene.add(grp);
+    });
+  }
+
+  _gladMakeCounterSprite(){
+    const c = document.createElement('canvas'); c.width = 256; c.height = 100;
+    this._gladAirCounterCanvas = c; this._gladAirCounterCtx = c.getContext('2d');
+    const tex = new THREE.CanvasTexture(c);
+    this._gladAirCounterTex = tex;
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
+    spr.scale.set(5.4, 2.1, 1);
+    return spr;
+  }
+
+  _gladDrawCounter(txt, sub, col){
+    const c = this._gladAirCounterCanvas, g = this._gladAirCounterCtx;
+    if(!c || !g) return;
+    g.clearRect(0, 0, 256, 100);
+    g.fillStyle = 'rgba(0,16,32,0.6)';
+    g.beginPath();
+    g.roundRect ? g.roundRect(34, 8, 188, 84, 18) : g.rect(34, 8, 188, 84);
+    g.fill();
+    g.strokeStyle = 'rgba(140,225,255,0.5)';
+    g.lineWidth = 2;
+    g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 52px Segoe UI';
+    g.lineJoin = 'round';
+    g.strokeStyle = '#00111f';
+    g.lineWidth = 8;
+    g.strokeText(txt, 128, sub ? 42 : 52);
+    g.fillStyle = col;
+    g.fillText(txt, 128, sub ? 42 : 52);
+    if(sub){
+      g.font = 'bold 24px Segoe UI';
+      g.strokeStyle = '#00111f';
+      g.lineWidth = 5;
+      g.strokeText(sub, 128, 78);
+      g.fillStyle = '#bfe9ff';
+      g.fillText(sub, 128, 78);
+    }
+    if(this._gladAirCounterTex) this._gladAirCounterTex.needsUpdate = true;
+  }
+
+  /* Per-frame airdrop visuals: beam/outline pulse, hologram float+spin,
+     blue smoke plume at the drop point, countdown counter text. Runs on
+     both host and client. */
+  _gladUpdateAirdropVis(dt){
+    const g = this.glad;
+    if(!g || !g.airdrop) return;
+    const a = g.airdrop;
+    if(this._gladAirBeam){
+      this._gladAirBeam.material.opacity = a.landed
+        ? 0.42 + 0.14 * Math.sin(this.time * 4)
+        : 0.22 + 0.2 * Math.sin(this.time * 5);
+    }
+    if(this._gladAirOutline){
+      this._gladAirOutline.material.opacity = 0.55 + 0.3 * Math.sin(this.time * 3);
+    }
+    if(this._gladAirCircle){
+      this._gladAirCircle.material.opacity = 0.24 + 0.08 * Math.sin(this.time * 3);
+    }
+    if(this._gladAirHolo){
+      this._gladAirHolo.rotation.y += dt * 0.5;
+      this._gladAirHolo.position.y = 0.25 + Math.sin(this.time * 1.6) * 0.18;
+    }
+    if(this._gladAirCounter){
+      this._gladAirCounter.position.y = 6.0 + Math.sin(this.time * 1.6) * 0.15;
+    }
+    // Blue smoke rising from the drop point
+    this._gladAirSmokeT = (this._gladAirSmokeT || 0) + dt;
+    if(this._gladAirSmokeT >= 0.1 && this.spawnBurst){
+      this._gladAirSmokeT = 0;
+      this.spawnBurst(a.x, 0.3 + Math.random() * 0.35, a.z, {
+        count: 2, tex: 'smoke', color: 0x57b9ff, speed: 0.6, size: 1.1,
+        life: 1.3, rise: 1.4, gravity: -0.6, grow: 2.0, fade: 0.5, blend: 'normal',
+      });
+    }
+    // Counter text
+    const holdT = a.landed ? (this.localTank ? (this.localTank._gladHoldTime || 0) : 0) : 0;
+    let txt, sub, col;
+    if(!a.landed){ txt = Math.max(0, Math.ceil(a.countdown)) + 's'; sub = 'INCOMING'; col = '#8fd8ff'; }
+    else if(holdT > 0){ txt = Math.max(0, Math.ceil(a.hold - holdT)) + 's'; sub = 'HOLD THE CIRCLE'; col = '#7ff0ff'; }
+    else { txt = 'CLAIM'; sub = 'STAND IN BLUE CIRCLE'; col = '#bff2ff'; }
+    const key = txt + '|' + sub;
+    if(key !== this._gladAirCounterKey){
+      this._gladAirCounterKey = key;
+      this._gladDrawCounter(txt, sub, col);
+    }
+  }
+
+  /* Load the Fuel_C_Barrels hologram prop (returns Promise<Scene|null>). */
+  _gladLoadAirdropHolo(){
+    return new Promise(resolve => {
+      let loader = null;
+      try{ loader = new THREE.GLTFLoader(); }catch(e){ loader = null; }
+      if(!loader) return resolve(null);
+      loader.load(
+        'assets/props/airdrop/Fuel_C_Barrels.gltf?v=' + (CONFIG.MODEL_VER || 0),
+        (gltf) => resolve(gltf && (gltf.scene || gltf)),
+        undefined,
+        () => resolve(null)
+      );
+    });
+  }
+
+  /* Dispose a freshly loaded (but unused / cancelled) hologram scene. */
+  _gladDisposeHoloScene(grp){
+    if(!grp) return;
+    grp.traverse(o => {
+      if(!o.isMesh) return;
+      if(o.geometry) o.geometry.dispose();
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      ms.forEach(m => { if(m) m.dispose(); });
+    });
+  }
+
+  /* Procedural fallback hologram (a little stack of fuel barrels). */
+  _gladMakeBarrelHolo(){
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x8fd4ff, transparent: true, opacity: 0.6,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const barrel = (r, h, x, z) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), mat);
+      m.position.set(x, h / 2, z);
+      grp.add(m);
+    };
+    barrel(0.55, 1.9, -0.7, 0.35);
+    barrel(0.55, 1.9, 0.7, -0.3);
+    barrel(0.6, 2.1, 0, 0.2);
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), mat);
+    crate.position.set(0.15, 2.1, -0.2);
+    grp.add(crate);
+    return grp;
   }
 
   _gladSnapshot(){
@@ -1405,6 +1627,7 @@ const _zo3 = this._createGladZoneOverlay();
         this._gladAirBeam = new THREE.Mesh(geo, mat);
         this._gladAirBeam.position.set(gs.airdrop.x, 0, gs.airdrop.z);
         this.scene.add(this._gladAirBeam);
+        this._gladBuildAirdropVis(gs.airdrop.x, gs.airdrop.z);
       } else if(this._gladAirBeam && g.airdrop.landed !== gs.airdrop.landed){
         this._gladAirBeam.material.opacity = 0.4;
       }
@@ -2439,6 +2662,7 @@ _gladZoneNotice(text){
     try {
     this.world.update(dt, this.time, this.localTank);
     if(this.glad && !this.glad._client) this._gladUpdate(dt);
+    if(this.glad && this.glad.airdrop) this._gladUpdateAirdropVis(dt);
 
     // Camera zoom & orbit
     const zoom = this.input.consumeZoom();
