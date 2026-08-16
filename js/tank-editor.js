@@ -30,8 +30,8 @@ window.TankEditor = (function(){
     selected: 'coolbuddy',
     mode: 'hitbox',
     scene: null, renderer: null, camera: null, controls: null, gizmo: null,
-    tank: null, bodyBox: null, boxWire: null, pivotMarker: null, turretMarker: null, shellMarker: null,
-    values: { body:{w:3,h:1,l:4.4}, pivot:{x:0,y:0,z:0}, turret:{x:0,y:0,z:0}, shell:{x:0,y:0,z:0} },
+    tank: null, bodyBox: null, boxWire: null, pivotMarker: null, turretMarker: null, shellMarker: null, casingMarker: null, tankCenterMarker: null,
+    values: { body:{w:3,h:1,l:4.4}, pivot:{x:0,y:0,z:0}, turret:{x:0,y:0,z:0}, shell:{x:0,y:0,z:0}, casing:{x:0,y:0,z:0} },
     raf: 0, running: false, resizeHandler: null, keyHandler: null,
     axesCanvas: null,
     spinTurret: false,
@@ -132,9 +132,10 @@ window.TankEditor = (function(){
         '<div class="te-mode-title">EDIT</div>' +
         '<div id="te-modes" class="te-modes">' +
           '<div class="te-mode' + (state.mode==='hitbox' ? ' te-on' : '') + '" data-mode="hitbox">Hitbox (front/sides)</div>' +
-          '<div class="te-mode' + (state.mode==='pivot' ? ' te-on' : '') + '" data-mode="pivot">Turret pivot</div>' +
-          '<div class="te-mode' + (state.mode==='turret' ? ' te-on' : '') + '" data-mode="turret">Turret position</div>' +
-          '<div class="te-mode' + (state.mode==='shell' ? ' te-on' : '') + '" data-mode="shell">Firing point (muzzle)</div>' +
+          '<div class="te-mode' + (state.mode==='pivot' ? ' te-on' : '') + '" data-mode="pivot">Turret rotation point</div>' +
+          '<div class="te-mode' + (state.mode==='turret' ? ' te-on' : '') + '" data-mode="turret">Turret center (mount)</div>' +
+          '<div class="te-mode' + (state.mode==='shell' ? ' te-on' : '') + '" data-mode="shell">Fire point (bullet)</div>' +
+          '<div class="te-mode' + (state.mode==='casing' ? ' te-on' : '') + '" data-mode="casing">Shell point (casing)</div>' +
         '</div>' +
 
         '<div class="te-mode-title">VALUES</div>' +
@@ -492,6 +493,7 @@ window.TankEditor = (function(){
     if(ov && ov.pivot) state.values.pivot = Object.assign({}, ov.pivot);
     if(ov && ov.turret) state.values.turret = Object.assign({}, ov.turret);
     if(ov && ov.shell) state.values.shell = Object.assign({}, ov.shell);
+    if(ov && ov.casing) state.values.casing = Object.assign({}, ov.casing);
 
     clearTank();
     renderFields();
@@ -533,6 +535,8 @@ window.TankEditor = (function(){
     if(state.pivotMarker){ try{ state.scene.remove(state.pivotMarker); }catch(e){} state.pivotMarker = null; }
     if(state.turretMarker){ try{ state.scene.remove(state.turretMarker); }catch(e){} state.turretMarker = null; }
     if(state.shellMarker){ try{ state.scene.remove(state.shellMarker); }catch(e){} state.shellMarker = null; }
+    if(state.casingMarker){ try{ state.scene.remove(state.casingMarker); }catch(e){} state.casingMarker = null; }
+    if(state.tankCenterMarker){ try{ state.scene.remove(state.tankCenterMarker); }catch(e){} state.tankCenterMarker = null; }
   }
 
   function makeMarker(color, size){
@@ -606,6 +610,28 @@ window.TankEditor = (function(){
     state.scene.add(state.shellMarker);
     state.values.shell = { x: round(shellLocal.x), y: round(shellLocal.y), z: round(shellLocal.z) };
 
+    // ---- Shell (casing) eject point — where the ejected cartridge with a
+    //      rigidbody flies out of. Lives in turretGroup space via the cached
+    //      bind-pose offset so the "gun firing" clip can't skew it. ----
+    var casingOffset = t._casingOffset;
+    if(casingOffset){
+      state.casingMarker = makeMarker(0xff88cc, 0.15);
+      state.casingMarker.userData.parent = t.turretGroup;
+      state.casingMarker.position.copy(t.turretGroup.localToWorld(casingOffset.clone()));
+      state.scene.add(state.casingMarker);
+      state.values.casing = { x: round(casingOffset.x), y: round(casingOffset.y), z: round(casingOffset.z) };
+    } else {
+      state.values.casing = { x: 0, y: 0, z: 0 };
+    }
+
+    // ---- Tank center indicator — where the whole tank rotates/steers from
+    //      (the hull pivot at the model origin). Informational, not editable.
+    state.tankCenterMarker = makeMarker(0x666666, 0.1);
+    state.scene.add(state.tankCenterMarker);
+    var tankC = new THREE.Vector3();
+    state.tank.root.getWorldPosition(tankC);
+    state.tankCenterMarker.position.copy(tankC);
+
     // The values above already include any saved override (they are read from
     // the live nodes) — just pin the gizmo target to them and show the axes.
     applyValuesToScene();
@@ -659,6 +685,12 @@ window.TankEditor = (function(){
       var sLocal = new THREE.Vector3(v.shell.x, v.shell.y, v.shell.z);
       state.shellMarker.position.copy(state.shellMarker.userData.parent.localToWorld(sLocal));
     }
+
+    if(state.casingMarker && state.casingMarker.userData.parent && state.casingMarker.userData.parent.isObject3D){
+      var cLocal = new THREE.Vector3(v.casing.x, v.casing.y, v.casing.z);
+      state.casingMarker.position.copy(state.casingMarker.userData.parent.localToWorld(cLocal));
+      if(state.tank && state.tank._casingOffset) state.tank._casingOffset.set(v.casing.x, v.casing.y, v.casing.z);
+    }
   }
 
   function syncFromGizmo(){
@@ -698,6 +730,11 @@ window.TankEditor = (function(){
     if(g === state.shellMarker && state.shellMarker.userData.parent){
       var sLocal = state.shellMarker.userData.parent.worldToLocal(state.shellMarker.position.clone());
       state.values.shell = { x: round(sLocal.x), y: round(sLocal.y), z: round(sLocal.z) };
+    }
+
+    if(g === state.casingMarker && state.casingMarker.userData.parent){
+      var cLocal = state.casingMarker.userData.parent.worldToLocal(state.casingMarker.position.clone());
+      state.values.casing = { x: round(cLocal.x), y: round(cLocal.y), z: round(cLocal.z) };
     }
 
     renderFields();
@@ -776,6 +813,9 @@ window.TankEditor = (function(){
       } else if(mode === 'shell' && state.shellMarker){
         state.gizmo.attach(state.shellMarker);
         state.gizmo.setMode('translate');
+      } else if(mode === 'casing' && state.casingMarker){
+        state.gizmo.attach(state.casingMarker);
+        state.gizmo.setMode('translate');
       } else {
         try{ state.gizmo.detach(); }catch(e){}
       }
@@ -789,25 +829,27 @@ window.TankEditor = (function(){
     if(!el) return;
     var msg = '';
     if(state.mode === 'hitbox'){
-      if(!state.tank || !state.tank._modelTurretPivot){
-        msg = 'Scale the green box to set the collision hitbox. Green = front length (Z), width (X) is the sides, height (Y).';
-      } else {
-        msg = 'Scale the green box to set the collision hitbox. Green = front length (Z), width (X) is the sides, height (Y).';
-      }
+      msg = 'Scale the green box to set the collision hitbox. Green = front length (Z), width (X) is the sides, height (Y). The gray diamond is the tank\u2019s rotation/steering center (hull center).';
     } else if(state.mode === 'pivot'){
       if(!state.tank || !state.tank._modelTurretPivot){
         msg = 'This model has no dedicated turret pivot — it rotates about the hull center. Pick a model with a named "turret" group (Cool Buddy etc.) to move its rotation point.';
       } else {
-        msg = 'Drag the blue marker to move the turret ROTATION point. The turret stays in place — only the axis it spins about moves. Saved as an offset from the hull center.';
+        msg = 'BLUE = the point the turret ROTATES around. Drag it and the rotation axis moves but the turret mesh stays put. Default is the turret\u2019s own center.';
       }
     } else if(state.mode === 'turret'){
       if(!state.tank || !state.tank._turretHome){
-        msg = 'This model has no separate turret part to move (it\'s the simple cube build). Use the Pivot mode to adjust its rotation instead.';
+        msg = 'This model has no separate turret part to move (it\u2019s the simple cube build). Use the Pivot/rotation point mode instead.';
       } else {
-        msg = 'Drag the gold marker to move where the turret SITS on the hull (0° position). Rotation still happens about the blue pivot point, so it stays wherever you put it.';
+        msg = 'GOLD = where the turret SITS on the hull (its center at 0\u00B0). Drag it to move the turret; the blue rotation point is independent.';
       }
     } else if(state.mode === 'shell'){
-      msg = 'Drag the red marker to set the FIRING point (muzzle) — where shells/rigid bodies actually spawn. The ejected casing stays at the model\'s "shell" port.';
+      msg = 'RED = the FIRE point: where the bullet/projectile actually spawns (at the muzzle). Drag it onto the barrel tip. The pink marker is the shell/casing eject point (a separate marker below).';
+    } else if(state.mode === 'casing'){
+      if(!state.casingMarker){
+        msg = 'This model has no casing port, so the casing ejects from the fire point.';
+      } else {
+        msg = 'PINK = the shell/casing point: where the ejected cartridge (a tiny rigidbody) flies out when firing. Drag it anywhere next to the red fire point.';
+      }
     }
     el.textContent = msg;
   }
@@ -833,9 +875,13 @@ window.TankEditor = (function(){
       html += field('turret.y', 'Turret Y', v.turret.y, -10, 10);
       html += field('turret.z', 'Turret Z (forward)', v.turret.z, -10, 10);
     } else if(state.mode === 'shell'){
-      html += field('shell.x', 'Muzzle X', v.shell.x, -10, 10);
-      html += field('shell.y', 'Muzzle Y', v.shell.y, -10, 10);
-      html += field('shell.z', 'Muzzle Z (forward)', v.shell.z, -10, 10);
+      html += field('shell.x', 'Fire X', v.shell.x, -10, 10);
+      html += field('shell.y', 'Fire Y', v.shell.y, -10, 10);
+      html += field('shell.z', 'Fire Z (forward)', v.shell.z, -10, 10);
+    } else if(state.mode === 'casing'){
+      html += field('casing.x', 'Casing X', v.casing.x, -10, 10);
+      html += field('casing.y', 'Casing Y', v.casing.y, -10, 10);
+      html += field('casing.z', 'Casing Z (forward)', v.casing.z, -10, 10);
     }
     el.innerHTML = html;
     el.querySelectorAll('input').forEach(function(inp){
@@ -891,7 +937,7 @@ window.TankEditor = (function(){
   function doSave(){
     var id = state.selected;
     var v = state.values;
-    var patch = { body: Object.assign({}, v.body), pivot: Object.assign({}, v.pivot), turret: Object.assign({}, v.turret), shell: Object.assign({}, v.shell) };
+    var patch = { body: Object.assign({}, v.body), pivot: Object.assign({}, v.pivot), turret: Object.assign({}, v.turret), shell: Object.assign({}, v.shell), casing: Object.assign({}, v.casing) };
     setOv(id, patch);
     if(state.tank && state.tank._applyEditorOverrides) state.tank._applyEditorOverrides();
     if(state.tank) applyValuesToScene();
@@ -909,6 +955,7 @@ window.TankEditor = (function(){
     state.values.pivot = { x:0, y:0, z:0 };
     state.values.turret = { x:0, y:0, z:0 };
     state.values.shell = { x:0, y:0, z:0 };
+    state.values.casing = { x:0, y:0, z:0 };
     pickTank(state.selected);
     toast('"' + state.selected + '" reset to defaults');
   }

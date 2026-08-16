@@ -133,6 +133,9 @@ class Tank {
     // point and a moved turret marker only changes where the turret sits
     // on the hull (never let the two drag each other).
     this._applyTurretPlacement();
+    if(ov.casing && this._casingOffset){
+      this._casingOffset.set(ov.casing.x || 0, ov.casing.y || 0, ov.casing.z || 0);
+    }
     if(ov.shell && this.barrelEnd){
       this.barrelEnd.position.set(ov.shell.x || 0, ov.shell.y || 0, ov.shell.z || 0);
     }
@@ -482,12 +485,10 @@ class Tank {
     this.bodyGroup.add(bodyParts);
     this.turretGroup.add(turretParts);
 
-    // Cool Buddy's turret sits toward the front of the hull, so rotating the
-    // bare turret group about the model origin makes it arc around a point far
-    // behind its own mass (and drags its outline with it, looking broken).
-    // Give every named model a dedicated pivot at the turret's front-center,
-    // biased a little further forward, so the turret+outline swing around the
-    // real turret position.
+    // Give every named model a dedicated pivot at the turret's geometric
+    // center so the turret+outline swing around the turret's own center bolt
+    // by default. The Tank Editor can move it (rotation-only; the turret
+    // mesh stays planted at its mount point).
     this.root.updateMatrixWorld(true);
     // Mount point of the turret (where it sits on the hull, at 0°). Kept in
     // turretParts space: the pivot below can then move freely and change the
@@ -498,7 +499,6 @@ class Tank {
     this._turretG = turretG;
     const pivotBox = new THREE.Box3().setFromObject(turretG);
     const pivotC = pivotBox.getCenter(new THREE.Vector3());
-    pivotC.z += (pivotBox.max.z - pivotBox.min.z) * 0.25;
     const turretPivotLocal = turretParts.worldToLocal(pivotC);
     const turretPivot = new THREE.Group();
     turretPivot.position.copy(turretPivotLocal);

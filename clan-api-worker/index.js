@@ -258,11 +258,13 @@ export default {
       const clean = {};
       for (const id of Object.keys(b.overrides)) {
         const o = b.overrides[id];
-        if (o && (o.body || o.pivot || o.shell)) {
+        if (o && (o.body || o.pivot || o.shell || o.turret || o.casing)) {
           const c = {};
           if (o.body && typeof o.body === 'object') c.body = { w: +o.body.w || 0, h: +o.body.h || 0, l: +o.body.l || 0 };
           if (o.pivot && typeof o.pivot === 'object') c.pivot = { x: +o.pivot.x || 0, y: +o.pivot.y || 0, z: +o.pivot.z || 0 };
+          if (o.turret && typeof o.turret === 'object') c.turret = { x: +o.turret.x || 0, y: +o.turret.y || 0, z: +o.turret.z || 0 };
           if (o.shell && typeof o.shell === 'object') c.shell = { x: +o.shell.x || 0, y: +o.shell.y || 0, z: +o.shell.z || 0 };
+          if (o.casing && typeof o.casing === 'object') c.casing = { x: +o.casing.x || 0, y: +o.casing.y || 0, z: +o.casing.z || 0 };
           clean[id] = c;
         }
       }
