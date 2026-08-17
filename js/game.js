@@ -4662,16 +4662,16 @@ const b = this._gladSafeBounds();
     }
     ctx.restore();
 
-    // --- Turret icon (centered, independent rotation) ---
+    // --- Turret icon (2x size, pivot moved to the rear/base of the turret) ---
     const img = (turretImg && turretImg.complete && turretImg.naturalWidth > 0) ? turretImg : hullImg;
-    const tw = hullW * 0.62;
+    const tw = hullW * 1.24;
     const tAspect = img && img.naturalWidth > 0 ? (img.naturalHeight / img.naturalWidth) : (364 / 239);
     const th = tw * tAspect;
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(this._bigMapFwdAngle(aimAngle));
     if(img && img.complete && img.naturalWidth > 0){
-      ctx.drawImage(img, -tw / 2, -th / 2, tw, th);
+      ctx.drawImage(img, -tw / 2, -th * 0.70, tw, th);
     }
     ctx.restore();
   }
