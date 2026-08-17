@@ -40,7 +40,8 @@ const CONFIG = {
   CAM_SWIPE_SENSITIVITY: 0.008, // radians per pixel for swipe camera rotate
 
   // Drift / handbrake
-  DRIFT_MIN_KMH:   5,    // need at least this speed to drift
+  DRIFT_MIN_KMH:   14,   // need at least this speed to drift (km/h)
+  DRIFT_MIN_SPEED_FRAC: 0.6, // ...AND at least 60% of this tank's own top speed
   DRIFT_TURN_BOOST:3.0,   // body turns this many times faster while drifting
   DRIFT_FRICTION:  0.72,  // velocity retained per second while drifting (higher = slides more)
   U_TO_KMH:        3.6 * 0.6,

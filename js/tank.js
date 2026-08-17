@@ -770,7 +770,12 @@ class Tank {
     this.drifting = false;
     const hasTurn = !!inp.turn && Math.abs(inp.turn) > 0.001;
     const kmh = Math.abs(this.speed) * CONFIG.U_TO_KMH;
-    if(inp.handbrake && kmh >= CONFIG.DRIFT_MIN_KMH && hasTurn){
+    // Drift needs genuine momentum: pass the hard speed floor AND a fraction
+    // of this tank's own top speed, so heavy/slow tanks must be near their
+    // max before traction breaks.
+    const driftCap = d.speed * (1 - Math.min(0.35, (this.mass-18)/120));
+    const hasMomentum = Math.abs(this.speed) >= driftCap * (CONFIG.DRIFT_MIN_SPEED_FRAC != null ? CONFIG.DRIFT_MIN_SPEED_FRAC : 0.6);
+    if(inp.handbrake && kmh >= CONFIG.DRIFT_MIN_KMH && hasMomentum && hasTurn){
       this.drifting = true;
     }
 
