@@ -421,8 +421,13 @@ class Tank {
     let flippedTurret = false;
     if(this.def.modelFlipY && turretG && hullG){
       const bakeFlip = (g) => {
-        const a = g.geometry ? g.geometry.attributes.position : null;
-        if(!a) return;
+        // Models.load returns a clone that SHARES geometry with the cached
+        // scene (three.js clone() clones the object tree but not buffers), so
+        // never mutate that shared geometry in place: cloning it here makes
+        // every rebuild of the same tank flip its own copy exactly once.
+        if(!g.geometry || !g.geometry.attributes) return;
+        g.geometry = g.geometry.clone();
+        const a = g.geometry.attributes.position;
         const box = new THREE.Box3();
         const v = new THREE.Vector3();
         for(let i=0;i<a.count;i++){
@@ -777,7 +782,10 @@ class Tank {
       const fwdX = Math.sin(this.heading);
       const fwdZ = Math.cos(this.heading);
       const speedDeficit = target - this.speed;
-      const engineForce = speedDeficit * d.accel * this.mass * 2.0;
+      // Flip into reverse instantly: reversing against forward motion adds a
+      // strong brake/backwards kick instead of coasting to a stop first.
+      const reversing = target < 0 && this.speed > 0;
+      const engineForce = speedDeficit * d.accel * this.mass * 2.0 * (reversing ? 3 : 1);
       this._physBody.addForce({x: fwdX * engineForce, y: 0, z: fwdZ * engineForce}, true);
       const turnRate = this.drifting ? d.turn * CONFIG.DRIFT_TURN_BOOST : d.turn;
       const targetAngVel = hasTurn ? inp.turn * turnRate * 3.0 : 0;
@@ -792,7 +800,11 @@ class Tank {
         this.speed = Math.min(target, this.speed + d.accel * dt);
       } else if(this.speed > target){
         const noThrottle = Math.abs(effThrottle) < 0.08;
-        const brakeMul = (noThrottle && !this.drifting) ? 5.0 : 1.4;
+        // Flip into reverse instantly: reversing against forward motion
+        // brakes hard so the tank swings backwards right away instead of
+        // coasting to a stop and only then accelerating in reverse.
+        const reversing = target < 0 && this.speed > 0;
+        const brakeMul = reversing ? 10.0 : ((noThrottle && !this.drifting) ? 5.0 : 1.4);
         this.speed = Math.max(target, this.speed - d.accel * dt * brakeMul);
       }
 
