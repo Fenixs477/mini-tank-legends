@@ -1271,7 +1271,7 @@ if(!g){ this._gladHideMarker(); return; }
           for(const t of this.tanks){
             if(!t.alive || t.dying || t.isDummy) continue;
             const d = Math.hypot(t.x - g.airdrop.x, t.z - g.airdrop.z);
-            if(d < 4.5){
+            if(d < 9.0){
               t._gladHoldTime = (t._gladHoldTime || 0) + dt;
               if(t === this.localTank) g.airdrop.localHold = t._gladHoldTime;
               if(t._gladHoldTime >= cfg.airdrop.holdTime){
@@ -1355,15 +1355,15 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
     return { x, z, countdown: cfg.airdrop.countdown, hold: cfg.airdrop.holdTime, landed:false, life:0, localHold:0 };
   }
 
-  /* Blue circle (matches the 4.5 hold radius) + lighter-blue outline ring +
-     floating power-up barrel hologram (no hitbox) + countdown counter sprite.
+  /* Blue circle (matches the 9.0 hold radius) + lighter-blue outline ring +
+     solid power-up barrel model (no hitbox) + countdown counter sprite.
      The barrel model loads async; everything else builds now. */
   _gladBuildAirdropVis(x, z){
     this._gladAirGen = (this._gladAirGen || 0) + 1;
     const gen = this._gladAirGen;
 
     // Ground circle (the zone a tank must stand in to secure the drop)
-    const cg = new THREE.CircleGeometry(4.5, 48);
+    const cg = new THREE.CircleGeometry(9.0, 64);
     cg.rotateX(-Math.PI / 2);
     const cm = new THREE.MeshBasicMaterial({color:0x1f9eff, transparent:true, opacity:0.30, depthWrite:false});
     this._gladAirCircle = new THREE.Mesh(cg, cm);
@@ -1372,7 +1372,7 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
     this.scene.add(this._gladAirCircle);
 
     // Even-lighter-blue outline hugging the circle
-    const rg = new THREE.RingGeometry(4.42, 4.80, 60);
+    const rg = new THREE.RingGeometry(8.84, 9.60, 80);
     rg.rotateX(-Math.PI / 2);
     const rm = new THREE.MeshBasicMaterial({color:0xc9f3ff, transparent:true, opacity:0.85, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending});
     this._gladAirOutline = new THREE.Mesh(rg, rm);
@@ -1398,8 +1398,7 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
         const orig = o.material;
         const mk = (m) => new THREE.MeshBasicMaterial({
           map: (m && m.map) || null,
-          color: 0x8fd4ff, transparent: true, opacity: 0.55,
-          depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+          color: 0xffffff, side: THREE.DoubleSide,
         });
         o.material = Array.isArray(orig) ? orig.map(mk) : mk(orig);
         if(Array.isArray(orig)) orig.forEach(m => { if(m && m.map) this._gladAirHoloTexes.add(m.map); });
@@ -1480,7 +1479,6 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
       this._gladAirCircle.material.opacity = 0.24 + 0.08 * Math.sin(this.time * 3);
     }
     if(this._gladAirHolo){
-      this._gladAirHolo.rotation.y += dt * 0.5;
       this._gladAirHolo.position.y = 0.25 + Math.sin(this.time * 1.6) * 0.18;
     }
     if(this._gladAirCounter){
@@ -1491,7 +1489,7 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
     if(this._gladAirSmokeT >= 0.1 && this.spawnBurst){
       this._gladAirSmokeT = 0;
       this.spawnBurst(a.x, 0.3 + Math.random() * 0.35, a.z, {
-        count: 2, tex: 'smoke', color: 0x57b9ff, speed: 0.6, size: 1.1,
+        count: 2, tex: 'smoke', color: 0xcfe9ff, speed: 0.6, size: 1.1,
         life: 1.3, rise: 1.4, gravity: -0.6, grow: 2.0, fade: 0.5, blend: 'normal',
       });
     }
@@ -1538,8 +1536,7 @@ const half = Math.max(12, this._gladSafeRadius() - 10);
   _gladMakeBarrelHolo(){
     const grp = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x8fd4ff, transparent: true, opacity: 0.6,
-      depthWrite: false, blending: THREE.AdditiveBlending,
+      color: 0x8fd4ff, side: THREE.DoubleSide,
     });
     const barrel = (r, h, x, z) => {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), mat);
