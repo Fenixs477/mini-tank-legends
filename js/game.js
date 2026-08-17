@@ -4569,26 +4569,16 @@ const b = this._gladSafeBounds();
         bctx.moveTo(cx - xr, cy + xr); bctx.lineTo(cx + xr, cy - xr);
         bctx.stroke();
       }
-      if(g.airdrop){
-        const [ax, ay] = this.world.worldToMap(g.airdrop.x, g.airdrop.z, S);
-        bctx.fillStyle = g.airdrop.landed ? '#00eeff' : 'rgba(0,230,255,0.55)';
-        bctx.beginPath();
-        bctx.arc(ax, ay, 10, 0, Math.PI * 2);
-        bctx.fill();
-        bctx.fillStyle = '#003d5c';
-        bctx.font = 'bold 14px sans-serif';
-        bctx.textAlign = 'center';
-        bctx.fillText('DROP', ax, ay - 14);
-      }
     }
     wrap.classList.remove('hidden');
-    // Live loop: icons + trajectory redrawn every frame from tank state.
+    // Live loop: airdrop icon + tank icons + trajectory redrawn every frame.
     const loop = () => {
       if(document.getElementById('bigmap').classList.contains('hidden')){
         this._bigMapLoop = 0; return;
       }
       ctx.clearRect(0, 0, S, S);
       ctx.drawImage(this._bigMapBase, 0, 0);
+      this._drawAirdropOnBigMap(ctx, S);
       this._drawTankOnBigMap(ctx, S);
       this._bigMapLoop = requestAnimationFrame(loop);
     };
@@ -4620,6 +4610,43 @@ const b = this._gladSafeBounds();
       this._bigMapTurret.src = 'assets/icons/minimap-turret.png';
     }
     return [this._bigMapHull, this._bigMapTurret];
+  }
+
+  /* Airdrop marker icon (box.png) on the big map, cached after first load. */
+  _bigMapAirdropIcon(){
+    if(!this._bigMapAirdropImg){
+      this._bigMapAirdropImg = new Image();
+      this._bigMapAirdropImg.src = 'assets/icons/airdrop.png';
+    }
+    return this._bigMapAirdropImg;
+  }
+
+  /* Live airdrop marker: box icon (or cyan circle + DROP label fallback). */
+  _drawAirdropOnBigMap(ctx, S){
+    if(!this.world || !this.glad || this.glad.phase === 'grace') return;
+    const g = this.glad;
+    if(!g.airdrop) return;
+    const k = S / (this.world.size || 100);
+    const [ax, ay] = this.world.worldToMap(g.airdrop.x, g.airdrop.z, S);
+    const img = this._bigMapAirdropIcon();
+    if(img && img.complete && img.naturalWidth > 0){
+      const size = 26 * k;
+      ctx.save();
+      ctx.globalAlpha = g.airdrop.landed ? 1 : 0.85;
+      ctx.translate(ax, ay);
+      if(!g.airdrop.landed) ctx.rotate(Math.sin(g.airdrop.countdown * 2) * 0.06);
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = g.airdrop.landed ? '#00eeff' : 'rgba(0,230,255,0.55)';
+      ctx.beginPath();
+      ctx.arc(ax, ay, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#003d5c';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('DROP', ax, ay - 14);
+    }
   }
 
   /* Live local-tank overlay: dashed trajectory (- - - - -) along the aim

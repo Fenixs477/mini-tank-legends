@@ -2983,9 +2983,9 @@ html, body {
 
   margin-bottom: 20px;
 
-  margin-left: 240px;
+  margin-left: 196px;
 
-  max-width: calc(100% - 240px);
+  max-width: calc(100% - 196px);
 
   overflow: hidden;
 
@@ -3123,11 +3123,33 @@ html, body {
 
 .clan-chat-message-text {
 
+  display: block;
+
+  margin-top: 4px;
+
   color: #ffffff;
 
   word-wrap: break-word;
 
   overflow-wrap: anywhere;
+
+  text-align: left;
+
+}
+
+
+
+.clan-chat-message-time {
+
+  font-size: 11px;
+
+  color: #9aa2ad;
+
+  margin-left: 8px;
+
+  vertical-align: middle;
+
+  white-space: nowrap;
 
 }
 

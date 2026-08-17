@@ -2991,23 +2991,29 @@ this._renderCamSettings();
     const chatMessages = document.getElementById('clan-chat-messages');
     if(!chatMessages) return;
     chatMessages.innerHTML = '';
-    this._clanData.chat.forEach(m => this._addChatMessage(m.name, m.msg, m.rank, m.rank === 'owner' && m.name === 'System'));
+    this._clanData.chat.forEach(m => this._addChatMessage(m.name, m.msg, m.rank, m.rank === 'owner' && m.name === 'System', m.ts));
   },
 
-  _addChatMessage(name, message, rank, isSystem = false){
+  _addChatMessage(name, message, rank, isSystem = false, ts = null){
     const chatMessages = document.getElementById('clan-chat-messages');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'clan-chat-message';
-    
+    let timeStr = '';
+    if(ts){
+      const dt = new Date(ts);
+      timeStr = String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
+    }
     if(isSystem){
       messageDiv.innerHTML = `
         <span class="clan-chat-message-name" style="color: #9b59b6;">${name}</span>
+        <span class="clan-chat-message-time">${timeStr}</span>
         <span class="clan-chat-message-text">${message}</span>
       `;
     } else {
       messageDiv.innerHTML = `
         <span class="clan-chat-message-rank ${rank}">${rank}</span>
         <span class="clan-chat-message-name">${name}</span>
+        <span class="clan-chat-message-time">${timeStr}</span>
         <span class="clan-chat-message-text">${message}</span>
       `;
     }
@@ -3038,7 +3044,7 @@ this._renderCamSettings();
     this._updateRegistryClan(this._clanData);
     this._apiAnnounceClan(this._clanData);
 
-    if(!st) this._addChatMessage(playerName, message, playerRank);
+    if(!st) this._addChatMessage(playerName, message, playerRank, false, Date.now());
     input.value = '';
     if(st){ st.draft = ''; st.chatScroll = 0; this._updateClanCanvasCounter(input, st.layout.find(x => x.type === 'chat-input')); }
   },
@@ -3460,9 +3466,9 @@ this._renderCamSettings();
       { type:'sort-buttons',x:40,  y:204, w:230, h:32,  fontSize:15, color:'#fff' },
       { type:'clan-count',  x:530, y:204, w:200, h:36,  label:'Members', fontSize:16, color:'#cfd6e0', borderColor:'rgba(255,200,50,0.4)' },
       { type:'member',      x:40,  y:252, w:310, h:300, fontSize:15, color:'#e8ecf1', borderColor:'rgba(255,200,50,0.4)', maxPlayers:20 },
-      { type:'chat-body',   x:366, y:252, w:364, h:238, fontSize:14, color:'#e8ecf1', borderColor:'rgba(255,200,50,0.4)' },
-      { type:'chat-input',  x:366, y:504, w:272, h:42,  label:'Type a message...', fontSize:15, color:'#fff' },
-      { type:'chat-send',   x:650, y:504, w:80,  h:42,  label:'Send', fontSize:15, color:'#ffb12b' }
+      { type:'chat-body',   x:322, y:252, w:364, h:238, fontSize:14, color:'#e8ecf1', borderColor:'rgba(255,200,50,0.4)' },
+      { type:'chat-input',  x:322, y:504, w:272, h:42,  label:'Type a message...', fontSize:15, color:'#fff' },
+      { type:'chat-send',   x:606, y:504, w:80,  h:42,  label:'Send', fontSize:15, color:'#ffb12b' }
     ];
   },
 
@@ -3845,9 +3851,10 @@ this._renderCamSettings();
         ctx.beginPath();
         this._clanUIRoundRect(ctx, bx + 1.25, top + 1.25, bw - 2.5, b.h - 2.5, 12.75);
         ctx.stroke();
-        // No avatar circles: text starts near the bubble's left edge
+        // Nickname line starts near the bubble's left edge; grows right with
+        // the timestamp following it (Discord-style, never spread out)
         const nameX = bx + bubPad + 8;
-        const nameLineX = nameX + 93;
+        const nameLineX = nameX;
         ctx.font = (fs * 0.95) + "px 'Lilita One', sans-serif";
         ctx.fillStyle = b.nameCol;
         ctx.fillText(b.nameStr, nameLineX, top + bubPad + 14);
@@ -4428,7 +4435,7 @@ this._renderCamSettings();
     const iconMap = {
       gladiator: 'assets/icons/gamemode-gladiator.png',
       multiplayer: 'assets/icons/gamemode-multiplayer.png',
-      sandbox: 'assets/icons/gamemode-sandbox.svg'
+      sandbox: 'assets/icons/gamemode-sandbox.png'
     };
     const img = document.getElementById('gamemode-icon');
     const em = document.getElementById('gamemode-emoji');
