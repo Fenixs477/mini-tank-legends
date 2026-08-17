@@ -90,9 +90,9 @@ const GAMEMODES = {
     id:'gladiator', name:'Gladiator', maxTanks:10, botCount:9,
     spawnSubType:'gladiator', boxSubType:'gladiatorbox',
     zone:{
-      graceTime:20,          // seconds before the zone starts eating chunks
-      chunkOrange:30,        // orange warning -> red transition time per chunk
-      pickTime:6.5,          // ~seconds between flagging a new random edge chunk
+      graceTime:60,          // seconds before the zone starts eating chunks (3x slower)
+      chunkOrange:90,        // orange warning -> red transition time per chunk (3x slower)
+      pickTime:19.5,         // ~seconds between flagging a new random edge chunk (3x slower)
       chunk:12,              // chunk size (scaled to world in _initGladiator)
       minHalf:8,             // legacy: kept for compatibility
       finalHalf:0,           // legacy: kept for compatibility

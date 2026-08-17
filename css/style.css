@@ -3155,6 +3155,58 @@ html, body {
 
 
 
+/* Back buttons use the left-arrow icon */
+.back-ico {
+
+  width: 14px;
+
+  height: 14px;
+
+  vertical-align: -2px;
+
+  margin-right: 6px;
+
+  object-fit: contain;
+
+}
+
+.clan-ui-back-arrow .back-ico {
+
+  margin-right: 0;
+
+}
+
+/* Leave Clan button: logout icon */
+#btn-leave-clan .logout-ico {
+
+  width: 26px;
+
+  height: 26px;
+
+  display: block;
+
+  object-fit: contain;
+
+}
+
+#menu-clan-ui:not(.canvas-mode) #btn-leave-clan {
+
+  margin-top: 10px;
+
+}
+
+#menu-clan-ui:not(.canvas-mode) #btn-leave-clan .logout-ico {
+
+  width: 18px;
+
+  height: 18px;
+
+  margin: 0 auto;
+
+}
+
+
+
 .clan-chat-input-container {
 
   display: flex;
@@ -4727,7 +4779,7 @@ html, body {
 /* Leave Clan: below the back arrow, circled-square icon frame, door icon only */
 #menu-clan-ui.canvas-mode #btn-leave-clan {
   position: absolute;
-  top: 52px;
+  top: 62px;
   left: 8px;
   z-index: 20;
   width: 48px;

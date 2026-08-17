@@ -4539,27 +4539,10 @@ if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's'
     const bctx = this._bigMapBase.getContext('2d');
     bctx.clearRect(0, 0, S, S);
     this.world.renderToCanvas(bctx, S, S);
-    // GLADIATOR zone + airdrop markers on the big map
+    // GLADIATOR center marker on the big map base (zone/airdrop drawn live)
     if(this.glad){
       const g = this.glad;
       if(g.phase !== 'grace'){
-const b = this._gladSafeBounds();
-        if(b){
-          const [x1, y1] = this.world.worldToMap(b.minX, b.minZ, S);
-          const [x2, y2] = this.world.worldToMap(b.maxX, b.maxZ, S);
-          bctx.strokeStyle = '#ff3030';
-          bctx.lineWidth = 6;
-          bctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
-        }
-        // Also mark the orange (pending) chunks as small squares
-        if(this._gladZoneChunks){
-          bctx.fillStyle = 'rgba(255,170,60,0.85)';
-          for(const c of this._gladZoneChunks){
-            if(c.state !== 'orange') continue;
-            const [px, py] = this.world.worldToMap(c.x, c.z, S);
-            bctx.fillRect(px - 2.5, py - 2.5, 5, 5);
-          }
-        }
         const [cx, cy] = this.world.worldToMap(0, 0, S);
         bctx.strokeStyle = '#ff3030';
         bctx.lineWidth = 8;
@@ -4571,13 +4554,14 @@ const b = this._gladSafeBounds();
       }
     }
     wrap.classList.remove('hidden');
-    // Live loop: airdrop icon + tank icons + trajectory redrawn every frame.
+    // Live loop: zone + airdrop + tank icons + trajectory redrawn every frame.
     const loop = () => {
       if(document.getElementById('bigmap').classList.contains('hidden')){
         this._bigMapLoop = 0; return;
       }
       ctx.clearRect(0, 0, S, S);
       ctx.drawImage(this._bigMapBase, 0, 0);
+      this._drawGladZoneOnBigMap(ctx, S);
       this._drawAirdropOnBigMap(ctx, S);
       this._drawTankOnBigMap(ctx, S);
       this._bigMapLoop = requestAnimationFrame(loop);
@@ -4610,6 +4594,39 @@ const b = this._gladSafeBounds();
       this._bigMapTurret.src = 'assets/icons/minimap-turret.png';
     }
     return [this._bigMapHull, this._bigMapTurret];
+  }
+
+  /* Live gladiator zone overlay on the big map: RED danger chunks, ORANGE
+     pending chunks and the remaining-safe-area outline. */
+  _drawGladZoneOnBigMap(ctx, S){
+    if(!this.world || !this.glad) return;
+    const g = this.glad;
+    if(g.phase === 'grace' || !this._gladZoneChunks) return;
+    const k = S / (this.world.size || 100);
+    const cs = (g.cfg.zone.chunk || 12) * k;
+    // RED danger chunks (the actual zone)
+    ctx.fillStyle = 'rgba(255,40,40,0.55)';
+    for(const c of this._gladZoneChunks){
+      if(c.state !== 'red') continue;
+      const [px, py] = this.world.worldToMap(c.x, c.z, S);
+      ctx.fillRect(px - cs / 2, py - cs / 2, cs, cs);
+    }
+    // ORANGE pending chunks (countdown before they turn red)
+    ctx.fillStyle = 'rgba(255,170,60,0.9)';
+    for(const c of this._gladZoneChunks){
+      if(c.state !== 'orange') continue;
+      const [px, py] = this.world.worldToMap(c.x, c.z, S);
+      ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+    }
+    // Safe area outline
+    const b = this._gladSafeBounds();
+    if(b){
+      const [x1, y1] = this.world.worldToMap(b.minX, b.minZ, S);
+      const [x2, y2] = this.world.worldToMap(b.maxX, b.maxZ, S);
+      ctx.strokeStyle = '#ff3030';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
+    }
   }
 
   /* Airdrop marker icon (box.png) on the big map, cached after first load. */
