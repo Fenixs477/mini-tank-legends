@@ -4662,9 +4662,9 @@ const b = this._gladSafeBounds();
     }
     ctx.restore();
 
-    // --- Turret icon (2x size, pivot moved to the rear/base of the turret) ---
+    // --- Turret icon (1.5x size, pivot moved to the rear/base of the turret) ---
     const img = (turretImg && turretImg.complete && turretImg.naturalWidth > 0) ? turretImg : hullImg;
-    const tw = hullW * 1.24;
+    const tw = hullW * 0.93;
     const tAspect = img && img.naturalWidth > 0 ? (img.naturalHeight / img.naturalWidth) : (364 / 239);
     const th = tw * tAspect;
     ctx.save();
