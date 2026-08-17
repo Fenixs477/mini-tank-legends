@@ -44,14 +44,17 @@ const ACCELERATION   = 13.0;   // how fast it reaches top speed
 const DECELERATION   = 26.0;   // coast / brake decel when no throttle
 const BRAKE_DECEL    = 55.0;   // handbrake decel (SPACE)
 const TURN_SPEED     = 2.1;    // hull rotation rate          (rad / second)
+const DRIFT_TURN_BOOST = 1.9;  // hull spins ~2x harder WHILE drifting so the
+                               // drift reads as a rotation, not an ice-slide
 const DRIFT_SLIP_FACTOR = 1.0; // higher = longer, more sideways slide
 const DRIFT_THRESHOLD = {
   speed: 7.5,                 // minimum forward speed to break traction
   turn:  0.65                 // minimum turn input (0..1) to break traction
 };
 const LAT_GRIP_RATE   = 9.0;  // lateral friction when gripping (high = sticky)
-const LAT_SLIP_RATE   = 1.15; // lateral friction while drifting (low = slides)
-const YAW_ALIGN_SPEED = 2.4;  // hull slowly swings toward the skid direction
+const LAT_SLIP_RATE   = 2.2;  // lateral friction while drifting (low = slides)
+const YAW_ALIGN_SPEED = 3.2;  // hull swings toward the skid direction (higher =
+                              // hull visibly rotates through the drift)
 const TANK_WHEELBASE  = 0.0;  // reserved: simple arcade steering (0 = instant yaw)
 const CAMERA_DIST     = 15.0;
 const CAMERA_HEIGHT   = 8.5;
@@ -222,7 +225,10 @@ function updateTank(dt) {
   // --- c) Steering: rotate the VISUAL heading ---------------------------
   const reversing = longitudinal < -0.4;
   let turnInput = inp.turn * (reversing ? -1 : 1);                   // tank-style: A/D flips when reversing
-  heading += turnInput * TURN_SPEED * dt;
+  // Drift turn boost: while drifting the hull rotates much harder, so the
+  // slide reads as a decisive rotation instead of an ice-like straight glide.
+  const turnScale = 1 + drifting * (DRIFT_TURN_BOOST - 1);
+  heading += turnInput * TURN_SPEED * turnScale * dt;
 
   // --- d) Dynamic lateral friction (the drift trigger) ------------------
   const sharpTurn  = Math.abs(inp.turn)   > DRIFT_THRESHOLD.turn;
