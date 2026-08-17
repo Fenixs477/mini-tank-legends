@@ -4601,6 +4601,12 @@ const b = this._gladSafeBounds();
     return Math.atan2(Math.cos(ang), Math.sin(ang)) + Math.PI / 2;
   }
 
+  /* Same, but for a plain line: local +X is rotated to point along the world
+     forward direction (no image-"up" offset). */
+  _bigMapLineAngle(ang){
+    return Math.atan2(Math.cos(ang), Math.sin(ang));
+  }
+
   /* Lazily load the hull + turret map icons. Turret falls back to the hull
      icon until assets/icons/minimap-turret.png is added. */
   _bigMapIcons(){
@@ -4629,7 +4635,7 @@ const b = this._gladSafeBounds();
     // --- Trajectory line (- - - - -) along the aim (turret) direction ---
     ctx.save();
     ctx.translate(px, py);
-    ctx.rotate(this._bigMapFwdAngle(aimAngle));
+    ctx.rotate(this._bigMapLineAngle(aimAngle));
     ctx.strokeStyle = 'rgba(255,177,43,0.85)';
     ctx.lineWidth = Math.max(1.5, 2.5);
     ctx.setLineDash([3 * k, 2.2 * k]);
@@ -4640,9 +4646,10 @@ const b = this._gladSafeBounds();
     ctx.setLineDash([]);
     ctx.restore();
 
-    // --- Hull icon (position + rotation) ---
-    const hullW = 4.6 * k;
-    const hullH = hullW * (364 / 239);
+    // --- Hull icon (position + rotation), 2x scale ---
+    const hullW = 9.2 * k;
+    const hullAspect = hullImg && hullImg.naturalWidth > 0 ? (hullImg.naturalHeight / hullImg.naturalWidth) : (364 / 239);
+    const hullH = hullW * hullAspect;
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(this._bigMapFwdAngle(t.heading));
@@ -4656,12 +4663,13 @@ const b = this._gladSafeBounds();
     ctx.restore();
 
     // --- Turret icon (centered, independent rotation) ---
+    const img = (turretImg && turretImg.complete && turretImg.naturalWidth > 0) ? turretImg : hullImg;
     const tw = hullW * 0.62;
-    const th = tw * (364 / 239);
+    const tAspect = img && img.naturalWidth > 0 ? (img.naturalHeight / img.naturalWidth) : (364 / 239);
+    const th = tw * tAspect;
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(this._bigMapFwdAngle(aimAngle));
-    const img = (turretImg && turretImg.complete && turretImg.naturalWidth > 0) ? turretImg : hullImg;
     if(img && img.complete && img.naturalWidth > 0){
       ctx.drawImage(img, -tw / 2, -th / 2, tw, th);
     }
