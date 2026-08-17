@@ -4521,13 +4521,24 @@ if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's'
   toggleBigMap(){
     const wrap = document.getElementById('bigmap');
     if(!wrap.classList.contains('hidden')){
-      wrap.classList.add('hidden'); return;
+      wrap.classList.add('hidden');
+      this._bigMapLoop = 0;
+      return;
     }
     const cv = document.getElementById('bigmap-canvas');
     const S = 720;
     cv.width = cv.height = S;
     const ctx = cv.getContext('2d');
-    this.world.renderToCanvas(ctx, S, S);
+
+    // Cache the static map base (world + zones) once; the local tank icons and
+    // trajectory redraw every frame so position/rotation stay live.
+    if(!this._bigMapBase || this._bigMapBase.width !== S){
+      this._bigMapBase = document.createElement('canvas');
+      this._bigMapBase.width = this._bigMapBase.height = S;
+    }
+    const bctx = this._bigMapBase.getContext('2d');
+    bctx.clearRect(0, 0, S, S);
+    this.world.renderToCanvas(bctx, S, S);
     // GLADIATOR zone + airdrop markers on the big map
     if(this.glad){
       const g = this.glad;
@@ -4536,48 +4547,125 @@ const b = this._gladSafeBounds();
         if(b){
           const [x1, y1] = this.world.worldToMap(b.minX, b.minZ, S);
           const [x2, y2] = this.world.worldToMap(b.maxX, b.maxZ, S);
-          ctx.strokeStyle = '#ff3030';
-          ctx.lineWidth = 6;
-          ctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
+          bctx.strokeStyle = '#ff3030';
+          bctx.lineWidth = 6;
+          bctx.strokeRect(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1));
         }
         // Also mark the orange (pending) chunks as small squares
         if(this._gladZoneChunks){
-          ctx.fillStyle = 'rgba(255,170,60,0.85)';
+          bctx.fillStyle = 'rgba(255,170,60,0.85)';
           for(const c of this._gladZoneChunks){
             if(c.state !== 'orange') continue;
             const [px, py] = this.world.worldToMap(c.x, c.z, S);
-            ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+            bctx.fillRect(px - 2.5, py - 2.5, 5, 5);
           }
         }
         const [cx, cy] = this.world.worldToMap(0, 0, S);
-        ctx.strokeStyle = '#ff3030';
-        ctx.lineWidth = 8;
+        bctx.strokeStyle = '#ff3030';
+        bctx.lineWidth = 8;
         const xr = 16;
-        ctx.beginPath();
-        ctx.moveTo(cx - xr, cy - xr); ctx.lineTo(cx + xr, cy + xr);
-        ctx.moveTo(cx - xr, cy + xr); ctx.lineTo(cx + xr, cy - xr);
-        ctx.stroke();
+        bctx.beginPath();
+        bctx.moveTo(cx - xr, cy - xr); bctx.lineTo(cx + xr, cy + xr);
+        bctx.moveTo(cx - xr, cy + xr); bctx.lineTo(cx + xr, cy - xr);
+        bctx.stroke();
       }
       if(g.airdrop){
         const [ax, ay] = this.world.worldToMap(g.airdrop.x, g.airdrop.z, S);
-        ctx.fillStyle = g.airdrop.landed ? '#00eeff' : 'rgba(0,230,255,0.55)';
-        ctx.beginPath();
-        ctx.arc(ax, ay, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#003d5c';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('DROP', ax, ay - 14);
+        bctx.fillStyle = g.airdrop.landed ? '#00eeff' : 'rgba(0,230,255,0.55)';
+        bctx.beginPath();
+        bctx.arc(ax, ay, 10, 0, Math.PI * 2);
+        bctx.fill();
+        bctx.fillStyle = '#003d5c';
+        bctx.font = 'bold 14px sans-serif';
+        bctx.textAlign = 'center';
+        bctx.fillText('DROP', ax, ay - 14);
       }
     }
-    if(this.localTank){
-      const [px,py] = this.world.worldToMap(this.localTank.x, this.localTank.z, S);
-      ctx.save(); ctx.translate(px,py); ctx.rotate(-this.localTank.heading);
-      ctx.fillStyle='#ffb12b'; ctx.beginPath();
-      ctx.moveTo(0,-8); ctx.lineTo(6,8); ctx.lineTo(-6,8); ctx.closePath(); ctx.fill();
-      ctx.restore();
-    }
     wrap.classList.remove('hidden');
+    // Live loop: icons + trajectory redrawn every frame from tank state.
+    const loop = () => {
+      if(document.getElementById('bigmap').classList.contains('hidden')){
+        this._bigMapLoop = 0; return;
+      }
+      ctx.clearRect(0, 0, S, S);
+      ctx.drawImage(this._bigMapBase, 0, 0);
+      this._drawTankOnBigMap(ctx, S);
+      this._bigMapLoop = requestAnimationFrame(loop);
+    };
+    this._bigMapLoop = requestAnimationFrame(loop);
+  }
+
+  /* Map-space heading/turret angle -> canvas rotation (icon "up" = forward;
+     heading 0 faces +Z which is canvas-down here). */
+  _bigMapFwdAngle(ang){
+    return Math.atan2(Math.cos(ang), Math.sin(ang)) + Math.PI / 2;
+  }
+
+  /* Lazily load the hull + turret map icons. Turret falls back to the hull
+     icon until assets/icons/minimap-turret.png is added. */
+  _bigMapIcons(){
+    if(!this._bigMapHull){
+      this._bigMapHull = new Image();
+      this._bigMapHull.src = 'assets/icons/minimap-hull.png?v=' + (CONFIG.MODEL_VER || '1');
+    }
+    if(!this._bigMapTurret){
+      this._bigMapTurret = new Image();
+      this._bigMapTurret.onerror = () => { this._bigMapTurret = this._bigMapHull; };
+      this._bigMapTurret.src = 'assets/icons/minimap-turret.png';
+    }
+    return [this._bigMapHull, this._bigMapTurret];
+  }
+
+  /* Live local-tank overlay: dashed trajectory (- - - - -) along the aim
+     direction, hull icon + turret icon in real time. */
+  _drawTankOnBigMap(ctx, S){
+    const t = this.localTank;
+    if(!t || !this.world) return;
+    const k = S / (this.world.size || 100);
+    const [px, py] = this.world.worldToMap(t.x, t.z, S);
+    const aimAngle = (t.turretAngle != null) ? t.turretAngle : t.heading;
+    const [hullImg, turretImg] = this._bigMapIcons();
+
+    // --- Trajectory line (- - - - -) along the aim (turret) direction ---
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(this._bigMapFwdAngle(aimAngle));
+    ctx.strokeStyle = 'rgba(255,177,43,0.85)';
+    ctx.lineWidth = Math.max(1.5, 2.5);
+    ctx.setLineDash([3 * k, 2.2 * k]);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(26 * k, 0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // --- Hull icon (position + rotation) ---
+    const hullW = 4.6 * k;
+    const hullH = hullW * (364 / 239);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(this._bigMapFwdAngle(t.heading));
+    if(hullImg && hullImg.complete && hullImg.naturalWidth > 0){
+      ctx.drawImage(hullImg, -hullW / 2, -hullH / 2, hullW, hullH);
+    } else {
+      ctx.fillStyle = '#ffb12b'; ctx.beginPath();
+      ctx.moveTo(0, -hullW * 0.5); ctx.lineTo(hullW * 0.45, hullW * 0.5);
+      ctx.lineTo(-hullW * 0.45, hullW * 0.5); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+
+    // --- Turret icon (centered, independent rotation) ---
+    const tw = hullW * 0.62;
+    const th = tw * (364 / 239);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(this._bigMapFwdAngle(aimAngle));
+    const img = (turretImg && turretImg.complete && turretImg.naturalWidth > 0) ? turretImg : hullImg;
+    if(img && img.complete && img.naturalWidth > 0){
+      ctx.drawImage(img, -tw / 2, -th / 2, tw, th);
+    }
+    ctx.restore();
   }
 }
 
