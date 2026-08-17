@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tank Drift Demo (PC)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e14; font-family: 'Segoe UI', Arial, sans-serif; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 14px; left: 14px; z-index: 10; pointer-events: none;
+    color: #dff3ff; font-size: 14px; line-height: 1.7; text-shadow: 0 1px 3px rgba(0,0,0,.8);
+    background: rgba(10,16,26,.55); padding: 12px 16px; border-radius: 10px; border: 1px solid rgba(120,200,255,.18);
+  }
+  #hud b { color: #6fd8ff; }
+  #hud .drift-on { color: #ffb12b; font-weight: 700; }
+  #hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+    color: #9fb6c8; font-size: 13px; background: rgba(10,16,26,.5); padding: 8px 16px; border-radius: 8px;
+  }
+  #hint kbd { color: #6fd8ff; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div>Speed: <b id="h-speed">0</b> km/h</div>
+  <div>Longitudinal: <b id="h-long">0.0</b>  Lateral slip: <b id="h-lat">0.0</b></div>
+  <div>State: <b id="h-drift">GRIPPED</b></div>
+  <div style="font-size:12px;color:#7ea6bd">W/S drive &nbsp;A/D steer &nbsp;SPACE handbrake &nbsp;R reset</div>
+</div>
+<div id="hint">WASD to drive — floor it into a <kbd>hard turn</kbd> to break traction and slide</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =====================================================================
+   TYR-STYLE TANK DRIFT — pure vector math (no physics engine)
+   ===================================================================== */
+
+/* ---------- 1. CONTROLS & TWEAKABLE CONSTANTS -------------------------
+   Adjust these to re-tune the whole feel. */
+const MAX_SPEED      = 14.0;   // top forward speed          (units / second)
+const REVERSE_MAX    = 7.0;    // top reverse speed
+const ACCELERATION   = 13.0;   // how fast it reaches top speed
+const DECELERATION   = 26.0;   // coast / brake decel when no throttle
+const BRAKE_DECEL    = 55.0;   // handbrake decel (SPACE)
+const TURN_SPEED     = 2.1;    // hull rotation rate          (rad / second)
+const DRIFT_SLIP_FACTOR = 1.0; // higher = longer, more sideways slide
+const DRIFT_THRESHOLD = {
+  speed: 7.5,                 // minimum forward speed to break traction
+  turn:  0.65                 // minimum turn input (0..1) to break traction
+};
+const LAT_GRIP_RATE   = 9.0;  // lateral friction when gripping (high = sticky)
+const LAT_SLIP_RATE   = 1.15; // lateral friction while drifting (low = slides)
+const YAW_ALIGN_SPEED = 2.4;  // hull slowly swings toward the skid direction
+const TANK_WHEELBASE  = 0.0;  // reserved: simple arcade steering (0 = instant yaw)
+const CAMERA_DIST     = 15.0;
+const CAMERA_HEIGHT   = 8.5;
+const CAMERA_SMOOTH   = 5.0;  // camera lerp speed (per second)
+/* ------------------------------------------------------------------- */
+
+/* ---------- 2. SETUP -------------------------------------------------- */
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e14);
+scene.fog = new THREE.Fog(0x0b0e14, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 400);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Lights
+const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x33404d, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.1);
+sun.position.set(30, 45, 15);
+sun.castShadow = true;
+scene.add(sun);
+
+// Ground grid — helps visualize the sliding path
+const grid = new THREE.GridHelper(160, 40, 0x2f4a5c, 0x1c2b38);
+scene.add(grid);
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(160, 160),
+  new THREE.MeshStandardMaterial({ color: 0x141c26, roughness: 0.95 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// A few reference pylons so the slide is obvious
+for (let i = -3; i <= 3; i++) {
+  for (let j = -3; j <= 3; j++) {
+    const p = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 1, 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x2a7de0 })
+    );
+    p.position.set(i * 12, 0.5, j * 12);
+    scene.add(p);
+  }
+}
+
+/* ---------- 3. THE TANK (visual heading object) ---------------------- */
+const tank = new THREE.Group();
+
+const hull = new THREE.Mesh(
+  new THREE.BoxGeometry(2.3, 0.9, 3.6),
+  new THREE.MeshStandardMaterial({ color: 0x3d6b4f, roughness: 0.6, metalness: 0.2 })
+);
+hull.position.y = 0.65;
+hull.castShadow = true;
+
+const turret = new THREE.Mesh(
+  new THREE.BoxGeometry(2.0, 0.7, 2.2),
+  new THREE.MeshStandardMaterial({ color: 0x4f7d5e, roughness: 0.6, metalness: 0.2 })
+);
+turret.position.y = 1.35;
+turret.castShadow = true;
+
+const barrel = new THREE.Mesh(
+  new THREE.BoxGeometry(0.35, 0.35, 2.6),
+  new THREE.MeshStandardMaterial({ color: 0x2c3a33, roughness: 0.7 })
+);
+barrel.position.set(0, 1.4, 2.2);
+barrel.castShadow = true;
+
+tank.add(hull, turret, barrel);
+scene.add(tank);
+
+/* ---------- 4. INPUT (WASD + SPACE handbrake) ----------------------- */
+const keys = {};
+addEventListener('keydown', e => { keys[e.code] = true; if (['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault(); });
+addEventListener('keyup',   e => { keys[e.code] = false; });
+
+function readInput() {
+  let throttle = 0, turn = 0, handbrake = false;
+  if (keys['KeyW']) throttle += 1;
+  if (keys['KeyS']) throttle -= 1;
+  if (keys['KeyA']) turn -= 1;
+  if (keys['KeyD']) turn += 1;
+  if (keys['Space']) handbrake = true;
+  if (keys['KeyR']) resetTank();
+  return { throttle, turn, handbrake };
+}
+
+/* ---------- 5. PHYSICS STATE ------------------------------------------ */
+let heading = 0;                       // VISUAL heading (rad) — which way the hull points
+const vel = new THREE.Vector3();       // ACTUAL velocity vector (separate from heading!)
+let drifting = 0;                      // smoothed 0..1 drift blend (for grip easing)
+let driftKick = 0;                     // fade-out of the initial slide "push"
+const MAX_VEL = MAX_SPEED * 1.22;      // hard cap: momentum overspeed during a slide
+
+/* ---------- 6. DEBUG VECTORS + SKID MARKS ----------------------------- */
+const arrowFwd = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), 4, 0xffffff, 0.5, 0.3);
+arrowFwd.position.y = 0.35;
+scene.add(arrowFwd);
+const arrowVel = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), 4, 0xff4444, 0.5, 0.3);
+arrowVel.position.y = 0.35;
+scene.add(arrowVel);
+
+const skids = [];                 // { mesh, life, max }
+const SKID_LIFE = 2.5;
+const SKID_MAX = 240;
+
+function spawnSkid(x, z, heading) {
+  if (skids.length >= SKID_MAX) {
+    const old = skids.shift();
+    scene.remove(old.mesh); old.mesh.geometry.dispose(); old.mesh.material.dispose();
+  }
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.5, 0.16),
+    new THREE.MeshBasicMaterial({ color: 0x0a0f14, transparent: true, opacity: 0.7, depthWrite: false })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.rotation.z = -heading;
+  m.position.set(x, 0.02, z);
+  scene.add(m);
+  skids.push({ mesh: m, life: SKID_LIFE, max: SKID_LIFE });
+}
+
+function resetTank() {
+  tank.position.set(0, 0, 0);
+  heading = 0;
+  vel.set(0, 0, 0);
+  drifting = 0; driftKick = 0;
+  for (const s of skids.splice(0)) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh.material.dispose(); }
+}
+
+/* ---------- 7. HELPERS ------------------------------------------------- */
+const _v = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const lerpAngle = (a, b, t) => {            // shortest-arc angle lerp
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
+};
+
+/* ---------- 8. CORE DRIFT PHYSICS (per frame, dt = seconds) -----------
+   1. Project the velocity onto the tank's forward/right axes.
+   2. Accelerate / decelerate the longitudinal component (engine force).
+   3. Break traction dynamically: sharp turn at high speed lowers the
+      lateral grip, so the lateral (sideways) component bleeds off slowly
+      and the tank slides outward along its old trajectory.
+   4. When gripping again, high lateral friction snaps velocity back onto
+      the forward vector — smoothly (exponential), not a snap.           */
+function updateTank(dt) {
+  const inp = readInput();
+
+  // --- a) Decompose actual velocity into tank axes ---------------------
+  const fwd = _v.set(Math.sin(heading), 0, Math.cos(heading));       // visual facing
+  _right.set(-fwd.z, 0, fwd.x);                                      // right-hand vector
+  let longitudinal = vel.dot(fwd);                                   // speed along forward
+  let lateral = vel.dot(_right);                                     // sideways slip
+
+  // --- b) Engine force on the longitudinal axis -------------------------
+  const targetSpeed = inp.throttle > 0 ? MAX_SPEED : (inp.throttle < 0 ? -REVERSE_MAX : 0);
+  const driveRate = inp.throttle !== 0 ? ACCELERATION : (inp.handbrake ? BRAKE_DECEL : DECELERATION);
+  if (longitudinal < targetSpeed) longitudinal = Math.min(targetSpeed, longitudinal + driveRate * dt);
+  else if (longitudinal > targetSpeed) longitudinal = Math.max(targetSpeed, longitudinal - driveRate * dt);
+
+  // --- c) Steering: rotate the VISUAL heading ---------------------------
+  const reversing = longitudinal < -0.4;
+  let turnInput = inp.turn * (reversing ? -1 : 1);                   // tank-style: A/D flips when reversing
+  heading += turnInput * TURN_SPEED * dt;
+
+  // --- d) Dynamic lateral friction (the drift trigger) ------------------
+  const sharpTurn  = Math.abs(inp.turn)   > DRIFT_THRESHOLD.turn;
+  const fastEnough = Math.abs(longitudinal) > DRIFT_THRESHOLD.speed;
+  const wantsDrift = sharpTurn && fastEnough && !inp.handbrake;
+
+  // Ease the drift blend so grip never snaps (smooth entry + exit)
+  drifting += ((wantsDrift ? 1 : 0) - drifting) * Math.min(1, 8 * dt);
+
+  // Effective grip rate: gripped = sticky, drifting = slides for a while
+  let gripRate = LAT_GRIP_RATE * (1 - drifting) + LAT_SLIP_RATE * drifting;
+  gripRate /= Math.max(0.25, DRIFT_SLIP_FACTOR);                     // slip factor stretches the slide
+
+  // --- e) Kill the lateral (sideways) velocity through that grip --------
+  // Exponential decay: lateral -= lateral * gripRate * dt
+  lateral *= Math.pow(Math.max(0, 1 - gripRate * dt), 1);
+
+  // --- f) Rebuild the real velocity vector ------------------------------
+  vel.copy(fwd).multiplyScalar(longitudinal).addScaledVector(_right, lateral);
+  const vLen = vel.length();
+  if (vLen > MAX_VEL) vel.multiplyScalar(MAX_VEL / vLen);            // momentum overspeed cap
+
+  // --- g) Heavy hull inertia: while drifting the hull slowly swings to
+  //       face the slide direction (feels heavy, like a real tank) --------
+  if (drifting > 0.1 && vLen > 0.4) {
+    const velH = Math.atan2(vel.x, vel.z);
+    heading = lerpAngle(heading, velH, Math.min(1, YAW_ALIGN_SPEED * dt * drifting));
+  }
+  heading = heading % (Math.PI * 2);
+
+  // --- h) Integrate position ---------------------------------------------
+  tank.position.x += vel.x * dt;
+  tank.position.z += vel.z * dt;
+  tank.rotation.y = heading;                                         // VISUAL facing (≠ velocity dir)
+
+  // --- i) Polish: skid marks while slipping -------------------------------
+  if (drifting > 0.45 && Math.abs(lateral) > 0.5) {
+    if (Math.random() < 0.9) spawnSkid(tank.position.x, tank.position.z, heading);
+  }
+  return { longitudinal, lateral, drifting, vLen };
+}
+
+/* ---------- 9. CAMERA (smooth follow behind the hull) ----------------- */
+const camPos = new THREE.Vector3();
+function updateCamera(dt) {
+  const fwd = _v.set(Math.sin(heading), 0, Math.cos(heading));
+  const goal = new THREE.Vector3()
+    .copy(tank.position)
+    .addScaledVector(fwd, -CAMERA_DIST)
+    .setY(CAMERA_HEIGHT);
+  camPos.lerp(goal, Math.min(1, CAMERA_SMOOTH * dt));
+  camera.position.copy(camPos);
+  camera.lookAt(tank.position);
+}
+
+/* ---------- 10. HUD + SKID FADE ---------------------------------------- */
+const elSpeed = document.getElementById('h-speed');
+const elLong  = document.getElementById('h-long');
+const elLat   = document.getElementById('h-lat');
+const elDrift = document.getElementById('h-drift');
+function updateHud(s) {
+  elSpeed.textContent = Math.round(Math.abs(s.vLen) * 3.6);
+  elLong.textContent  = s.longitudinal.toFixed(1);
+  elLat.textContent   = s.lateral.toFixed(1);
+  const on = s.drifting > 0.5;
+  elDrift.textContent = on ? 'DRIFTING' : 'GRIPPED';
+  elDrift.className = on ? 'drift-on' : '';
+}
+
+/* ---------- 11. MAIN LOOP ---------------------------------------------- */
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);   // clamp big tab-switch jumps
+
+  const stats = updateTank(dt);
+  updateCamera(dt);
+
+  // Fade out old skid marks
+  for (let i = skids.length - 1; i >= 0; i--) {
+    skids[i].life -= dt;
+    skids[i].mesh.material.opacity = Math.max(0, 0.7 * (skids[i].life / skids[i].max));
+    if (skids[i].life <= 0) {
+      scene.remove(skids[i].mesh);
+      skids[i].mesh.geometry.dispose(); skids[i].mesh.material.dispose();
+      skids.splice(i, 1);
+    }
+  }
+
+  // Debug arrows: white = hull facing, red = actual velocity
+  arrowFwd.position.copy(tank.position); arrowFwd.position.y = 0.35;
+  arrowFwd.setDirection(_v.set(Math.sin(heading), 0, Math.cos(heading)));
+  arrowVel.position.copy(tank.position); arrowVel.position.y = 0.35;
+  if (vel.lengthSq() > 0.01) arrowVel.setDirection(vel.clone().normalize());
+  arrowVel.setLength(Math.min(5, vel.length() * 0.55), 0.5, 0.3);
+
+  updateHud(stats);
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
