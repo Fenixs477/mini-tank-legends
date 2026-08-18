@@ -857,13 +857,14 @@ _inGladRed(x, z){
 
      this._gladZoneChunks = [];
      this._gladChunkIdx = new Map();
-     for(let gx = -chunkGridSize; gx <= chunkGridSize; gx++){
-       for(let gz = -chunkGridSize; gz <= chunkGridSize; gz++){
-         const cx = gx * chunkSize;
-         const cz = gz * chunkSize;
-         // Check if this chunk is within the world
-         if(this.world._inLake(cx, cz, 1) || this.world.collidesWallsOnly(cx, cz, 1)) continue;
-         const chunk = {
+      for(let gx = -chunkGridSize; gx <= chunkGridSize; gx++){
+        for(let gz = -chunkGridSize; gz <= chunkGridSize; gz++){
+          const cx = gx * chunkSize;
+          const cz = gz * chunkSize;
+          // Every grid cell is a chunk (lakes/walls included) so the zone can
+          // consume the whole map and no position maps to an "unsafe off-grid"
+          // chunk that would deal phantom damage.
+          const chunk = {
            x: cx, z: cz,
            id: gx + ',' + gz,
            gi: gx, gj: gz,
@@ -891,12 +892,18 @@ _inGladRed(x, z){
          (c.gi - 1) + ',' + c.gj,
          c.gi + ',' + (c.gj + 1),
          c.gi + ',' + (c.gj - 1),
-       ];
-       let edge = false;
-       for(let k = 0; k < 4; k++){
-         const n = this._gladChunkIdx.get(nb[k]);
-         if(!n || n.state === 'red'){ edge = true; break; }
-       }
+];
+        let edge = false;
+        const half = this.world.half;
+        for(let k = 0; k < 4; k++){
+          const n = this._gladChunkIdx.get(nb[k]);
+          // A neighbour that is missing (grid border), red, or OUTSIDE the
+          // visible map makes this chunk part of the outer perimeter, so the
+          // zone starts eating at the visible map edges right away.
+          if(!n || n.state === 'red' || Math.abs(n.x) > half || Math.abs(n.z) > half){
+            edge = true; break;
+          }
+        }
        if(edge) out.push(c);
      }
      return out;
@@ -914,6 +921,122 @@ _inGladRed(x, z){
      let iv = Math.max(0.5, base - frac * (base - 2));
      if(g.alive != null && g.alive > 0 && g.alive <= 3) iv = Math.min(iv, 1.2);
      return iv;
+   }
+
+   /* Flag a wave of 5 safe edge chunks as ORANGE. The 5 chunks are grouped
+      into 2-3 connected clusters in a random layout (4+1, 5, 2+2+1, 3+2,
+      1+1+3). Clusters in the same wave share the same orangeUntil so connected
+      same-timing chunks visually merge into one shape. A layout is only kept
+      if it cannot split the safe area into islands. */
+   _gladSpawnWave(){
+     const g = this.glad;
+     if(!g || !this._gladZoneChunks) return false;
+     if(!this._gladEdgeChunks().some(c => c.state === 'safe')) return false;
+     const now = this.time || 0;
+     const ttl = g.cfg.zone.chunkOrange || 90;
+     const patterns = [[4,1], [5], [2,2,1], [3,2], [1,1,3]];
+     for(let attempt = 0; attempt < 8; attempt++){
+       const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+       const used = new Set();
+       const wave = [];
+       for(const size of pattern){
+         const cl = this._gladBuildCluster(size, used);
+         for(const c of cl){
+           if(c.state === 'safe' && wave.indexOf(c) < 0) wave.push(c);
+         }
+       }
+       if(!wave.length) continue;
+       // Reject layouts that would leave an island of safe chunks stranded
+       // behind a red barrier when this wave turns red.
+       if(!this._gladSafeStaysConnected(new Set(wave.map(c => c.id)))) continue;
+       for(const c of wave){
+         c.state = 'orange';
+         c.orangeUntil = now + ttl;
+       }
+       return true;
+     }
+     // Every random layout would carve an island; keep the zone where it is.
+     return false;
+   }
+
+   /* True if, once the given chunks (plus everything already orange, which
+      turns red before this wave does) are red, the remaining safe cells still
+      form ONE connected blob — i.e. the zone never strands an island. */
+   _gladSafeStaysConnected(turnRed){
+     const starts = [];
+     for(const c of this._gladZoneChunks){
+       if(c.state === 'safe' && !turnRed.has(c.id)) starts.push(c);
+     }
+     if(!starts.length) return true;
+     const seen = new Set();
+     const q = [starts[0]]; seen.add(starts[0].id);
+     let cnt = 0;
+     while(q.length){
+       const c = q.pop(); cnt++;
+       for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+         const n = this._gladChunkIdx.get((c.gi + dx) + ',' + (c.gj + dz));
+         if(!n || seen.has(n.id)) continue;
+         if(n.state !== 'safe' || turnRed.has(n.id)) continue; // orange blocks: it'll be red too
+         seen.add(n.id); q.push(n);
+       }
+     }
+     return cnt === starts.length;
+   }
+
+   /* Grow one connected cluster of `size` safe chunks, seeded from a random
+      safe edge chunk. Growth prefers neighbours that stay ON the red/edge line,
+      so each wave paints a strip along the perimeter (layer by layer from the
+      map edges) instead of snaking straight toward the center. Falls back to
+      filling any remaining safe chunks if the map leaves too little room. */
+   _gladBuildCluster(size, used){
+     const half = this.world.half;
+     const candidates = this._gladEdgeChunks().filter(c =>
+       c.state === 'safe' && !used.has(c.id) &&
+       Math.abs(c.x) <= half && Math.abs(c.z) <= half); // only visible border chunks
+     if(!candidates.length) return [];
+     const seed = candidates[Math.floor(Math.random() * candidates.length)];
+     used.add(seed.id);
+     const cluster = [seed];
+const frontier = this._gladNeighborsSafe(seed, used);
+      const isVisible = c => Math.abs(c.x) <= half && Math.abs(c.z) <= half;
+      while(cluster.length < size && frontier.length){
+        // Prefer visible neighbours that hug the red/edge line (stay on the
+        // current layer inside the map), falling back to any visible one.
+        let pool = frontier.filter(isVisible);
+        if(!pool.length) pool = frontier;
+        const onLine = pool.filter(n => this._gladIsOnEdgeLine(n));
+        if(onLine.length) pool = onLine;
+       const n = pool[Math.floor(Math.random() * pool.length)];
+       frontier.splice(frontier.indexOf(n), 1);
+       if(!n || used.has(n.id) || n.state !== 'safe') continue;
+       used.add(n.id);
+       cluster.push(n);
+       for(const nb of this._gladNeighborsSafe(n, used)) frontier.push(nb);
+}
+      // Never yank chunks from the middle of the field to fill a cluster: a
+      // partial wave is better than a red dent poking into the safe area.
+      return cluster;
+    }
+
+   /* True if the chunk borders a red chunk or the map edge (i.e. it sits on
+      the current perimeter of the safe area). */
+   _gladIsOnEdgeLine(c){
+     const half = this.world.half;
+     for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+       const n = this._gladChunkIdx.get((c.gi + dx) + ',' + (c.gj + dz));
+       if(!n || n.state === 'red' || Math.abs(n.x) > half || Math.abs(n.z) > half) return true;
+     }
+     return false;
+   }
+
+   /* Safe, unclaimed 4-directional neighbours of a chunk. */
+   _gladNeighborsSafe(c, used){
+     const out = [];
+     for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+       const n = this._gladChunkIdx.get((c.gi + dx) + ',' + (c.gj + dz));
+       if(n && n.state === 'safe' && !used.has(n.id)) out.push(n);
+     }
+     return out;
    }
 
    /* Axis-aligned bounding box of the remaining safe (non-red) chunks. */
@@ -1007,7 +1130,7 @@ const chunkSize = g.cfg.zone.chunk;
 
    /* Orange warning tile: crisp filled square (part of the square-grid look). */
    _drawOrangeTile(ctx, cx, cz, cell){
-     const inset = Math.max(1, cell * 0.05);
+     const inset = -0.5; // overlap neighbours by 1px so tiles merge with no seams
      const s = cell - inset * 2;
      const x0 = cx - cell/2 + inset, z0 = cz - cell/2 + inset;
      ctx.fillStyle = 'rgba(255,160,45,0.5)';
@@ -1020,7 +1143,7 @@ const chunkSize = g.cfg.zone.chunk;
    /* Red danger tile: crisp red square + symmetric lattice of tiny X marks. */
    _drawRedTile(ctx, cx, cz, cell){
      const t = this.time || 0;
-     const inset = Math.max(1, cell * 0.05);
+     const inset = -0.5; // overlap neighbours by 1px so tiles merge with no seams
      const s = cell - inset * 2;
      const x0 = cx - cell/2 + inset, z0 = cz - cell/2 + inset;
      ctx.fillStyle = `rgba(205,32,32,${0.5 + 0.1 * Math.sin(t * 5 + cx * 0.13 + cz * 0.07)})`;
@@ -1157,12 +1280,40 @@ const chunkSize = g.cfg.zone.chunk;
        this._gladDrawMarkerFace(isOrange, secs);
        if(this._gladMarkerTex) this._gladMarkerTex.needsUpdate = true;
      }
-     spr.position.set(
-       best.x,
-       4.6 + Math.sin((this.time || 0) * 2.4 + best.x * 0.3) * 0.28,
-       best.z
-     );
-     spr.visible = true;
+// Keep the marker inside the chunk but never too close to the player:
+      // start at the rect-closest point, then push it away from the tank
+      // (toward the chunk centre) until it's at least minDist away or the
+      // chunk boundary stops it.
+      const half = g.cfg.zone.chunk / 2;
+      const pad = Math.min(4, half * 0.25);
+      const loX = best.x - half + pad, hiX = best.x + half - pad;
+      const loZ = best.z - half + pad, hiZ = best.z + half - pad;
+      let mx = Math.max(loX, Math.min(hiX, tank.x));
+      let mz = Math.max(loZ, Math.min(hiZ, tank.z));
+      const minDist = 6;
+      if(Math.hypot(mx - tank.x, mz - tank.z) < minDist){
+        const toCX = best.x - tank.x, toCZ = best.z - tank.z;
+        const len = Math.hypot(toCX, toCZ);
+        for(let s = 1; s <= 16; s++){
+          const step = minDist * s / 16;
+          let nx, nz;
+          if(len > 0.001){
+            nx = tank.x + toCX / len * step;
+            nz = tank.z + toCZ / len * step;
+          } else {
+            nx = tank.x; nz = tank.z + step;
+          }
+          mx = Math.max(loX, Math.min(hiX, nx));
+          mz = Math.max(loZ, Math.min(hiZ, nz));
+          if(Math.hypot(mx - tank.x, mz - tank.z) >= minDist) break;
+        }
+      }
+      spr.position.set(
+        mx,
+        4.6 + Math.sin((this.time || 0) * 2.4 + mx * 0.3) * 0.28,
+        mz
+      );
+      spr.visible = true;
    }
 
    _gladSpawnForNew(){
@@ -1185,13 +1336,16 @@ if(!g){ this._gladHideMarker(); return; }
     if(g.ended){ this._gladHideMarker(); return; }
     const cfg = g.cfg;
 
+    // Grace phase countdown; once it hits 0 the zone starts eating chunks.
+    if(g.phase === 'grace') g.phaseTimer = Math.max(0, g.phaseTimer - dt);
+
     // Zone stage machine: grace, then the zone repeatedly flags a random
     // safe-edge chunk ORANGE (per-chunk countdown) and flips it RED when its
     // timer runs out.
     const isHost = !g._client;
     if(isHost && g.phase === 'grace' && g.phaseTimer <= 0){
       g.phase = 'active';
-      this._gladPickTimer = 0.5;
+      this._gladWaveTimer = 0.5;
       this._refreshGladZone();
       Menu.toast('Zone incoming!');
     }
@@ -1209,20 +1363,14 @@ if(!g){ this._gladHideMarker(); return; }
         }
       }
 
-      // Periodically pick a new random edge chunk to warn (orange)
+      // Every waveTime seconds, spawn a wave of 5 chunks grouped into random
+      // connected clusters (4+1 / 5 / 2+2+1 / 3+2 / 1+1+3). All share the same
+      // orangeUntil so adjacent same-type chunks merge into one shape.
       if(!this._gladZoneChunks) this._initGladChunkGrid();
-      this._gladPickTimer -= dt;
-      if(this._gladPickTimer <= 0){
-        this._gladPickTimer = this._gladPickInterval();
-        const edge = this._gladEdgeChunks();
-        if(edge.length > 0){
-          const c = edge[Math.floor(Math.random() * edge.length)];
-          if(c.state === 'safe'){
-            c.state = 'orange';
-            c.orangeUntil = now + (this.glad.cfg.zone.chunkOrange || 30);
-            changed = true;
-          }
-        }
+      this._gladWaveTimer -= dt;
+      if(this._gladWaveTimer <= 0){
+        this._gladWaveTimer = (g.cfg.zone.waveTime || 60);
+        if(this._gladSpawnWave()) changed = true;
       }
 
       if(changed) this._refreshGladZone();
@@ -4604,19 +4752,20 @@ if(g.phase === 'grace') txt = 'Zone warning in ' + Math.ceil(g.phaseTimer) + 's'
     if(g.phase === 'grace' || !this._gladZoneChunks) return;
     const k = S / (this.world.size || 100);
     const cs = (g.cfg.zone.chunk || 12) * k;
-    // RED danger chunks (the actual zone)
+    // RED danger chunks (the actual zone), expanded 1px so tiles have no seams
     ctx.fillStyle = 'rgba(255,40,40,0.55)';
     for(const c of this._gladZoneChunks){
       if(c.state !== 'red') continue;
       const [px, py] = this.world.worldToMap(c.x, c.z, S);
-      ctx.fillRect(px - cs / 2, py - cs / 2, cs, cs);
+      ctx.fillRect(px - cs / 2 - 0.5, py - cs / 2 - 0.5, cs + 1, cs + 1);
     }
-    // ORANGE pending chunks (countdown before they turn red)
+    // ORANGE pending chunks (countdown before they turn red), full cells so
+    // connected same-timing squares merge into one region.
     ctx.fillStyle = 'rgba(255,170,60,0.9)';
     for(const c of this._gladZoneChunks){
       if(c.state !== 'orange') continue;
       const [px, py] = this.world.worldToMap(c.x, c.z, S);
-      ctx.fillRect(px - 2.5, py - 2.5, 5, 5);
+      ctx.fillRect(px - cs / 2 - 0.5, py - cs / 2 - 0.5, cs + 1, cs + 1);
     }
     // Safe area outline
     const b = this._gladSafeBounds();

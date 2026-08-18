@@ -71,7 +71,7 @@ const CONFIG = {
   // Bump when any tank model file changes. Appended as ?v= to every
   // model request so browsers bypass the 7-day Cache-Control on
   // mini_tank_legends_models/*.
-  MODEL_VER:   3,
+  MODEL_VER:   5,
 
   // Supers
   SUPER_COOLDOWN: 60,   // seconds between super uses
@@ -90,9 +90,10 @@ const GAMEMODES = {
     id:'gladiator', name:'Gladiator', maxTanks:10, botCount:9,
     spawnSubType:'gladiator', boxSubType:'gladiatorbox',
     zone:{
-      graceTime:60,          // seconds before the zone starts eating chunks (3x slower)
-      chunkOrange:90,        // orange warning -> red transition time per chunk (3x slower)
-      pickTime:19.5,         // ~seconds between flagging a new random edge chunk (3x slower)
+      graceTime:60,          // seconds before the zone starts eating chunks
+      chunkOrange:90,        // orange warning -> red transition time per chunk
+      waveTime:60,           // every N seconds a wave of 5 chunks appears
+      pickTime:19.5,         // fallback single-chunk pick interval (unused with waves)
       chunk:12,              // chunk size (scaled to world in _initGladiator)
       minHalf:8,             // legacy: kept for compatibility
       finalHalf:0,           // legacy: kept for compatibility
@@ -178,7 +179,8 @@ const TANKS = {
     damage:14, reload:0.45, shellSpeed:95, shellRange:35,
     accel:30, shellType:'shell',
     mass:18, viewRange:110,
-    model:'ghost', modelScale:0.3,
+    model:'ghost', modelScale:0.3, modelYaw:-90, modelAutoFlip:false,
+    playAnims:false, outline:false,
     armor:{front:30, sides:30, back:30},
     desc:'Tiny, fast, hit-and-run.',
     friction: 0.82,

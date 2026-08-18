@@ -30,8 +30,8 @@ window.TankEditor = (function(){
     selected: 'coolbuddy',
     mode: 'hitbox',
     scene: null, renderer: null, camera: null, controls: null, gizmo: null,
-    tank: null, bodyBox: null, boxWire: null, pivotMarker: null, turretMarker: null, shellMarker: null, casingMarker: null, tankCenterMarker: null,
-    values: { body:{w:3,h:1,l:4.4}, pivot:{x:0,y:0,z:0}, turret:{x:0,y:0,z:0}, shell:{x:0,y:0,z:0}, casing:{x:0,y:0,z:0} },
+    tank: null, bodyBox: null, boxWire: null, pivotMarker: null, turretMarker: null, shellMarker: null, casingMarker: null, tankCenterMarker: null, modelMarker: null,
+    values: { body:{w:3,h:1,l:4.4}, pivot:{x:0,y:0,z:0}, turret:{x:0,y:0,z:0}, shell:{x:0,y:0,z:0}, casing:{x:0,y:0,z:0}, model:{x:0,y:0,z:0,yaw:0,anim:true,outline:true} },
     raf: 0, running: false, resizeHandler: null, keyHandler: null,
     axesCanvas: null,
     spinTurret: false,
@@ -136,6 +136,14 @@ window.TankEditor = (function(){
           '<div class="te-mode' + (state.mode==='turret' ? ' te-on' : '') + '" data-mode="turret">Turret center (mount)</div>' +
           '<div class="te-mode' + (state.mode==='shell' ? ' te-on' : '') + '" data-mode="shell">Fire point (bullet)</div>' +
           '<div class="te-mode' + (state.mode==='casing' ? ' te-on' : '') + '" data-mode="casing">Shell point (casing)</div>' +
+          '<div class="te-mode' + (state.mode==='model' ? ' te-on' : '') + '" data-mode="model">Move whole model</div>' +
+          '<div class="te-mode' + (state.mode==='front' ? ' te-on' : '') + '" data-mode="front">Face / set front</div>' +
+        '</div>' +
+
+        '<div class="te-mode-title">MODEL</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<div id="te-anim" class="te-btn te-on">▶ Animation</div>' +
+          '<div id="te-outline" class="te-btn te-on">▢ Outline</div>' +
         '</div>' +
 
         '<div class="te-mode-title">VALUES</div>' +
@@ -183,6 +191,11 @@ window.TankEditor = (function(){
     $id('te-save').onclick = doSave;
     $id('te-reset').onclick = doReset;
     $id('te-back').onclick = doClose;
+
+    var animBtn = $id('te-anim'), outBtn = $id('te-outline');
+    if(animBtn) animBtn.onclick = function(){ toggleModelFlag('anim'); };
+    if(outBtn) outBtn.onclick = function(){ toggleModelFlag('outline'); };
+    syncModelUI();
 
     var spinBtn = $id('te-spin');
     if(spinBtn){
@@ -494,6 +507,13 @@ window.TankEditor = (function(){
     if(ov && ov.turret) state.values.turret = Object.assign({}, ov.turret);
     if(ov && ov.shell) state.values.shell = Object.assign({}, ov.shell);
     if(ov && ov.casing) state.values.casing = Object.assign({}, ov.casing);
+    var mdl = { x:0, y:0, z:0, yaw:0 };
+    if(ov && ov.model) mdl = Object.assign(mdl, ov.model);
+    var defAnim = !(def && def.playAnims === false);
+    var defOutline = !(def && def.outline === false);
+    mdl.anim = (ov && ov.model && typeof ov.model.anim === 'boolean') ? ov.model.anim : defAnim;
+    mdl.outline = (ov && ov.model && typeof ov.model.outline === 'boolean') ? ov.model.outline : defOutline;
+    state.values.model = mdl;
 
     clearTank();
     renderFields();
@@ -537,6 +557,7 @@ window.TankEditor = (function(){
     if(state.shellMarker){ try{ state.scene.remove(state.shellMarker); }catch(e){} state.shellMarker = null; }
     if(state.casingMarker){ try{ state.scene.remove(state.casingMarker); }catch(e){} state.casingMarker = null; }
     if(state.tankCenterMarker){ try{ state.scene.remove(state.tankCenterMarker); }catch(e){} state.tankCenterMarker = null; }
+    if(state.modelMarker){ try{ state.scene.remove(state.modelMarker); }catch(e){} state.modelMarker = null; }
   }
 
   function makeMarker(color, size){
@@ -546,6 +567,37 @@ window.TankEditor = (function(){
     );
     m.castShadow = false;
     return m;
+  }
+
+  function makeModelMarker(){
+    var g = new THREE.Group();
+    g.add(makeMarker(0x9b8cff, 0.16));
+    // forward cone pointing +Z (game forward) so the facing is readable
+    var cone = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12, 0.5, 8),
+      new THREE.MeshBasicMaterial({color: 0xffd24a})
+    );
+    cone.rotation.x = Math.PI / 2;
+    cone.position.z = 0.55;
+    g.add(cone);
+    g.userData.parent = null;
+    return g;
+  }
+
+  function syncModelUI(){
+    var a = state.values.model;
+    var ab = $id('te-anim'), ob = $id('te-outline');
+    if(ab){ ab.textContent = (a.anim ? '\u25B8 Animation' : '\u2016 Animation'); ab.classList.toggle('te-on', !!a.anim); }
+    if(ob){ ob.textContent = (a.outline ? '\u25A1 Outline' : '\u25A2 Outline'); ob.classList.toggle('te-on', !!a.outline); }
+  }
+
+  function toggleModelFlag(key){
+    state.values.model[key] = !state.values.model[key];
+    var patch = { model: Object.assign({}, state.values.model) };
+    setOv(state.selected, patch);
+    pushHistory();
+    // Rebuild so animation playback / outlines actually take effect
+    pickTank(state.selected);
   }
 
   function buildMarkers(){
@@ -632,6 +684,18 @@ window.TankEditor = (function(){
     state.tank.root.getWorldPosition(tankC);
     state.tankCenterMarker.position.copy(tankC);
 
+    // ---- Whole-model marker: drag to move the model (translate) or set its
+    //      facing (rotate Y). Values live in the tank-root frame, which equals
+    //      world space while the preview sits at the origin.
+    state.modelMarker = makeModelMarker();
+    state.scene.add(state.modelMarker);
+    var mo = t._modelOff || new THREE.Vector3();
+    state.values.model.x = round(mo.x);
+    state.values.model.y = round(mo.y);
+    state.values.model.z = round(mo.z);
+    state.values.model.yaw = Math.round((t._modelYaw || 0) * 180 / Math.PI);
+    syncModelUI();
+
     // The values above already include any saved override (they are read from
     // the live nodes) — just pin the gizmo target to them and show the axes.
     applyValuesToScene();
@@ -691,6 +755,18 @@ window.TankEditor = (function(){
       state.casingMarker.position.copy(state.casingMarker.userData.parent.localToWorld(cLocal));
       if(state.tank && state.tank._casingOffset) state.tank._casingOffset.set(v.casing.x, v.casing.y, v.casing.z);
     }
+
+    if(state.modelMarker){
+      var mv = v.model;
+      state.modelMarker.position.set(mv.x || 0, mv.y || 0, mv.z || 0);
+      state.modelMarker.rotation.set(0, (mv.yaw || 0) * Math.PI / 180, 0);
+      if(state.tank && state.tank._syncTransform){
+        state.tank._modelYaw = (mv.yaw || 0) * Math.PI / 180;
+        if(!state.tank._modelOff) state.tank._modelOff = new THREE.Vector3();
+        state.tank._modelOff.set(mv.x || 0, mv.y || 0, mv.z || 0);
+        state.tank._syncTransform();
+      }
+    }
   }
 
   function syncFromGizmo(){
@@ -735,6 +811,18 @@ window.TankEditor = (function(){
     if(g === state.casingMarker && state.casingMarker.userData.parent){
       var cLocal = state.casingMarker.userData.parent.worldToLocal(state.casingMarker.position.clone());
       state.values.casing = { x: round(cLocal.x), y: round(cLocal.y), z: round(cLocal.z) };
+    }
+
+    if(g === state.modelMarker){
+      state.values.model.x = round(g.position.x);
+      state.values.model.y = round(g.position.y);
+      state.values.model.z = round(g.position.z);
+      var ry = Math.round(g.rotation.y * 180 / Math.PI);
+      while(ry > 180) ry -= 360;
+      while(ry <= -180) ry += 360;
+      state.values.model.yaw = ry;
+      // move the preview tank in real time so the drag is visible
+      applyValuesToScene();
     }
 
     renderFields();
@@ -795,6 +883,15 @@ window.TankEditor = (function(){
     state.boxWire.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(b.w, b.h, b.l));
   }
 
+  function setGizmoAxes(x, y, z){
+    if(!state.gizmo) return;
+    if(typeof state.gizmo.showX !== 'undefined'){
+      state.gizmo.showX = x;
+      state.gizmo.showY = y;
+      state.gizmo.showZ = z;
+    }
+  }
+
   function setMode(mode){
     state.mode = mode;
     $id('te-modes').querySelectorAll('.te-mode').forEach(function(m){
@@ -804,18 +901,31 @@ window.TankEditor = (function(){
       if(mode === 'hitbox' && state.bodyBox){
         state.gizmo.attach(state.bodyBox);
         state.gizmo.setMode('scale');
+        setGizmoAxes(true, true, true);
       } else if(mode === 'pivot' && state.pivotMarker){
         state.gizmo.attach(state.pivotMarker);
         state.gizmo.setMode('translate');
+        setGizmoAxes(true, true, true);
       } else if(mode === 'turret' && state.turretMarker){
         state.gizmo.attach(state.turretMarker);
         state.gizmo.setMode('translate');
+        setGizmoAxes(true, true, true);
       } else if(mode === 'shell' && state.shellMarker){
         state.gizmo.attach(state.shellMarker);
         state.gizmo.setMode('translate');
+        setGizmoAxes(true, true, true);
       } else if(mode === 'casing' && state.casingMarker){
         state.gizmo.attach(state.casingMarker);
         state.gizmo.setMode('translate');
+        setGizmoAxes(true, true, true);
+      } else if(mode === 'model' && state.modelMarker){
+        state.gizmo.attach(state.modelMarker);
+        state.gizmo.setMode('translate');
+        setGizmoAxes(true, true, true);
+      } else if(mode === 'front' && state.modelMarker){
+        state.gizmo.attach(state.modelMarker);
+        state.gizmo.setMode('rotate');
+        setGizmoAxes(false, true, false);
       } else {
         try{ state.gizmo.detach(); }catch(e){}
       }
@@ -850,6 +960,10 @@ window.TankEditor = (function(){
       } else {
         msg = 'PINK = the shell/casing point: where the ejected cartridge (a tiny rigidbody) flies out when firing. Drag it anywhere next to the red fire point.';
       }
+    } else if(state.mode === 'model'){
+      msg = 'PURPLE = the whole model. Drag the arrows to nudge the body/turret (offset), or type offsets below. Use "Face / set front" to spin the model\u2019s facing, then hit Save \u2014 every client gets the same look.';
+    } else if(state.mode === 'front'){
+      msg = 'Drag the gold ring to aim the model\u2019s front (the barrel should point toward +Z, your movement forward). Purple is the model center. Save to apply to all clients.';
     }
     el.textContent = msg;
   }
@@ -882,6 +996,11 @@ window.TankEditor = (function(){
       html += field('casing.x', 'Casing X', v.casing.x, -10, 10);
       html += field('casing.y', 'Casing Y', v.casing.y, -10, 10);
       html += field('casing.z', 'Casing Z (forward)', v.casing.z, -10, 10);
+    } else if(state.mode === 'model' || state.mode === 'front'){
+      html += field('model.yaw', 'Facing Y (deg)', v.model.yaw, -360, 360);
+      html += field('model.x', 'Model offset X', v.model.x, -10, 10);
+      html += field('model.y', 'Model offset Y (height)', v.model.y, -10, 10);
+      html += field('model.z', 'Model offset Z', v.model.z, -10, 10);
     }
     el.innerHTML = html;
     el.querySelectorAll('input').forEach(function(inp){
@@ -937,7 +1056,7 @@ window.TankEditor = (function(){
   function doSave(){
     var id = state.selected;
     var v = state.values;
-    var patch = { body: Object.assign({}, v.body), pivot: Object.assign({}, v.pivot), turret: Object.assign({}, v.turret), shell: Object.assign({}, v.shell), casing: Object.assign({}, v.casing) };
+    var patch = { body: Object.assign({}, v.body), pivot: Object.assign({}, v.pivot), turret: Object.assign({}, v.turret), shell: Object.assign({}, v.shell), casing: Object.assign({}, v.casing), model: Object.assign({}, v.model) };
     setOv(id, patch);
     if(state.tank && state.tank._applyEditorOverrides) state.tank._applyEditorOverrides();
     if(state.tank) applyValuesToScene();
@@ -956,6 +1075,10 @@ window.TankEditor = (function(){
     state.values.turret = { x:0, y:0, z:0 };
     state.values.shell = { x:0, y:0, z:0 };
     state.values.casing = { x:0, y:0, z:0 };
+    var defAnim = !(def && def.playAnims === false);
+    var defOutline = !(def && def.outline === false);
+    var defYaw = (def && def.modelYaw != null) ? def.modelYaw : 0;
+    state.values.model = { x:0, y:0, z:0, yaw:defYaw, anim:defAnim, outline:defOutline };
     pickTank(state.selected);
     toast('"' + state.selected + '" reset to defaults');
   }

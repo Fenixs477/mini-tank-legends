@@ -63,6 +63,8 @@ class Tank {
 
     const _edOv = (window.TANK_EDITOR_OVERRIDES && window.TANK_EDITOR_OVERRIDES[def.id]) || null;
     this._edOv = _edOv;
+    this._modelYaw = (def && def.modelYaw != null) ? def.modelYaw * Math.PI / 180 : 0;
+    this._modelOff = new THREE.Vector3();
     this.colHalfW = def.body.w*0.55;
     this.colHalfL = def.body.l*0.55;
     if(_edOv && _edOv.body){
@@ -139,6 +141,13 @@ class Tank {
     if(ov.shell && this.barrelEnd){
       this.barrelEnd.position.set(ov.shell.x || 0, ov.shell.y || 0, ov.shell.z || 0);
     }
+    if(ov.model && this._syncTransform){
+      const defYaw = (this.def && this.def.modelYaw != null) ? this.def.modelYaw : 0;
+      this._modelYaw = (typeof ov.model.yaw === 'number') ? ov.model.yaw * Math.PI / 180 : defYaw * Math.PI / 180;
+      if(!this._modelOff) this._modelOff = new THREE.Vector3();
+      this._modelOff.set(ov.model.x || 0, ov.model.y || 0, ov.model.z || 0);
+      this._syncTransform();
+    }
   }
 
   /* turretG lives inside turretPivot, so its world position would follow the
@@ -163,24 +172,33 @@ class Tank {
       try{ this._animMixer.stopAllAction(); }catch(e){}
       this._animMixer = null;
     }
+    if(this._edOv && this._edOv.model && this._edOv.model.anim === false) return;
+    if(this.def && this.def.playAnims === false) return;
     const clips = (grp && grp.userData && grp.userData.anims) || null;
     if(!clips || !clips.length) return;
-    let clip = null;
+    const wanted = [];
     const want = (this.def && this.def.fireAnim) || null;
     if(want){
       const lw = String(want).toLowerCase();
       for(let i = 0; i < clips.length; i++){
-        if(clips[i] && clips[i].name && String(clips[i].name).toLowerCase() === lw){ clip = clips[i]; break; }
+        if(clips[i] && clips[i].name && String(clips[i].name).toLowerCase() === lw) wanted.push(clips[i]);
       }
     }
-    if(!clip) clip = clips[0];
-    if(!clip) return;
+    if(!wanted.length){
+      // No specific clip requested: play every clip. A model's firing
+      // animation is often split across several tracks (one per barrel part),
+      // so all of them must run together for the recoil to look right.
+      for(const c of clips){ if(c) wanted.push(c); }
+    }
+    if(!wanted.length) return;
     try{
       const mixer = new THREE.AnimationMixer(this.root);
-      const action = mixer.clipAction(clip);
-      action.setLoop(THREE.LoopRepeat, Infinity);
-      action.clampWhenFinished = true;
-      action.play();
+      for(const clip of wanted){
+        const action = mixer.clipAction(clip);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.clampWhenFinished = true;
+        action.play();
+      }
       this._animMixer = mixer;
     }catch(e){ console.warn('tank anim:', e); this._animMixer = null; }
   }
@@ -269,11 +287,18 @@ class Tank {
     return outline;
   }
 
+  _wantsOutline(){
+    if(this._edOv && this._edOv.model && this._edOv.model.outline === false) return false;
+    if(this.def && this.def.outline === false) return false;
+    return true;
+  }
+
   _addOutline(mesh, group, thickness){
     // Parent the outline INTO the mesh itself (identity local transform) so it
     // inherits the mesh's own rotation — turret-pivot meshes rotate with the
     // turretAngle, and the outline must follow instead of staying fixed as a
     // group sibling.
+    if(!this._wantsOutline()) return;
     const outline = Tank.createOutlineMesh(mesh, thickness);
     outline.position.set(0, 0, 0);
     outline.rotation.set(0, 0, 0);
@@ -292,15 +317,16 @@ class Tank {
 
       // --- Named-group rig: the model carries "hull" / "turret" /
       //     "gun" / "shell" groups so parts are found by name ---
+      const norm = (s) => String(s).toLowerCase().replace(/[\s_]/g, '');
       const findNamed = (root, name) => {
-        const t = String(name).toLowerCase();
+        const t = norm(name);
         let out = null;
-        root.traverse(o => { if(!out && o.name && String(o.name).toLowerCase() === t) out = o; });
+        root.traverse(o => { if(!out && o.name && norm(o.name) === t) out = o; });
         return out;
       };
       const hullG = findNamed(grp, 'hull');
       const turretG = findNamed(grp, 'turret');
-      const shellG = findNamed(grp, 'shell') || findNamed(grp, 'gun');
+      const shellG = findNamed(grp, 'shell') || findNamed(grp, 'shell_ejection') || findNamed(grp, 'gun');
       if(hullG && turretG && hullG !== turretG){
         this._attachNamedModel(grp, hullG, turretG, shellG, scale);
         return;
@@ -308,18 +334,14 @@ class Tank {
 
       // --- Named-empty rig: models like ghost.glb carry "firing" (muzzle),
       //     "shell_ejection" (casing port) and "attachment" (cosmetic, unused)
-      //     empties instead of hull/turret groups. Align the whole model so the
-      //     barrel faces the game's +Z forward, then wire muzzle + shell markers.
+      //     empties instead of hull/turret groups. The model is used as
+      //     authored (front = +Z); the Tank Editor can fix the facing via a
+      //     saved modelYaw override. Wire muzzle + shell markers below.
       const firingG = findNamed(grp, 'firing');
       const ejectG = findNamed(grp, 'shell_ejection') || findNamed(grp, 'shell');
-      if(firingG){
-        grp.updateMatrixWorld(true);
-        const fp = new THREE.Vector3();
-        firingG.getWorldPosition(fp);
-        // Rotate about Y so the firing azimuth sweeps to +Z (game forward).
-        grp.rotation.y = -Math.atan2(fp.x, fp.z);
-        grp.updateMatrixWorld(true);
-      }
+      // The model is authored with its front/barrel facing +Z. Do not rotate
+      // the whole model here: authors can fix the facing from the Tank
+      // Editor's "Model front" mode (saved as a modelYaw override).
       // Center the model on its x/z bounds so the tank pivot sits at the
       // geometric center (the game steers about its origin), and rest the
       // lowest point on the ground plane.
@@ -449,7 +471,7 @@ class Tank {
       turretG.children.slice().forEach(ch => flipT.add(ch));
       turretG.add(flipT);
       flippedTurret = true;
-    } else if(shellG){
+    } else if(shellG && this.def.modelAutoFlip !== false){
       grp.updateMatrixWorld(true);
       const p = new THREE.Vector3();
       shellG.getWorldPosition(p);
@@ -1131,14 +1153,17 @@ class Tank {
       } catch(e){}
     }
     this.root.position.set(this.x, 0, this.z);
-    this.bodyGroup.rotation.y = this.heading;
+    const myaw = this._modelYaw || 0;
+    const mo = this._modelOff || (this._modelOff = new THREE.Vector3());
+    this.bodyGroup.rotation.y = this.heading + myaw;
+    this.bodyGroup.position.set(mo.x, mo.y, mo.z);
     if(this._modelTurretPivot){
-      this.turretGroup.rotation.y = 0;
-      this.turretGroup.position.y = 0;
+      this.turretGroup.rotation.y = myaw;
+      this.turretGroup.position.set(mo.x, mo.y, mo.z);
       this._modelTurretPivot.rotation.y = this.turretAngle;
     } else {
-      this.turretGroup.rotation.y = this.turretAngle;
-      this.turretGroup.position.y = this.def.body.h + 0.45;
+      this.turretGroup.rotation.y = this.turretAngle + myaw;
+      this.turretGroup.position.set(mo.x, this.def.body.h + 0.45 + mo.y, mo.z);
     }
     if(this.drifting){
       this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, -0.18, 0.25);
