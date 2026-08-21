@@ -3127,6 +3127,7 @@ _gladZoneNotice(text){
     this.trailManager.update(dt, this.camera);
 
 // Camera (orbits around tank; auto mode locks behind hull front; in
+    if(window.Menu){ Menu._platoonReturn = false; Menu.show('menu-main'); }
     // spectator mode we follow the watched tank instead of the dead local one)
     if(this.isSpectator){
       this._updateSpectatorCamera(dt);

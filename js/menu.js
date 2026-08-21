@@ -630,6 +630,8 @@ const Menu = {
 
     // platoon button
     const platoonBtn = document.getElementById('btn-platoon');
+    if(platoonBtn) platoonBtn.onclick = ()=>{ Audio.click(); this.show('menu-platoon'); };
+    const platoonBtn = document.getElementById('btn-platoon');
     if(platoonBtn) platoonBtn.onclick = ()=>{
       Audio.click();
       this.show('menu-platoon');
